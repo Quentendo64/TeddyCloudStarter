@@ -23,6 +23,10 @@ echo "Setting up certificates for $DOMAIN_NAME with email $LETSENCRYPT_MAIL"
 mkdir -p ./data/certbot/conf/live/$DOMAIN_NAME
 mkdir -p ./data/certbot/www
 
+echo "Generating nginx configuration..."
+cp nginx.conf.template nginx.conf
+sed -i "s/example.com/$DOMAIN_NAME/g" nginx.conf
+
 echo "Creating temporary self-signed certificate..."
 # Create temporary self-signed certificate
 docker compose run --rm --entrypoint "/bin/sh" certbot -c "mkdir -p /etc/letsencrypt/live/$DOMAIN_NAME && openssl req -x509 -nodes -newkey rsa:4096 -days 1 -keyout /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem -out /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem -subj '/CN=$DOMAIN_NAME'"
