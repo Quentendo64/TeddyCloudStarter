@@ -27,22 +27,27 @@ echo "Creating temporary self-signed certificate..."
 # Create temporary self-signed certificate
 docker compose run --rm --entrypoint "/bin/sh" certbot -c "mkdir -p /etc/letsencrypt/live/$DOMAIN_NAME && openssl req -x509 -nodes -newkey rsa:4096 -days 1 -keyout /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem -out /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem -subj '/CN=$DOMAIN_NAME'"
 
-# Start nginx
-echo "Starting Nginx..."
-docker compose up -d nginx
+# Start nginx with self-signed cert
+echo "Starting Services..."
+docker compose up -d
+
+echo "Removing temporary self-signed certificate..."
+# Remove temporary self-signed certificate
+docker compose exec -it certbot rm -rf /etc/letsencrypt/live/$DOMAIN_NAME
 
 echo "Requesting Let's Encrypt certificate for $DOMAIN_NAME..."
 # Request proper certificates
-docker compose exec certbot certbot certonly \
-  --webroot /var/www/certbot \
+docker compose exec -it certbot certbot certonly \
+  --webroot \
+  --webroot-path=/var/www/certbot \
   --email $LETSENCRYPT_MAIL \
   --domain $DOMAIN_NAME \
   --rsa-key-size 4096 \
   --agree-tos \
-  --force-renewal \
-  --non-interactive
+  --verbose \
+  --non-interactive \
 
 echo "Restarting Nginx with new certificates..."
-docker compose restart nginx
+docker compose restart nginx certbot
 
 echo "Certificate setup complete! You can now start the services with 'docker compose up -d'"
