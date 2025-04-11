@@ -2,3 +2,4 @@
 data/
 htpasswd
 docker-compose.override.yml
+nginx.conf
