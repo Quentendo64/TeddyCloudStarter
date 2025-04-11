@@ -1,0 +1,4 @@
+.env
+data/
+htpasswd
+docker-compose.override.yml

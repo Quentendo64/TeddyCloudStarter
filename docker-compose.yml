@@ -1,0 +1,60 @@
+services:
+  # Nginx - Reverse proxy and SSL termination
+  nginx:
+    container_name: nginx
+    hostname: ${DOMAIN_NAME}  # Important: Used for SSL certificate matching
+    image: nginx
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    env_file:
+      - .env
+    depends_on:
+      - teddycloud
+    volumes:
+      - certs:/teddycloud/certs
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - ./htpasswd:/etc/nginx/htpasswd
+    ports:
+      - 80:80
+      - 443:443
+    restart: unless-stopped
+
+  # TeddyCloud - Main application server
+  teddycloud:
+    container_name: teddycloud
+    hostname: teddycloud
+    env_file:
+      - .env
+    image: ghcr.io/toniebox-reverse-engineering/teddycloud:latest
+    volumes:
+      - certs:/teddycloud/certs # SSL certificates
+      - config:/teddycloud/config # configuration files
+      - content:/teddycloud/data/content #toniebox content storage
+      - library:/teddycloud/data/library #toniebox library storage
+      - custom_img:/teddycloud/data/www/custom_img #custom images for content
+      - firmware:/teddycloud/data/firmware #toniebox firmware storage
+      - cache:/teddycloud/data/cache #toniebox cache storage
+    restart: unless-stopped
+
+  # Certbot - Automatic SSL certificate management
+  certbot:
+    image: certbot/certbot
+    # Renews certificates every 12 hours if needed
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    env_file:
+      - .env
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    restart: unless-stopped
+
+# Persistent storage volumes
+volumes:
+  certs:      # SSL/TLS certificates
+  config:     # TeddyCloud configuration
+  content:    # Toniebox content storage
+  library:    # Toniebox library storage
+  custom_img: # Custom images for content
+  firmware:   # Toniebox firmware storage
+  cache:      # Toniebox cache storage
