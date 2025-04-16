@@ -10,11 +10,10 @@ services:
     depends_on:
       - teddycloud
     volumes:
-      - certs:/teddycloud/certs
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-      - ./htpasswd:/etc/nginx/htpasswd
+      - certs:/teddycloud/certs:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/certbot/conf:/etc/letsencrypt:ro
+      - ./data/certbot/www:/var/www/certbot:ro
     ports:
       - 80:80
       - 443:443
