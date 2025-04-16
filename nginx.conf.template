@@ -59,6 +59,7 @@ http {
 
         location / {
             client_max_body_size 4096M;
+            ##BYPASS_AUTH_IPS##
             ##AUTH##
             add_header X-Frame-Options "SAMEORIGIN" always;
             add_header X-Content-Type-Options "nosniff" always;
@@ -84,6 +85,7 @@ http {
         }
 
         location /nginx_status {            
+            ##BYPASS_AUTH_IPS##
             ##AUTH##
             stub_status on;
         }

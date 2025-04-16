@@ -81,6 +81,7 @@ echo "INFO: docker-compose.override.yml has been updated."
 if [ -f ./htpasswd ]; then
   echo "INFO: 'htpasswd' file found. Enabling basic authentication in the nginx configuration."
   sed -i "s/##AUTH##/auth_basic \"Restricted Content\";\nauth_basic_user_file \/etc\/nginx\/htpasswd;/g" nginx.conf
+  echo "INFO: Basic authentication has been enabled."
 else
   echo "WARNING: 'htpasswd' file was not found."
   echo "This will expose your services to the public without any authentication."
@@ -94,6 +95,21 @@ else
   echo "INFO: Proceeding without authentication as confirmed by the user."
   sed -i "s/##AUTH##//g" nginx.conf
 fi
+
+# Configure allowed IPs for bypassing basic authentication
+if [ -n "$BYPASS_AUTH_IPS" ]; then
+  echo "INFO: Configuring allowed IPs to bypass basic authentication: $BYPASS_AUTH_IPS"
+  escaped_ips=$(echo "$BYPASS_AUTH_IPS" | sed 's/,/;\nallow /g')
+  sed -i "s|##BYPASS_AUTH_IPS##|satisfy any;\nallow $escaped_ips;\ndeny all;|g" nginx.conf
+else
+  echo "INFO: No IPs configured to bypass basic authentication. Defaulting to authenticate all."
+  sed -i "s|##BYPASS_AUTH_IPS##||g" nginx.conf
+fi
+  echo "INFO: Basic authentication has been configured."
+  echo "INFO: The following IPs are allowed to bypass authentication: $BYPASS_AUTH_IPS"
+  echo "INFO: All other IPs will be prompted for authentication."
+
+
 
 if [ -n "$ALLOWED_IPS_WEB" ]; then
   echo "INFO: IP filtering for Webinterface is enabled. Only the following IPs will be allowed to access the webinterface: $ALLOWED_IPS_WEB"
@@ -112,6 +128,7 @@ else
   echo "INFO: IP filtering for Backend is disabled. All IPs will be allowed."
   sed -i "s/##ALLOWED_IPS_BACKEND##//g" nginx.conf
 fi
+
 
 
 echo "Creating temporary self-signed certificate..."

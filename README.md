@@ -38,6 +38,9 @@ https://github.com/toniebox-reverse-engineering
    # Optional: Restrict access to specific IPs. Leave empty to disable 
    ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2 192.168.1.3"  # Space-separated list of allowed IPs for the web interface. If backend filtering is enabled the IPs from _WEB needs to be in _BACKEND as well.
    ALLOWED_IPS_BACKEND="192.168.1.1 192.168.1.2 192.168.1.3 10.0.0.1 10.0.0.2" # Space-separated list of allowed IPs for the backend
+
+   # Optional: Bypass authentication for specific IPs
+   BYPASS_AUTH_IPS="192.168.1.100 192.168.1.101"  # Space-separated list of IPs that bypass authentication
    ```
 
 4. Create an htpasswd file for authentication:
@@ -121,10 +124,11 @@ To connect your Toniebox to your TeddyCloud server:
 To ensure your TeddyCloud setup is secure, follow these recommendations:
 
 1. **Use Strong Passwords**: When creating the `htpasswd` file, use a strong and unique password for authentication.
-2. **Restrict Access**: Limit access to your TeddyCloud server by using the `ALLOWED_IPS_WEB` and `ALLOWED_IPS_BACKEND` environment variables to specify trusted IPs. For example:
+2. **Restrict Access**: Limit access to your TeddyCloud server by using the `ALLOWED_IPS_WEB`, `ALLOWED_IPS_BACKEND`, and `BYPASS_AUTH_IPS` environment variables to specify trusted IPs. For example:
    ```bash
    ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2"
    ALLOWED_IPS_BACKEND="10.0.0.1 10.0.0.2"
+   BYPASS_AUTH_IPS="192.168.1.100"
    ```
 3. **Keep Software Updated**: Regularly update Docker, Docker Compose, and TeddyCloud to the latest versions to patch vulnerabilities.
 4. **Enable Automatic Certificate Renewal**: Certbot automatically renews certificates, but ensure the renewal process is working by testing it periodically.
