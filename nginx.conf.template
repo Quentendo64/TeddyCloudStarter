@@ -46,6 +46,7 @@ http {
     server {
         listen 9443 ssl;
         server_name example.com;
+        ##ALLOWED_IPS_WEB##
         ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem; 
         ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem; 
         ssl_protocols TLSv1.2 TLSv1.3;
@@ -79,14 +80,13 @@ http {
             proxy_buffer_size 16k;
             proxy_buffers 8 16k;
             proxy_busy_buffers_size 32k;
-
-
             proxy_pass http://teddycloud:80;
         }
+
         location /nginx_status {            
             ##AUTH##
             stub_status on;
-}
+        }
     }
 }
 
@@ -125,6 +125,7 @@ stream {
     server {
         listen 443;
         ssl_preread on;  # Needed to access $ssl_preread_server_name
+        ##ALLOWED_IPS_BACKEND##
         proxy_pass $final_upstream;
         proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
         proxy_timeout 30s;

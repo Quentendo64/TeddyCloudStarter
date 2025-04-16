@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+  echo "ERROR: Docker is not installed. Please install Docker and try again."
+  exit 1
+fi
+
+# Check if Docker Compose is installed
+if ! command -v docker compose &> /dev/null; then
+  echo "ERROR: Docker Compose is not installed. Please install Docker Compose and try again."
+  exit 1
+fi
+
 # Confirm overwriting nginx.conf
 if [ -f nginx.conf ]; then
   echo "WARNING: The file 'nginx.conf' already exists and will be overwritten during runtime."
@@ -22,15 +34,15 @@ else
 fi
 
 # Validate environment variables
-if [ -z "$DOMAIN_NAME" ]; then
-  echo "ERROR: The 'DOMAIN_NAME' environment variable is not set in the '.env' file."
-  echo "Please set it and try again."
+if [[ -z "$DOMAIN_NAME" || "$DOMAIN_NAME" =~ [^a-zA-Z0-9.-] ]]; then
+  echo "ERROR: The 'DOMAIN_NAME' environment variable is invalid or not set in the '.env' file."
+  echo "Please set it to a valid domain name and try again."
   exit 1
 fi
 
-if [ -z "$LETSENCRYPT_MAIL" ]; then
-  echo "ERROR: The 'LETSENCRYPT_MAIL' environment variable is not set in the '.env' file."
-  echo "Please set it and try again."
+if [[ -z "$LETSENCRYPT_MAIL" || ! "$LETSENCRYPT_MAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+  echo "ERROR: The 'LETSENCRYPT_MAIL' environment variable is invalid or not set in the '.env' file."
+  echo "Please set it to a valid email address and try again."
   exit 1
 fi
 
@@ -62,9 +74,30 @@ else
   sed -i "s/##AUTH##//g" nginx.conf
 fi
 
+if [ -n "$ALLOWED_IPS_WEB" ]; then
+  echo "INFO: IP filtering for Webinterface is enabled. Only the following IPs will be allowed to access the webinterface: $ALLOWED_IPS_WEB"
+  escaped_ips_web=$(echo "$ALLOWED_IPS_WEB" | sed 's/[&/\]/\\&/g')
+  sed -i "s/##ALLOWED_IPS_WEB##/allow $escaped_ips_web;\ndeny all;/g" nginx.conf
+else
+  echo "INFO: IP filtering for Webinterfaceis disabled. All IPs will be allowed."
+  sed -i "s/##ALLOWED_IPS_WEB##//g" nginx.conf
+fi
+
+if [ -n "$ALLOWED_IPS_BACKEND" ]; then
+  echo "INFO: IP filtering for Backend is enabled. Only the following IPs will be allowed to access the backend: $ALLOWED_IPS_BACKEND"
+  escaped_ips_backend=$(echo "$ALLOWED_IPS_BACKEND" | sed 's/[&/\]/\\&/g')
+  sed -i "s/##ALLOWED_IPS_BACKEND##/allow $escaped_ips_backend;\ndeny all;/g" nginx.conf
+else
+  echo "INFO: IP filtering for Backend is disabled. All IPs will be allowed."
+  sed -i "s/##ALLOWED_IPS_BACKEND##//g" nginx.conf
+fi
+
 echo "Creating temporary self-signed certificate..."
 # Create temporary self-signed certificate
-docker compose run --rm --entrypoint "/bin/sh" certbot -c "mkdir -p /etc/letsencrypt/live/$DOMAIN_NAME && openssl req -x509 -nodes -newkey rsa:4096 -days 1 -keyout /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem -out /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem -subj '/CN=$DOMAIN_NAME'"
+if ! docker compose run --rm --entrypoint "/bin/sh" certbot -c "mkdir -p /etc/letsencrypt/live/$DOMAIN_NAME && openssl req -x509 -nodes -newkey rsa:4096 -days 1 -keyout /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem -out /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem -subj '/CN=$DOMAIN_NAME'"; then
+  echo "ERROR: Failed to create a temporary self-signed certificate."
+  exit 1
+fi
 
 # Start nginx with self-signed cert
 echo "Starting Services..."
@@ -89,4 +122,4 @@ docker compose exec -it certbot certbot certonly \
 echo "Restarting Nginx with new certificates..."
 docker compose restart nginx certbot
 
-echo "Certificate setup complete! You can now start the services with 'docker compose up -d'"
+echo "Certificate setup complete! You can now browse to https://$DOMAIN_NAME/"

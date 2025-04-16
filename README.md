@@ -30,10 +30,14 @@ https://github.com/toniebox-reverse-engineering
    cp .env.example .env
    ```
 
-3. Edit the .env file with your actual domain and email:
+3. Edit the .env file with your actual domain, email, and optional IP filtering:
    ```bash
    DOMAIN_NAME=yourdomain.com
    LETSENCRYPT_MAIL=your-email@example.com
+
+   # Optional: Restrict access to specific IPs. Leave empty to disable 
+   ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2 192.168.1.3"  # Space-separated list of allowed IPs for the web interface
+   ALLOWED_IPS_BACKEND="10.0.0.1 10.0.0.2"               # Space-separated list of allowed IPs for the backend
    ```
 
 4. Create an htpasswd file for authentication:
@@ -117,7 +121,11 @@ To connect your Toniebox to your TeddyCloud server:
 To ensure your TeddyCloud setup is secure, follow these recommendations:
 
 1. **Use Strong Passwords**: When creating the `htpasswd` file, use a strong and unique password for authentication.
-2. **Restrict Access**: Limit access to your TeddyCloud server by using firewall rules to allow only trusted IPs.
+2. **Restrict Access**: Limit access to your TeddyCloud server by using the `ALLOWED_IPS_WEB` and `ALLOWED_IPS_BACKEND` environment variables to specify trusted IPs. For example:
+   ```bash
+   ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2"
+   ALLOWED_IPS_BACKEND="10.0.0.1 10.0.0.2"
+   ```
 3. **Keep Software Updated**: Regularly update Docker, Docker Compose, and TeddyCloud to the latest versions to patch vulnerabilities.
 4. **Enable Automatic Certificate Renewal**: Certbot automatically renews certificates, but ensure the renewal process is working by testing it periodically.
 5. **Monitor Logs**: Regularly review logs for suspicious activity using:
