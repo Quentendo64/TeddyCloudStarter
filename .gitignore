@@ -1,5 +1,8 @@
 .env
 data/
+backup/
 htpasswd
 docker-compose.override.yml
 nginx.conf
+CA.crt
+*.temp
