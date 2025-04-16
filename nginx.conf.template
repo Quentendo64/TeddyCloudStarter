@@ -62,6 +62,7 @@ http {
         ssl_session_cache shared:SSL:10m;
         ssl_session_timeout 1d;
         ssl_session_tickets off;
+
         location / {
             client_max_body_size 4096M;
             ##BYPASS_AUTH_IPS##
