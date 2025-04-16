@@ -36,8 +36,8 @@ https://github.com/toniebox-reverse-engineering
    LETSENCRYPT_MAIL=your-email@example.com
 
    # Optional: Restrict access to specific IPs. Leave empty to disable 
-   ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2 192.168.1.3"  # Space-separated list of allowed IPs for the web interface
-   ALLOWED_IPS_BACKEND="10.0.0.1 10.0.0.2"               # Space-separated list of allowed IPs for the backend
+   ALLOWED_IPS_WEB="192.168.1.1 192.168.1.2 192.168.1.3"  # Space-separated list of allowed IPs for the web interface. If backend filtering is enabled the IPs from _WEB needs to be in _BACKEND as well.
+   ALLOWED_IPS_BACKEND="192.168.1.1 192.168.1.2 192.168.1.3 10.0.0.1 10.0.0.2" # Space-separated list of allowed IPs for the backend
    ```
 
 4. Create an htpasswd file for authentication:
