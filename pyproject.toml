@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=77.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "TeddyCloudStarter"
+dynamic = ["version"]
+description = "The wizard for setting up TeddyCloud with Docker"
+readme = "README.md"
+authors = [
+    {name = "Quentendo64", email = "quentin@wohlfeil.at"}
+]
+license = "GPL-3.0-or-later"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: System :: Installation/Setup",
+    "Topic :: System :: Systems Administration"
+]
+dependencies = [
+    "rich>=10.0.0",
+    "questionary>=1.10.0",
+    "jinja2>=2.11.0",
+]
+requires-python = ">=3.6"
+
+[project.urls]
+Homepage = "https://github.com/Quentendo64/TeddyCloudStarter"
+"Bug Tracker" = "https://github.com/Quentendo64/TeddyCloudStarter/issues"
+
+[project.scripts]
+TeddyCloudStarter = "TeddyCloudStarter.main:main"
+
+# Add package discovery to include all packages and subpackages
+[tool.setuptools.packages.find]
+include = ["TeddyCloudStarter*"]  # This will include all TeddyCloudStarter packages and subpackages
+
+# Explicitly include package data to handle localization files
+[tool.setuptools.package-data]
+"TeddyCloudStarter.locales.de.LC_MESSAGES" = ["*.mo", "*.po"]

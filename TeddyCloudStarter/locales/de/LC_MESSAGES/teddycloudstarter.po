@@ -1,0 +1,617 @@
+# German translations for TeddyCloudStarter
+# This file is distributed under the same license as the TeddyCloudStarter package.
+msgid ""
+msgstr ""
+"Project-Id-Version: TeddyCloudStarter 1.0.0\n"
+"POT-Creation-Date: 2025-04-22 12:00+0200\n"
+"PO-Revision-Date: 2025-04-22 12:00+0200\n"
+"Last-Translator: TeddyCloud Team\n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Select language / Sprache wählen:"
+msgstr "Sprache wählen / Select language:"
+
+msgid "What would you like to do?"
+msgstr "Was möchten Sie tun?"
+
+msgid "Modify configuration"
+msgstr "Konfiguration ändern"
+
+msgid "Backup configuration"
+msgstr "Konfiguration sichern"
+
+msgid "Delete configuration and start over"
+msgstr "Konfiguration löschen und neu beginnen"
+
+msgid "Restart Docker services"
+msgstr "Docker-Dienste neustarten"
+
+msgid "Exit"
+msgstr "Beenden"
+
+msgid "Configuration saved to {}"
+msgstr "Konfiguration gespeichert in {}"
+
+msgid "Backup created at {}"
+msgstr "Sicherung erstellt in {}"
+
+msgid "Configuration file {} deleted"
+msgstr "Konfigurationsdatei {} gelöscht"
+
+msgid "Docker is not available."
+msgstr "Docker ist nicht verfügbar."
+
+msgid "Restarting Docker services..."
+msgstr "Docker-Dienste werden neugestartet..."
+
+msgid "Services restarted successfully."
+msgstr "Dienste wurden erfolgreich neugestartet."
+
+msgid "Error restarting services: {}"
+msgstr "Fehler beim Neustarten der Dienste: {}"
+
+msgid "Are you sure you want to delete the configuration and start over?"
+msgstr "Sind Sie sicher, dass Sie die Konfiguration löschen und neu beginnen möchten?"
+
+msgid "How would you like to deploy TeddyCloud?"
+msgstr "Wie möchten Sie TeddyCloud bereitstellen?"
+
+msgid "Direct (For internal networks)"
+msgstr "Direkt (Für interne Netzwerke)"
+
+msgid "With Nginx (For internet-facing deployments)"
+msgstr "Mit Nginx (Für Internet-zugewandte Bereitstellungen)"
+
+msgid "Would you like to expose the TeddyCloud Admin Web Interface on HTTP (port 80)?"
+msgstr "Möchten Sie die TeddyCloud Admin Weboberfläche über HTTP (Port 80) zugänglich machen?"
+
+msgid "Warning: Port 80 appears to be in use."
+msgstr "Warnung: Port 80 scheint bereits verwendet zu werden."
+
+msgid "Would you like to specify a different port?"
+msgstr "Möchten Sie einen anderen Port angeben?"
+
+msgid "Enter HTTP port:"
+msgstr "HTTP-Port eingeben:"
+
+msgid "Would you like to expose the TeddyCloud Admin Web Interface on HTTPS (port 8443)?"
+msgstr "Möchten Sie die TeddyCloud Admin Weboberfläche über HTTPS (Port 8443) zugänglich machen?"
+
+msgid "Warning: Port 8443 appears to be in use."
+msgstr "Warnung: Port 8443 scheint bereits verwendet zu werden."
+
+msgid "Warning: Port 443 appears to be in use."
+msgstr "Warnung: Port 443 scheint bereits verwendet zu werden."
+
+msgid "Would you like to specify a different port for TeddyCloud backend (normally 443)?"
+msgstr "Möchten Sie einen anderen Port für das TeddyCloud-Backend angeben (normalerweise 443)?"
+
+msgid "Enter TeddyCloud backend port:"
+msgstr "TeddyCloud-Backend-Port eingeben:"
+
+msgid "Warning: You have not exposed any ports for the admin interface."
+msgstr "Warnung: Sie haben keine Ports für die Administrationsoberfläche freigegeben."
+
+msgid "Are you sure you want to continue without access to the admin interface?"
+msgstr "Sind Sie sicher, dass Sie ohne Zugriff auf die Administrationsoberfläche fortfahren möchten?"
+
+msgid "Warning: Port 80 appears to be in use. This is required for Nginx."
+msgstr "Warnung: Port 80 scheint bereits verwendet zu werden. Dieser wird für Nginx benötigt."
+
+msgid "Warning: Port 443 appears to be in use. This is required for Nginx."
+msgstr "Warnung: Port 443 scheint bereits verwendet zu werden. Dieser wird für Nginx benötigt."
+
+msgid "Do you want to continue anyway?"
+msgstr "Möchten Sie trotzdem fortfahren?"
+
+msgid "Enter the domain name for your TeddyCloud instance:"
+msgstr "Geben Sie den Domainnamen für Ihre TeddyCloud-Instanz ein:"
+
+msgid "How would you like to handle HTTPS?"
+msgstr "Wie möchten Sie HTTPS handhaben?"
+
+msgid "Let's Encrypt (automatic certificates)"
+msgstr "Let's Encrypt (automatische Zertifikate)"
+
+msgid "Custom certificates (provide your own)"
+msgstr "Eigene Zertifikate (selbst bereitstellen)"
+
+msgid "Let's Encrypt Requirements"
+msgstr "Let's Encrypt Anforderungen"
+
+msgid "To use Let's Encrypt, you need:"
+msgstr "Um Let's Encrypt zu verwenden, benötigen Sie:"
+
+msgid "1. A public domain name pointing to this server"
+msgstr "1. Einen öffentlichen Domainnamen, der auf diesen Server zeigt"
+
+msgid "2. Public internet access on ports 80 and 443"
+msgstr "2. Öffentlichen Internetzugriff auf die Ports 80 und 443"
+
+msgid "3. This server must be reachable from the internet"
+msgstr "3. Dieser Server muss vom Internet aus erreichbar sein"
+
+msgid "Do you meet these requirements?"
+msgstr "Erfüllen Sie diese Anforderungen?"
+
+msgid "Would you like to test if Let's Encrypt can issue a certificate for your domain?"
+msgstr "Möchten Sie testen, ob Let's Encrypt ein Zertifikat für Ihre Domain ausstellen kann?"
+
+msgid "Requesting Let's Encrypt certificate in staging mode..."
+msgstr "Let's Encrypt-Zertifikat wird im Staging-Modus angefordert..."
+
+msgid "Certificate request test was successful!"
+msgstr "Zertifikatsanforderungstest war erfolgreich!"
+
+msgid "Certificate request failed: {}"
+msgstr "Zertifikatsanforderung fehlgeschlagen: {}"
+
+msgid "Error requesting certificate: {}"
+msgstr "Fehler bei der Anforderung des Zertifikats: {}"
+
+msgid "Switching to custom certificates mode..."
+msgstr "Wechsel zum Modus für eigene Zertifikate..."
+
+msgid "Custom Certificate Instructions"
+msgstr "Anleitung für eigene Zertifikate"
+
+msgid "You will need to provide your own SSL certificates."
+msgstr "Sie müssen Ihre eigenen SSL-Zertifikate bereitstellen."
+
+msgid "1. Create a directory: ./certs"
+msgstr "1. Erstellen Sie ein Verzeichnis: ./certs"
+
+msgid "2. Place your certificate as: ./certs/server.crt"
+msgstr "2. Platzieren Sie Ihr Zertifikat als: ./certs/server.crt"
+
+msgid "3. Place your private key as: ./certs/server.key"
+msgstr "3. Platzieren Sie Ihren privaten Schlüssel als: ./certs/server.key"
+
+msgid "Certificates not found."
+msgstr "Zertifikate nicht gefunden."
+
+msgid "I'll provide the certificates later"
+msgstr "Ich stelle die Zertifikate später bereit"
+
+msgid "Check again for certificates"
+msgstr "Erneut nach Zertifikaten suchen"
+
+msgid "Switch to Let's Encrypt"
+msgstr "Zu Let's Encrypt wechseln"
+
+msgid "Certificates found!"
+msgstr "Zertifikate gefunden!"
+
+msgid "How would you like to secure your TeddyCloud instance?"
+msgstr "Wie möchten Sie Ihre TeddyCloud-Instanz absichern?"
+
+msgid "No additional security"
+msgstr "Keine zusätzliche Sicherheit"
+
+msgid "Basic Authentication (.htpasswd)"
+msgstr "Basis-Authentifizierung (.htpasswd)"
+
+msgid "Client Certificates"
+msgstr "Client-Zertifikate"
+
+msgid "Basic Authentication Instructions"
+msgstr "Anleitung zur Basis-Authentifizierung"
+
+msgid "You will need to create an .htpasswd file:"
+msgstr "Sie müssen eine .htpasswd-Datei erstellen:"
+
+msgid "1. Create a directory: ./data"
+msgstr "1. Erstellen Sie ein Verzeichnis: ./data"
+
+msgid "2. Create the file: ./data/htpasswd"
+msgstr "2. Erstellen Sie die Datei: ./data/htpasswd"
+
+msgid "You can generate this file using htpasswd utility or online generators."
+msgstr "Sie können diese Datei mit dem htpasswd-Dienstprogramm oder Online-Generatoren erstellen."
+
+msgid "How would you like to handle client certificates?"
+msgstr "Wie möchten Sie Client-Zertifikate handhaben?"
+
+msgid "I'll provide my own certificates"
+msgstr "Ich stelle meine eigenen Zertifikate bereit"
+
+msgid "Generate certificates for me"
+msgstr "Zertifikate für mich generieren"
+
+msgid "Client Certificate Instructions"
+msgstr "Anleitung für Client-Zertifikate"
+
+msgid "You will need to provide your own client certificates:"
+msgstr "Sie müssen Ihre eigenen Client-Zertifikate bereitstellen:"
+
+msgid "1. Place your CA certificate as: ./data/client_certs/ca.crt"
+msgstr "1. Platzieren Sie Ihr CA-Zertifikat als: ./data/client_certs/ca.crt"
+
+msgid "2. Place your server certificate as: ./data/client_certs/server.crt"
+msgstr "2. Platzieren Sie Ihr Server-Zertifikat als: ./data/client_certs/server.crt"
+
+msgid "3. Place your server key as: ./data/client_certs/server.key"
+msgstr "3. Platzieren Sie Ihren Server-Schlüssel als: ./data/client_certs/server.key"
+
+msgid "Client certificates not found."
+msgstr "Client-Zertifikate nicht gefunden."
+
+msgid "Would you like to restrict access by IP address?"
+msgstr "Möchten Sie den Zugriff durch IP-Adresse einschränken?"
+
+msgid "Enter the IP addresses to allow (empty line to finish):"
+msgstr "Geben Sie die zulässigen IP-Adressen ein (leere Zeile zum Beenden):"
+
+msgid "You can use individual IPs (e.g., 192.168.1.10) or CIDR notation (e.g., 192.168.1.0/24)"
+msgstr "Sie können einzelne IPs (z.B. 192.168.1.10) oder CIDR-Notation (z.B. 192.168.1.0/24) verwenden"
+
+msgid "IP address or CIDR"
+msgstr "IP-Adresse oder CIDR"
+
+msgid "Added: {}"
+msgstr "Hinzugefügt: {}"
+
+msgid "Invalid IP address or CIDR: {}"
+msgstr "Ungültige IP-Adresse oder CIDR: {}"
+
+msgid "Generating client certificates..."
+msgstr "Client-Zertifikate werden generiert..."
+
+msgid "Client certificates generated successfully!"
+msgstr "Client-Zertifikate wurden erfolgreich generiert!"
+
+msgid "The following files have been created:"
+msgstr "Die folgenden Dateien wurden erstellt:"
+
+msgid "- {}/ca.crt: The CA certificate"
+msgstr "- {}/ca.crt: Das CA-Zertifikat"
+
+msgid "- {}/server.crt and server.key: Server certificates"
+msgstr "- {}/server.crt und server.key: Server-Zertifikate"
+
+msgid "- {}/client.crt and client.key: Client certificates"
+msgstr "- {}/client.crt und client.key: Client-Zertifikate"
+
+msgid "- {}/client.p12: Client certificate bundle (password: teddycloud)"
+msgstr "- {}/client.p12: Client-Zertifikatspaket (Passwort: teddycloud)"
+
+msgid "Install the client.p12 file on devices that need to access TeddyCloud."
+msgstr "Installieren Sie die client.p12-Datei auf Geräten, die auf TeddyCloud zugreifen müssen."
+
+msgid "Error generating certificates: {}"
+msgstr "Fehler beim Generieren der Zertifikate: {}"
+
+msgid "OpenSSL is not available on your system."
+msgstr "OpenSSL ist auf Ihrem System nicht verfügbar."
+
+msgid "Setup complete!"
+msgstr "Setup abgeschlossen!"
+
+msgid "Would you like to start the Docker services now?"
+msgstr "Möchten Sie die Docker-Dienste jetzt starten?"
+
+msgid "Configuration complete!"
+msgstr "Konfiguration abgeschlossen!"
+
+msgid "Current Configuration"
+msgstr "Aktuelle Konfiguration"
+
+msgid "Setting"
+msgstr "Einstellung"
+
+msgid "Value"
+msgstr "Wert"
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Port: {}"
+msgstr "Port: {}"
+
+msgid "Domain"
+msgstr "Domain"
+
+msgid "HTTPS Mode"
+msgstr "HTTPS-Modus"
+
+msgid "Security Type"
+msgstr "Sicherheitstyp"
+
+msgid "Allowed IPs"
+msgstr "Erlaubte IPs"
+
+msgid "Docker Compose configuration generated successfully."
+msgstr "Docker Compose-Konfiguration erfolgreich generiert."
+
+msgid "Error generating Docker Compose file: {}"
+msgstr "Fehler beim Generieren der Docker Compose-Datei: {}"
+
+msgid "Nginx configurations generated successfully."
+msgstr "Nginx-Konfigurationen erfolgreich generiert."
+
+msgid "Error generating Nginx configurations: {}"
+msgstr "Fehler beim Generieren der Nginx-Konfigurationen: {}"
+
+msgid ".env file generated successfully."
+msgstr ".env-Datei erfolgreich generiert."
+
+msgid "Error generating .env file: {}"
+msgstr "Fehler beim Generieren der .env-Datei: {}"
+
+msgid "How would you like to handle the .htpasswd file?"
+msgstr "Wie möchten Sie die .htpasswd-Datei handhaben?"
+
+msgid "I'll provide my own .htpasswd file"
+msgstr "Ich stelle meine eigene .htpasswd-Datei bereit"
+
+msgid "Generate .htpasswd file with the wizard"
+msgstr ".htpasswd-Datei mit dem Assistenten erstellen"
+
+msgid "You need to place your .htpasswd file at:"
+msgstr "Sie müssen Ihre .htpasswd-Datei platzieren unter:"
+
+msgid ".htpasswd file not found."
+msgstr ".htpasswd-Datei nicht gefunden."
+
+msgid "I'll provide the .htpasswd file later"
+msgstr "Ich stelle die .htpasswd-Datei später bereit"
+
+msgid "Check again for .htpasswd file"
+msgstr "Erneut nach .htpasswd-Datei suchen"
+
+msgid "Switch to generating the .htpasswd file with the wizard"
+msgstr "Zur Erstellung der .htpasswd-Datei mit dem Assistenten wechseln"
+
+msgid ".htpasswd file found!"
+msgstr ".htpasswd-Datei gefunden!"
+
+msgid "Let's create a .htpasswd file with your users and passwords."
+msgstr "Lassen Sie uns eine .htpasswd-Datei mit Ihren Benutzern und Passwörtern erstellen."
+
+msgid "Enter username (leave empty to finish adding users):"
+msgstr "Benutzernamen eingeben (leer lassen, um die Benutzereingabe abzuschließen):"
+
+msgid "Enter password:"
+msgstr "Passwort eingeben:"
+
+msgid "User '{}' added."
+msgstr "Benutzer '{}' hinzugefügt."
+
+msgid "No password entered, user not added."
+msgstr "Kein Passwort eingegeben, Benutzer nicht hinzugefügt."
+
+msgid "Generating .htpasswd file..."
+msgstr ".htpasswd-Datei wird generiert..."
+
+msgid "Docker is not available. Cannot generate .htpasswd file."
+msgstr "Docker ist nicht verfügbar. Die .htpasswd-Datei kann nicht erstellt werden."
+
+msgid "You'll need to create the .htpasswd file manually."
+msgstr "Sie müssen die .htpasswd-Datei manuell erstellen."
+
+msgid ".htpasswd file generated successfully!"
+msgstr ".htpasswd-Datei erfolgreich generiert!"
+
+msgid "Error generating .htpasswd file: {}"
+msgstr "Fehler beim Generieren der .htpasswd-Datei: {}"
+
+msgid "No users added. You'll need to create the .htpasswd file manually."
+msgstr "Keine Benutzer hinzugefügt. Sie müssen die .htpasswd-Datei manuell erstellen."
+
+msgid "Basic Authentication Setup Complete"
+msgstr "Basis-Authentifizierung-Setup abgeschlossen"
+
+msgid "Your .htpasswd file is located at ./data/htpasswd"
+msgstr "Ihre .htpasswd-Datei befindet sich unter ./data/htpasswd"
+
+msgid "Nginx will be configured to use this file for authentication."
+msgstr "Nginx wird so konfiguriert, dass diese Datei für die Authentifizierung verwendet wird."
+
+msgid "Basic Authentication Note"
+msgstr "Hinweis zur Basis-Authentifizierung"
+
+msgid "Don't forget to create your .htpasswd file at ./data/htpasswd"
+msgstr "Vergessen Sie nicht, Ihre .htpasswd-Datei unter ./data/htpasswd zu erstellen"
+
+msgid "before starting the services."
+msgstr "bevor Sie die Dienste starten."
+
+msgid "... additional error lines omitted ..."
+msgstr "... weitere Fehlerzeilen ausgelassen ..."
+
+msgid "After installing OpenSSL, restart the wizard or choose a different option."
+msgstr "Nach der Installation von OpenSSL, starten Sie den Assistenten neu oder wählen Sie eine andere Option."
+
+msgid "All services stopped successfully."
+msgstr "Alle Dienste wurden erfolgreich gestoppt."
+
+msgid "Backup created at {path}"
+msgstr "Sicherung erstellt unter {path}"
+
+msgid "CA certificate has been created in the ca subfolder."
+msgstr "CA-Zertifikat wurde im ca-Unterordner erstellt."
+
+msgid "CA certificate or key not found. Cannot revoke certificate."
+msgstr "CA-Zertifikat oder -Schlüssel nicht gefunden. Zertifikat kann nicht widerrufen werden."
+
+msgid "Certificate refresh was successful!"
+msgstr "Zertifikatsaktualisierung war erfolgreich!"
+
+msgid "Certificate request was successful!"
+msgstr "Zertifikatsanfrage war erfolgreich!"
+
+msgid "Client certificate"
+msgstr "Client-Zertifikat"
+
+msgid "Client certificate bundle (password: teddycloud)"
+msgstr "Client-Zertifikatspaket (Passwort: teddycloud)"
+
+msgid "Client certificate generated successfully!"
+msgstr "Client-Zertifikat erfolgreich generiert!"
+
+msgid "Configuration file {path} deleted"
+msgstr "Konfigurationsdatei {path} gelöscht"
+
+msgid "Controls:"
+msgstr "Steuerung:"
+
+msgid "Docker is not available."
+msgstr "Docker ist nicht verfügbar."
+
+msgid "Download and install from https://slproweb.com/products/Win32OpenSSL.html"
+msgstr "Herunterladen und installieren von https://slproweb.com/products/Win32OpenSSL.html"
+
+msgid "Error details:"
+msgstr "Fehlerdetails:"
+
+msgid "Failed to start logs process."
+msgstr "Starten des Log-Prozesses fehlgeschlagen."
+
+msgid "Force refreshing Let\'s Encrypt certificates..."
+msgstr "Erzwinge Aktualisierung der Let's Encrypt Zertifikate..."
+
+msgid "Generate .htpasswd file with the wizard"
+msgstr ".htpasswd-Datei mit dem Assistenten erstellen"
+
+msgid "Generating client certificates..."
+msgstr "Client-Zertifikate werden generiert..."
+
+msgid "How would you like to handle the .htpasswd file?"
+msgstr "Wie möchten Sie die .htpasswd-Datei handhaben?"
+
+msgid "I'll provide my own .htpasswd file"
+msgstr "Ich stelle meine eigene .htpasswd-Datei bereit"
+
+msgid "Install the .p12 file on devices that need to access TeddyCloud."
+msgstr "Installieren Sie die .p12-Datei auf Geräten, die auf TeddyCloud zugreifen müssen."
+
+msgid "Installation instructions:"
+msgstr "Installationsanleitung:"
+
+msgid "Let\'s create a .htpasswd file with your users and passwords."
+msgstr "Lassen Sie uns eine .htpasswd-Datei mit Ihren Benutzern und Passwörtern erstellen."
+
+msgid "Linux (Debian/Ubuntu):"
+msgstr "Linux (Debian/Ubuntu):"
+
+msgid "Linux (Fedora/RHEL):"
+msgstr "Linux (Fedora/RHEL):"
+
+msgid "Live Logs"
+msgstr "Live Protokolle"
+
+msgid "Live Logs - Service:"
+msgstr "Live Protokolle - Dienst:"
+
+msgid "Log display paused"
+msgstr "Protokollanzeige pausiert"
+
+msgid "Log display resumed"
+msgstr "Protokollanzeige fortgesetzt"
+
+msgid "Log view closed."
+msgstr "Protokollansicht geschlossen."
+
+msgid "Logs cleared"
+msgstr "Protokolle gelöscht"
+
+msgid "No client certificates directory found."
+msgstr "Kein Verzeichnis für Client-Zertifikate gefunden."
+
+msgid "No client certificates found to revoke."
+msgstr "Keine Client-Zertifikate zum Widerrufen gefunden."
+
+msgid "OpenSSL is not available on your system."
+msgstr "OpenSSL ist auf Ihrem System nicht verfügbar."
+
+msgid "Paused"
+msgstr "Pausiert"
+
+msgid "Playing"
+msgstr "Wiedergabe"
+
+msgid "Please use an online .htpasswd generator or the htpasswd utility."
+msgstr "Bitte verwenden Sie einen Online-.htpasswd-Generator oder das htpasswd-Dienstprogramm."
+
+msgid "Press Enter to return to menu..."
+msgstr "Drücken Sie Enter, um zum Menü zurückzukehren..."
+
+msgid "Remember to place your .htpasswd file at ./data/.htpasswd"
+msgstr "Denken Sie daran, Ihre .htpasswd-Datei unter ./data/.htpasswd zu platzieren"
+
+msgid "Restarting Docker services..."
+msgstr "Docker-Dienste werden neugestartet..."
+
+msgid "Revoking client certificate..."
+msgstr "Client-Zertifikat wird widerrufen..."
+
+msgid "Run \'sudo apt install openssl\'"
+msgstr "Führen Sie \'sudo apt install openssl\' aus"
+
+msgid "Run \'sudo dnf install openssl\'"
+msgstr "Führen Sie \'sudo dnf install openssl\' aus"
+
+msgid "Running"
+msgstr "Läuft"
+
+msgid "Server certificate has been created in the server subfolder."
+msgstr "Server-Zertifikat wurde im Server-Unterordner erstellt."
+
+msgid "Services restarted successfully."
+msgstr "Dienste wurden erfolgreich neugestartet."
+
+msgid "Services started successfully."
+msgstr "Dienste wurden erfolgreich gestartet."
+
+msgid "Starting Docker services..."
+msgstr "Docker-Dienste werden gestartet..."
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Stopped"
+msgstr "Gestoppt"
+
+msgid "Stopping all Docker services..."
+msgstr "Alle Docker-Dienste werden gestoppt..."
+
+msgid "The client certificate"
+msgstr "Das Client-Zertifikat"
+
+msgid "The client private key"
+msgstr "Der private Client-Schlüssel"
+
+msgid "Unknown"
+msgstr "Unbekannt"
+
+msgid "Use Homebrew: \'brew install openssl\'"
+msgstr "Verwenden Sie Homebrew: \'brew install openssl\'"
+
+msgid "Windows:"
+msgstr "Windows:"
+
+msgid "You\'ll need to create the .htpasswd file manually at ./data/.htpasswd"
+msgstr "Sie müssen die .htpasswd-Datei manuell unter ./data/.htpasswd erstellen"
+
+msgid "ause"
+msgstr "ausieren"
+
+msgid "esume"
+msgstr "ortsetzen"
+
+msgid "has been created in the clients subfolder:"
+msgstr "wurde im Clients-Unterordner erstellt:"
+
+msgid "lear"
+msgstr "öschen"
+
+msgid "macOS:"
+msgstr "macOS:"
+
+msgid "uit"
+msgstr "eenden"
