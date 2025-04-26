@@ -4,12 +4,19 @@ Backup and recovery management UI for TeddyCloudStarter.
 """
 import os
 import time
-import msvcrt  # For Windows key input
+import sys
 import questionary
 import shutil
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
 from ..utils import get_project_path
+
+# Platform-specific imports
+if sys.platform == 'win32':
+    import msvcrt  # For Windows key input
+else:
+    # For non-Windows platforms
+    msvcrt = None
 
 def show_backup_recovery_menu(config_manager, docker_manager, translator):
     """
@@ -306,13 +313,18 @@ def handle_backup_selection(selected_volume, docker_manager, translator, project
         if selected_backup == translator.get("Back"):
             return
         
-        # Handle key press for backup file actions
-        import msvcrt
-        while msvcrt.kbhit():
-            msvcrt.getch()  # Clear any pending keypresses
-            
-        console.print(f"[bold cyan]{translator.get('Press \'L\' to list contents, \'R\' to remove backup, or any other key to continue')}...[/]")
-        key = msvcrt.getch().decode('utf-8', errors='ignore').lower()
+        # Handle key press for backup file actions - cross-platform approach
+        if sys.platform == 'win32' and msvcrt:
+            # Windows approach
+            while msvcrt.kbhit():
+                msvcrt.getch()  # Clear any pending keypresses
+                
+            console.print(f"[bold cyan]{translator.get('Press \'L\' to list contents, \'R\' to remove backup, or any other key to continue')}...[/]")
+            key = msvcrt.getch().decode('utf-8', errors='ignore').lower()
+        else:
+            # Non-Windows approach using input()
+            console.print(f"[bold cyan]{translator.get('Enter \'L\' to list contents, \'R\' to remove backup, or press Enter to continue')}:[/]")
+            key = input().lower()
         
         if key == 'l':
             # Show backup contents
