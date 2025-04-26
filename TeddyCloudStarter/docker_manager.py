@@ -53,7 +53,7 @@ class DockerManager:
             return self.translator.get(text)
         return text
     
-    def get_services_status(self) -> Dict[str, Dict]:
+    def get_services_status(self, project_path=None) -> Dict[str, Dict]:
         """Get status of all services in docker-compose.yml."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -64,9 +64,10 @@ class DockerManager:
         try:
             # Store current directory
             original_dir = os.getcwd()
+            base_path = project_path if project_path else original_dir
             
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
             
             if not os.path.exists(docker_compose_path):
@@ -151,11 +152,11 @@ class DockerManager:
                 
             return services
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return {}
     
-    def restart_services(self):
+    def restart_services(self, project_path=None):
         """Restart all Docker services."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -167,8 +168,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -185,11 +189,11 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def restart_service(self, service_name: str):
+    def restart_service(self, service_name: str, project_path=None):
         """Restart a specific Docker service."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -202,8 +206,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -220,11 +227,11 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def start_services(self):
+    def start_services(self, project_path=None):
         """Start all Docker services."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -236,8 +243,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -253,11 +263,11 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def start_service(self, service_name: str):
+    def start_service(self, service_name: str, project_path=None):
         """Start a specific Docker service."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -270,8 +280,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -288,11 +301,11 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def stop_services(self):
+    def stop_services(self, project_path=None):
         """Stop all Docker services."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -304,8 +317,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -321,11 +337,11 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def stop_service(self, service_name: str):
+    def stop_service(self, service_name: str, project_path=None):
         """Stop a specific Docker service."""
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
@@ -338,8 +354,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -356,17 +375,18 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
-    def get_logs(self, service_name=None, lines=0):
+    def get_logs(self, service_name=None, lines=0, project_path=None):
         """
         Get logs from Docker services.
         
         Args:
             service_name: Optional specific service to get logs from
             lines: Number of lines to get (0 for all)
+            project_path: Path to the project directory
         
         Returns:
             Subprocess.Popen object that can be used to control the logs process
@@ -379,8 +399,11 @@ class DockerManager:
             # Store current directory
             original_dir = os.getcwd()
             
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
             # Change to the data directory where docker-compose.yml is located
-            data_dir = os.path.join(original_dir, "data")
+            data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
@@ -418,7 +441,7 @@ class DockerManager:
                 return None
                 
         except FileNotFoundError:
-            error_msg = "Error: docker-compose.yml not found in data directory."
+            error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return None
     
@@ -441,12 +464,13 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return []
     
-    def backup_volume(self, volume_name):
+    def backup_volume(self, volume_name, project_path=None):
         """
         Backup a Docker volume to a tar.gz file in data/backup directory.
         
         Args:
             volume_name: Name of the Docker volume to backup
+            project_path: Path to project directory (optional)
             
         Returns:
             str: Path to the backup file if successful, None otherwise
@@ -456,8 +480,11 @@ class DockerManager:
             return None
         
         try:
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else "."
+            
             # Create backup directory if it doesn't exist
-            backup_dir = os.path.join("data", "backup")
+            backup_dir = os.path.join(base_path, "data", "backup")
             os.makedirs(backup_dir, exist_ok=True)
             
             # Generate backup filename with date
@@ -506,17 +533,21 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return None
     
-    def get_volume_backups(self, volume_name=None):
+    def get_volume_backups(self, project_path=None, volume_name=None):
         """
         Get a list of available backup files for a specific volume or all volumes.
         
         Args:
+            project_path: Path to project directory (optional)
             volume_name: Optional name of a specific volume
             
         Returns:
             dict: Dictionary mapping volume names to lists of backup files
         """
-        backup_dir = os.path.join("data", "backup")
+        # Use project path if provided, otherwise use current directory
+        base_path = project_path if project_path else "."
+        
+        backup_dir = os.path.join(base_path, "data", "backup")
         if not os.path.exists(backup_dir):
             return {}
             
@@ -550,25 +581,31 @@ class DockerManager:
             
         return backups
     
-    def show_backup_contents(self, backup_file):
+    def show_backup_contents(self, backup_file, project_path=None):
         """
         Show the contents of a backup file.
         
         Args:
-            backup_file: Path to the backup file
+            backup_file: Name of the backup file
+            project_path: Path to the project directory (optional)
+            
+        Returns:
+            bool: True if successful, False otherwise
         """
-        if not os.path.exists(os.path.join("data", "backup", backup_file)):
+        # Use project path if provided, otherwise use current directory
+        base_path = project_path if project_path else "."
+        backup_path = os.path.join(base_path, "data", "backup", backup_file)
+        
+        if not os.path.exists(backup_path):
             error_msg = f"Backup file {backup_file} not found."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
             
         try:
-            backup_path = os.path.join("data", "backup", backup_file)
-            
             # Use Docker to list the contents of the tar file
             cmd = [
                 "docker", "run", "--rm", 
-                "-v", f"{os.path.abspath('data/backup')}:/backup:ro", 
+                "-v", f"{os.path.abspath(os.path.join(base_path, 'data', 'backup'))}:/backup:ro", 
                 "alpine", "tar", "-tf", f"/backup/{backup_file}"
             ]
             
@@ -584,13 +621,14 @@ class DockerManager:
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
     
-    def restore_volume(self, volume_name, backup_file):
+    def restore_volume(self, volume_name, backup_file, project_path=None):
         """
         Restore a Docker volume from a backup file.
         
         Args:
             volume_name: Name of the Docker volume to restore
             backup_file: Name of the backup file
+            project_path: Path to the project directory (optional)
             
         Returns:
             bool: True if successful, False otherwise
@@ -598,8 +636,11 @@ class DockerManager:
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
             return False
-            
-        backup_path = os.path.join("data", "backup", backup_file)
+        
+        # Use project path if provided, otherwise use current directory
+        base_path = project_path if project_path else "."
+        backup_path = os.path.join(base_path, "data", "backup", backup_file)
+        
         if not os.path.exists(backup_path):
             error_msg = f"Backup file {backup_file} not found."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -623,7 +664,7 @@ class DockerManager:
             console.print(f"[bold yellow]{self._translate(warning_msg2)}[/]")
             
             # Get absolute path to the backup directory
-            abs_backup_dir = os.path.abspath(os.path.join("data", "backup"))
+            abs_backup_dir = os.path.abspath(os.path.join(base_path, "data", "backup"))
             
             # Run restore command using Docker
             msg = f"Restoring volume {volume_name} from {backup_file}..."

@@ -21,13 +21,14 @@ from rich.panel import Panel
 console = Console()
 
 
-def show_live_logs(docker_manager, service_name=None):
+def show_live_logs(docker_manager, service_name=None, project_path=None):
     """
     Show live logs from Docker services with interactive controls.
     
     Args:
         docker_manager: The DockerManager instance
         service_name: Optional specific service to get logs from
+        project_path: Optional project path for Docker operations
     """
     # Get translator if available from docker_manager
     translator = getattr(docker_manager, 'translator', None)
@@ -39,7 +40,7 @@ def show_live_logs(docker_manager, service_name=None):
         return text
     
     # Start logs process
-    logs_process = docker_manager.get_logs(service_name)
+    logs_process = docker_manager.get_logs(service_name, project_path=project_path)
     if not logs_process:
         console.print(f"[bold red]{_translate('Failed to start logs process.')}[/]")
         return

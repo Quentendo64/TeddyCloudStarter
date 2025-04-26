@@ -29,6 +29,7 @@ Thumbs.db
 
 # Log files
 *.log
+*.log.txt
 
 # Temporary files
 temp/
@@ -38,3 +39,4 @@ tmp/
 data/
 config.json
 backup/
+flow.md

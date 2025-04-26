@@ -12,27 +12,21 @@ try:
     from rich.console import Console
     from rich.panel import Panel
     import questionary
+    import jinja2
 except ImportError:
     print("Required packages not found. Installing them...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2"])
     from rich.console import Console
     from rich.panel import Panel
     import questionary
+    import jinja2
 
 # Import our modules
-from .wizard import TeddyCloudWizard
-from .config_manager import ConfigManager
-from .docker_manager import DockerManager
-from .translator import Translator
-from .certificates import CertificateManager
-from .configurations import TEMPLATES
+from .main_wizard import TeddyCloudWizard
 from .version_handler import check_for_updates
-
-# Constants
-DEFAULT_CONFIG_PATH = "config.json"
-
-# Global console instance for rich output
-console = Console()
+from .wizard.ui_helpers import console
+from .config_manager import DEFAULT_CONFIG_PATH
+from .utils import get_project_path, ensure_project_directories
 
 # Determine if running as installed package or directly from source
 try:
@@ -52,11 +46,6 @@ else:
     # When running from source directory
     LOCALES_DIR = Path("locales")
 
-# Ensure directories exist in working directory
-Path("data").mkdir(exist_ok=True)
-Path("data/configurations").mkdir(exist_ok=True)
-
-
 def main():
     """Main entry point for the TeddyCloud Setup Wizard."""
     # Check for updates first
@@ -64,15 +53,13 @@ def main():
     
     # Create the wizard instance with the correct locales directory
     wizard = TeddyCloudWizard(LOCALES_DIR)
-    wizard.show_welcome()
-    wizard.show_develmsg()
-    
+
     # Check if config exists
     config_exists = os.path.exists(DEFAULT_CONFIG_PATH)
     
     if config_exists:
-        # Check if language is set
-        if "language" not in wizard.config_manager.config or not wizard.config_manager.config["language"]:
+        # Check if language is set and not empty
+        if not wizard.config_manager.config.get("language"):
             wizard.select_language()
         else:
             # Set the language from config without showing selection
@@ -81,9 +68,24 @@ def main():
         # If no config, select language
         wizard.select_language()
     
+    wizard.show_welcome()
+    wizard.show_develmsg()
+    # Project path selection - always show this page if path is not set
+    if not wizard.config_manager.config.get("environment", {}).get("path"):
+        wizard.select_project_path()
+    
+    # Get the project path from config and ensure directories exist
+    project_path = get_project_path(wizard.config_manager)
+    ensure_project_directories(project_path)
+    
     if config_exists:
-        # If config exists, show pre-wizard menu
-        wizard.show_pre_wizard()
+        # If config exists, show pre-wizard menu in a loop until user exits
+        show_menu = True
+        while show_menu:
+            result = wizard.show_pre_wizard()
+            # If the result is False, it means the user chose to exit
+            if result == False:
+                show_menu = False
     else:
         # If no config, run the wizard
         wizard.run_wizard()

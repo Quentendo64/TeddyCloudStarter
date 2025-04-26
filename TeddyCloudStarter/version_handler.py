@@ -3,6 +3,7 @@ Version handler to check if the latest version of TeddyCloudStarter is being use
 """
 
 import json
+import os
 from urllib import request
 from urllib.error import URLError
 import sys
@@ -10,6 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich import box
 from rich.prompt import Confirm
+from .config_manager import ConfigManager
 from . import __version__
 
 # Global console instance for rich output
@@ -96,6 +98,9 @@ def check_for_updates(quiet=False):
     else:
         message = f"Update available! Current version: {current_version}, Latest version: {latest_version}"
         if not quiet:
+            # Check if auto_update is enabled
+            auto_update = ConfigManager.get_auto_update_setting()
+            
             console.print(Panel(
                 f"[bold yellow]Update Available![/]\n\n"
                 f"Current version: [cyan]{current_version}[/]\n"
@@ -104,27 +109,30 @@ def check_for_updates(quiet=False):
                 border_style="yellow"
             ))
             
-            # Show confirmation prompt if not in quiet mode
-            try:
-                update_confirmed = Confirm.ask(
-                    f"Do you want to upgrade to TeddyCloudStarter {latest_version}?",
-                    default=False
-                )
-                
-                if update_confirmed:
-                    console.print("[bold cyan]Update confirmed. Attempting to install update...[/]")
-                    if install_update():
-                        console.print(f"[bold green]Successfully updated to TeddyCloudStarter {latest_version}[/]")
-                        console.print("[cyan]Exiting program. Please restart TeddyCloudStarter to use the new version.[/]")
-                        sys.exit(0)
-                    else:
-                        console.print("[bold red]Failed to install update automatically[/]")
-                        console.print("[yellow]Please update manually using: pip install --upgrade TeddyCloudStarter[/]")
-                        sys.exit(1)
+            if auto_update:
+                update_confirmed = True
+                console.print("[bold cyan]Auto-update is enabled. Installing update automatically...[/]")
+            else:
+                try:
+                    update_confirmed = Confirm.ask(
+                        f"Do you want to upgrade to TeddyCloudStarter {latest_version}?",
+                        default=False
+                    )
+                except (EOFError, KeyboardInterrupt):
+                    update_confirmed = False
+            
+            if update_confirmed:
+                console.print("[bold cyan]Attempting to install update...[/]")
+                if install_update():
+                    console.print(f"[bold green]Successfully updated to TeddyCloudStarter {latest_version}[/]")
+                    console.print("[cyan]Exiting program. Please restart TeddyCloudStarter to use the new version.[/]")
+                    sys.exit(0)
                 else:
-                    console.print("[yellow]Update skipped by user.[/]")
-            except (EOFError, KeyboardInterrupt):
-                update_confirmed = False
+                    console.print("[bold red]Failed to install update automatically[/]")
+                    console.print("[yellow]Please update manually using: pip install --upgrade TeddyCloudStarter[/]")
+                    sys.exit(1)
+            else:
+                console.print("[yellow]Update skipped by user.[/]")
     
     return is_latest, latest_version, message, update_confirmed
 

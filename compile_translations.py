@@ -35,14 +35,14 @@ def compile_translations():
         try:
             # Try to use msgfmt if available (part of gettext tools)
             subprocess.run(["msgfmt", str(po_file), "-o", str(mo_file)], check=True)
-            print(f"✓ Compiled {po_file} to {mo_file}")
+            print(f"âœ“ Compiled {po_file} to {mo_file}")
         except (subprocess.SubprocessError, FileNotFoundError):
             # If msgfmt is not available, use polib
             try:
                 import polib
                 po = polib.pofile(str(po_file))
                 po.save_as_mofile(str(mo_file))
-                print(f"✓ Compiled {po_file} to {mo_file} using polib")
+                print(f"âœ“ Compiled {po_file} to {mo_file} using polib")
             except ImportError:
                 print("Error: Neither msgfmt nor polib is available.")
                 print("Please install gettext tools or run: pip install polib")

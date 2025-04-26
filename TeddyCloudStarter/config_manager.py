@@ -6,14 +6,14 @@ import os
 import json
 import time
 import shutil
+import datetime
 from typing import Dict, Any
 from rich.console import Console
-
-# Global console instance for rich output
+from pathlib import Path
+from . import __version__ 
 console = Console()
 
-# Constants
-DEFAULT_CONFIG_PATH = "config.json"
+DEFAULT_CONFIG_PATH = os.path.join(str(Path.home()), ".teddycloudstarter", "config.json")
 
 
 class ConfigManager:
@@ -21,7 +21,7 @@ class ConfigManager:
     
     def __init__(self, config_path=DEFAULT_CONFIG_PATH, translator=None):
         self.config_path = config_path
-        self.translator = translator  # Store translator instance
+        self.translator = translator
         self.config = self._load_config()
         
     def _load_config(self) -> Dict[str, Any]:
@@ -39,28 +39,59 @@ class ConfigManager:
                 if self.translator:
                     error_msg = self.translator.get(error_msg)
                 console.print(f"[bold red]{error_msg}[/]")
-        
+
+        hostname = os.environ.get('COMPUTERNAME') or os.environ.get('HOSTNAME') or "unknown"
+        current_user = os.environ.get('USERNAME') or os.environ.get('USER') or "unknown"
         return {
-            "version": "1.0.0",
-            "mode": "direct", 
-            "ports": {
-                "admin_http": 80,
-                "admin_https": 8443,
-                "teddycloud": 443
+            "version": __version__,
+            "last_modified": datetime.datetime.now().isoformat(),            
+            "user_info": {
+                "created_by": os.environ.get('USERNAME') or os.environ.get('USER') or "unknown",
             },
-            "nginx": {
-                "domain": "",
-                "https_mode": "custom",
-                "security": {
-                    "type": "none",
-                    "allowed_ips": []
-                }
+            "environment": {
+                "type": "development",
+                "path":"",
+                "hostname": hostname,
+                "creation_date": datetime.datetime.now().isoformat()
             },
-            "language": ""
+            "app_settings": {
+                "log_level": "info",
+                "auto_update": True
+            },
+            "metadata": {
+                "config_version": "1.0",
+                "description": "Default TeddyCloudStarter configuration"
+            },
+            "language": "en"
         }
     
     def save(self):
         """Save current configuration to file."""
+        self.config["version"] = __version__
+        self.config["last_modified"] = datetime.datetime.now().isoformat()
+        if "metadata" not in self.config:
+            self.config["metadata"] = {
+                "config_version": "1.0",
+                "description": "TeddyCloudStarter configuration"
+            }
+        if "environment" not in self.config:
+            hostname = os.environ.get('COMPUTERNAME') or os.environ.get('HOSTNAME') or "unknown"
+            self.config["environment"] = {
+                "type": "development",
+                "hostname": hostname,
+                "creation_date": datetime.datetime.now().isoformat()
+            }
+        if "user_info" not in self.config:
+            current_user = os.environ.get('USERNAME') or os.environ.get('USER') or "unknown"
+            self.config["user_info"] = {
+                "modified_by": current_user
+            }
+        if "app_settings" not in self.config:
+            self.config["app_settings"] = {
+                "log_level": "info",
+                "auto_update": True
+            }
+        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         with open(self.config_path, 'w') as f:
             json.dump(self.config, f, indent=2)
         
@@ -72,13 +103,11 @@ class ConfigManager:
     def backup(self):
         """Create a backup of the current configuration."""
         if os.path.exists(self.config_path):
-            # Ensure backup directory exists
-            backup_dir = os.path.join("data", "backup")
-            os.makedirs(backup_dir, exist_ok=True)
-            
             # Create backup filename with timestamp
             backup_filename = f"config.json.backup.{int(time.time())}"
-            backup_path = os.path.join(backup_dir, backup_filename)
+            
+            # Use the same directory as the config file for the backup
+            backup_path = f"{self.config_path}.backup.{int(time.time())}"
             
             # Copy the configuration file to the backup location
             shutil.copy2(self.config_path, backup_path)
@@ -99,3 +128,27 @@ class ConfigManager:
             console.print(f"[bold red]{delete_msg}[/]")
             
             self.config = self._load_config()
+    
+    @staticmethod
+    def get_auto_update_setting(config_path=DEFAULT_CONFIG_PATH):
+        """
+        Get the auto_update setting from the configuration file.
+        
+        Args:
+            config_path: Path to the configuration file. Defaults to DEFAULT_CONFIG_PATH.
+            
+        Returns:
+            bool: True if auto_update is enabled, False otherwise
+        """
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    # Check if app_settings and auto_update setting exist
+                    if "app_settings" in config and "auto_update" in config["app_settings"]:
+                        return config["app_settings"]["auto_update"]
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        # Default to False if config file doesn't exist or doesn't have the setting
+        return False

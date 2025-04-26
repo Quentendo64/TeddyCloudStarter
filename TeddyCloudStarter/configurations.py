@@ -5,12 +5,19 @@ This module contains all templates used in the application.
 """
 
 DOCKER_COMPOSE = """
+################################################################################
+#                               WARNING                                        #
+#       DO NOT MODIFY THIS FILE MANUALLY. IT IS MANAGED BY TEDDYCLOUDSTARTER.  #
+#       ANY MANUAL CHANGES WILL BE OVERWRITTEN ON NEXT GENERATION.             #
+################################################################################
+
 name: teddycloudstarter
 services:
   {%- if mode == "nginx" %}
   # Edge Nginx - Handles SNI routing and SSL termination
   nginx-edge:
-    container_name: teddycloud-edge
+    container_name: nginx-edge
+    tty: true
     hostname: {{ domain }}
     image: nginx:stable-alpine
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
@@ -20,9 +27,8 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
       {%- else %}
-      - ./server_certs:/etc/nginx/certs:ro
+      - {{ cert_path }}
       {%- endif %}
-      - nginx_logs:/var/log/nginx
     ports:
       - 80:80
       - 443:443
@@ -33,22 +39,27 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - frontend
-      - backend
 
-  {%- if security_type == "client_cert" %}
+  
   # Backend Nginx - Handles client certificate authentication
   nginx-auth:
-    container_name: teddycloud-auth
-    hostname: teddycloud-auth
+    container_name: nginx-auth
+    tty: true
+    hostname: nginx-auth
     image: nginx:stable-alpine
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
     volumes:
-      - certs:/teddycloud/certs:ro
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
-      - ./client_certs:/etc/nginx/client_certs:ro
-      - nginx_logs:/var/log/nginx_auth
+      {% if https_mode == "custom" %}
+      - {{ cert_path }}
+      {% if crl_file %}
+      - ./data/client_certs/crl:/etc/nginx/crl:ro
+      {%- endif %}
+      {%- endif %}
+      {%- if https_mode == "letsencrypt" %}
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+      {%- endif %}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -56,14 +67,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - backend
-  {%- endif %}
   {%- endif %}
 
   # TeddyCloud - Main application server
   teddycloud:
-    container_name: teddycloud{% if mode == "nginx" %}-app{% endif %}
+    container_name: teddycloud-app
+    tty: true
     hostname: teddycloud
     image: ghcr.io/toniebox-reverse-engineering/teddycloud:latest
     volumes:
@@ -77,7 +86,6 @@ services:
       - cache:/teddycloud/data/cache
     {%- if mode == "direct" %}
     ports:
-      # These ports can be adjusted based on your configuration
       {%- if admin_http %}
       - {{ admin_http }}:80
       {%- endif %}
@@ -94,8 +102,6 @@ services:
       retries: 3
       start_period: 20s
     {%- if mode == "nginx" %}
-    networks:
-      - backend
     {%- endif %}
 
   {%- if mode == "nginx" and https_mode == "letsencrypt" %}
@@ -111,36 +117,33 @@ services:
     restart: unless-stopped
     depends_on:
       - nginx-edge
-    networks:
-      - frontend
+
   {%- endif %}
 
 # Persistent storage volumes
 volumes:
-  certs:      # SSL/TLS certificates
-  config:     # TeddyCloud configuration
-  content:    # Toniebox content storage
-  library:    # Toniebox library storage
-  custom_img: # Custom images for content
-  firmware:   # Toniebox firmware storage
-  cache:      # Toniebox cache storage
+  certs:
+  config:
+  content:
+  library:
+  custom_img:
+  firmware:
+  cache:
   {%- if mode == "nginx" %}
-  nginx_logs: # Consolidated nginx logs
   {%- if https_mode == "letsencrypt" %}
   certbot_conf: # Certbot certificates and configuration
   certbot_www:  # Certbot ACME challenge files
   {%- endif %}
-
-# Network configuration
-networks:
-  frontend:
-    name: teddycloud-frontend
-  backend:
-    name: teddycloud-backend
   {%- endif %}
 """
 
-NGINX_EDGE = """# TeddyCloud Edge Nginx Configuration
+NGINX_EDGE = """################################################################################
+#                               WARNING                                        #
+#       DO NOT MODIFY THIS FILE MANUALLY. IT IS MANAGED BY TEDDYCLOUDSTARTER.  #
+#       ANY MANUAL CHANGES WILL BE OVERWRITTEN ON NEXT GENERATION.             #
+################################################################################
+
+# TeddyCloud Edge Nginx Configuration
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log warn;
@@ -155,13 +158,14 @@ http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
     
-    # Define upstream servers
-    upstream teddycloud_admin {
-        server teddycloud-app:80;
-    }
+    # Log configuration
+    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
+    access_log /var/log/nginx/access.log teddystarter_format;
+
     
-    upstream teddycloud_box {
-        server teddycloud-app:443;
+    # Define upstream servers for HTTP
+    upstream teddycloud_http {
+        server teddycloud-app:80;
     }
     
     # HTTP server
@@ -191,11 +195,13 @@ stream {
         default teddycloud_box;
     }
     
+    # Define upstream servers for HTTPS
     upstream teddycloud_admin {
-        server teddycloud-app:80;
-    }
+                server nginx-auth:443;
+            }
     
     upstream teddycloud_box {
+        # Teddycloud API endpoint for boxes
         server teddycloud-app:443;
     }
     
@@ -215,9 +221,16 @@ stream {
 }
 """
 
-NGINX_AUTH = """# TeddyCloud Auth Nginx Configuration
+NGINX_AUTH = """################################################################################
+#                               WARNING                                        #
+#       DO NOT MODIFY THIS FILE MANUALLY. IT IS MANAGED BY TEDDYCLOUDSTARTER.  #
+#       ANY MANUAL CHANGES WILL BE OVERWRITTEN ON NEXT GENERATION.             #
+################################################################################
+
+# TeddyCloud Auth Nginx Configuration
 user nginx;
 worker_processes auto;
+
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
@@ -226,37 +239,41 @@ events {
 }
 
 http {
-    # This server only handles HTTPS traffic
+    # Log configuration
+    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
+    access_log /var/log/nginx/access.log teddystarter_format;    
     server {
         listen 443 ssl;
-        
-        ssl_certificate /etc/nginx/client_certs/server/server.crt;
-        ssl_certificate_key /etc/nginx/client_certs/server/server.key;
-        ssl_client_certificate /etc/nginx/client_certs/ca/ca.crt;
+        {%if https_mode == "letsencrypt" %}        
+        ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem; 
+        ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem; 
+        {% else %}
+        ssl_certificate /etc/nginx/certificates/server.crt;
+        ssl_certificate_key /etc/nginx/certificates/server.key;
+        {%- endif %}
+        {% if security_type == "client_cert" %}
+        ssl_client_certificate /etc/nginx/certificates/ca.crt;
+        {% if crl_file %}
+        ssl_crl /etc/nginx/client_certs/crl/crl.pem;
+        {%- endif %}
         ssl_verify_client on;
-        
+        {%- endif %}
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers off;
-        
-        {%- if allowed_ips %}
-        # IP restriction
-        {% for ip in allowed_ips %}
-        allow {{ ip }};
-        {% endfor %}
-        deny all;
-        {%- endif %}
-        
-        # Forward all requests to TeddyCloud SSL backend
+        ssl_ciphers "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256";
+
+        # Forward all requests to TeddyCloud
         location / {
-            proxy_pass https://teddycloud-app:443;
+            proxy_pass http://teddycloud-app:80;  
             proxy_set_header Host $host;
-            proxy_ssl_verify off;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
         }
     }
 }
 """
 
-# Dictionary to store all templates for easy access
 TEMPLATES = {
     "docker-compose": DOCKER_COMPOSE,
     "nginx-edge": NGINX_EDGE,

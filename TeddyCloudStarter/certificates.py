@@ -21,17 +21,29 @@ console = Console()
 class CertificateManager:
     """Handles certificate operations for TeddyCloudStarter."""
     
-    def __init__(self, base_dir: str = ".", translator=None):
-        self.base_dir = Path(base_dir)
+    def __init__(self, base_dir: str = None, translator=None):
+        # Use provided base_dir or try to get project path from config
+        if base_dir is None:
+            # Import here to avoid circular imports
+            from .config_manager import ConfigManager
+            config_manager = ConfigManager()
+            project_path = None
+            try:
+                if config_manager and config_manager.config:
+                    project_path = config_manager.config.get("environment", {}).get("path")
+            except Exception:
+                pass
+            self.base_dir = Path(project_path) if project_path else Path(".")
+        else:
+            self.base_dir = Path(base_dir)
+            
         self.client_certs_dir = self.base_dir / "data" / "client_certs"
         self.ca_dir = self.client_certs_dir / "ca"
         self.clients_dir = self.client_certs_dir / "clients"
         self.server_dir = self.client_certs_dir / "server"
         self.crl_dir = self.client_certs_dir / "crl"
         self.translator = translator
-        
-        # Define the old CA certificate path (for backwards compatibility)
-        self.old_ca_crt_path = self.client_certs_dir / "ca.crt"
+
     
     def _translate(self, text):
         """Helper method to translate text if translator is available."""
@@ -181,14 +193,6 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
                     "-days", "3650"
                 ], check=True)
                 
-                # Create a symlink (or copy) of the CA cert in the root dir for backwards compatibility
-                if not self.old_ca_crt_path.exists():
-                    try:
-                        # Try symlink first (works on Unix)
-                        os.symlink(ca_crt_path, self.old_ca_crt_path)
-                    except (OSError, AttributeError):
-                        # Fall back to copy (Windows or other issues)
-                        shutil.copy2(ca_crt_path, self.old_ca_crt_path)
                 
                 # Create CA info file
                 self._create_ca_info_file()
@@ -441,19 +445,15 @@ authorityKeyIdentifier=keyid:always
         Returns:
             bool: True if successful, False otherwise
         """
-        mode_msg = f"Requesting Let's Encrypt certificate{'in staging mode' if staging else ''}..."
+        mode_msg = f"Requesting Let's Encrypt certificate{' in staging mode' if staging else ''}..."
         console.print(f"[bold cyan]{self._translate(mode_msg)}[/]")
         
         try:
-            # Create necessary directories
-            (self.base_dir / "data/certbot/conf").mkdir(parents=True, exist_ok=True)
-            (self.base_dir / "data/certbot/www").mkdir(parents=True, exist_ok=True)
-            
-            # Run certbot in specified mode
+    
             cmd = [
                 "docker", "run", "--rm",
-                "-v", f"{os.path.abspath('data/certbot/conf')}:/etc/letsencrypt",
-                "-v", f"{os.path.abspath('data/certbot/www')}:/.well-known/acme-challenge",
+                "-v", "certbot_data:/etc/letsencrypt",
+                "-v", "certbot_www:/.well-known/acme-challenge",
                 "certbot/certbot", "certonly", "--webroot",
                 "--webroot-path=/.well-known/acme-challenge",
                 "--register-unsafely-without-email", "--agree-tos",
@@ -494,15 +494,12 @@ authorityKeyIdentifier=keyid:always
         console.print(f"[bold cyan]{self._translate('Force refreshing Let\'s Encrypt certificates...')}[/]")
         
         try:
-            # Create necessary directories
-            (self.base_dir / "data/certbot/conf").mkdir(parents=True, exist_ok=True)
-            (self.base_dir / "data/certbot/www").mkdir(parents=True, exist_ok=True)
-            
+
             # Run certbot certonly with force-renewal option
             cmd = [
                 "docker", "run", "--rm",
-                "-v", f"{os.path.abspath('data/certbot/conf')}:/etc/letsencrypt",
-                "-v", f"{os.path.abspath('data/certbot/www')}:/var/www/certbot",
+                "-v", "certbot_data:/etc/letsencrypt",
+                "-v", "certbot_www:/var/www/certbot",
                 "certbot/certbot", "certonly", "--webroot",
                 "--webroot-path=/var/www/certbot",
                 "--force-renewal",
