@@ -10,12 +10,68 @@ import time
 import threading
 import queue
 import sys
+import platform
 
 from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 from rich.layout import Layout
 from rich.panel import Panel
+
+# Add platform-agnostic getch implementation
+def get_key():
+    """Cross-platform function to get a single keypress without requiring Enter"""
+    if os.name == 'nt':
+        import msvcrt
+        if msvcrt.kbhit():
+            return msvcrt.getch().decode('utf-8', errors='ignore').lower()
+        return None
+    else:
+        # Unix-like systems (Linux, macOS)
+        import termios
+        import tty
+        import select
+        
+        # Check if we're in WSL (Windows Subsystem for Linux)
+        is_wsl = "microsoft-standard" in platform.release().lower() or "microsoft" in platform.release().lower()
+        
+        # Use a more aggressive approach for WSL
+        if is_wsl:
+            try:
+                # Save terminal settings
+                old_settings = termios.tcgetattr(sys.stdin)
+                try:
+                    # Set terminal to raw mode
+                    tty.setraw(sys.stdin.fileno(), termios.TCSANOW)
+                    # For WSL, we'll use a blocking read with a very short timeout
+                    rlist, _, _ = select.select([sys.stdin], [], [], 0.01)
+                    if rlist:
+                        ch = sys.stdin.read(1)
+                        return ch.lower()
+                    else:
+                        return None
+                finally:
+                    # Restore terminal settings
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            except Exception:
+                # Fallback method if the above doesn't work
+                return None
+        else:
+            # Standard Unix approach
+            # Check if anything is available to read
+            if select.select([sys.stdin], [], [], 0)[0]:
+                # Save terminal settings
+                old_settings = termios.tcgetattr(sys.stdin)
+                try:
+                    # Set terminal to raw mode
+                    tty.setraw(sys.stdin.fileno(), termios.TCSANOW)
+                    # Read a single character
+                    ch = sys.stdin.read(1)
+                    return ch.lower()
+                finally:
+                    # Restore terminal settings
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            return None
 
 # Global console instance for rich output
 console = Console()
@@ -97,38 +153,20 @@ def show_live_logs(docker_manager, service_name=None, project_path=None):
     try:
         with Live(layout, auto_refresh=True, refresh_per_second=4) as live:
             while True:
-                # Check for key press events (non-blocking)
-                if os.name == 'nt':
-                    import msvcrt
-                    if msvcrt.kbhit():
-                        key = msvcrt.getch().decode('utf-8').lower()
-                        if key == 'q':
-                            break  # Exit log view
-                        elif key == 'p' or key == 'r':
-                            paused = not paused
-                            status = f"[bold yellow]{_translate('Paused')}[/]" if paused else f"[bold green]{_translate('Playing')}[/]"
-                            if paused:
-                                log_buffer.append(f"[bold yellow]--- {_translate('Log display paused')} ---[/]")
-                            else:
-                                log_buffer.append(f"[bold green]--- {_translate('Log display resumed')} ---[/]")
-                        elif key == 'c':
-                            log_buffer = [f"[bold yellow]--- {_translate('Logs cleared')} ---[/]"]
-                else:
-                    # For non-Windows platforms, use different approach with select
-                    import select
-                    if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-                        line = sys.stdin.readline().strip()
-                        if line.lower() in ('q', 'quit', 'exit'):
-                            break
-                        elif line.lower() in ('p', 'r', 'pause', 'resume'):
-                            paused = not paused
-                            status = f"[bold yellow]{_translate('Paused')}[/]" if paused else f"[bold green]{_translate('Playing')}[/]"
-                            if paused:
-                                log_buffer.append(f"[bold yellow]--- {_translate('Log display paused')} ---[/]")
-                            else:
-                                log_buffer.append(f"[bold green]--- {_translate('Log display resumed')} ---[/]")
-                        elif line.lower() in ('c', 'clear'):
-                            log_buffer = [f"[bold yellow]--- {_translate('Logs cleared')} ---[/]"]
+                # Check for key press events using our cross-platform get_key function
+                key = get_key()
+                if key:
+                    if key == 'q':
+                        break  # Exit log view
+                    elif key in ('p', 'r'):
+                        paused = not paused
+                        status = f"[bold yellow]{_translate('Paused')}[/]" if paused else f"[bold green]{_translate('Playing')}[/]"
+                        if paused:
+                            log_buffer.append(f"[bold yellow]--- {_translate('Log display paused')} ---[/]")
+                        else:
+                            log_buffer.append(f"[bold green]--- {_translate('Log display resumed')} ---[/]")
+                    elif key == 'c':
+                        log_buffer = [f"[bold yellow]--- {_translate('Logs cleared')} ---[/]"]
                 
                 # Process any new log entries if not paused
                 if not paused:

@@ -15,7 +15,27 @@ try:
     import jinja2
 except ImportError:
     print("Required packages not found. Installing them...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2"])
+    try:
+        # First check if pip is available
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            print("\nError: pip is not installed for your Python installation.")
+            print("Please install pip first using one of these methods:")
+            print("- On Ubuntu/Debian: sudo apt update && sudo apt install python3-pip")
+            print("- On Windows: python -m ensurepip")
+            print("- Download get-pip.py: curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py\n")
+            sys.exit(1)
+
+        # If we got here, pip is available, so try to install the packages
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2"])
+    except Exception as e:
+        print(f"\nFailed to install required packages: {e}")
+        print("Please install them manually using:")
+        print(f"{sys.executable} -m pip install rich questionary jinja2\n")
+        sys.exit(1)
+        
+    # Try importing again after installation
     from rich.console import Console
     from rich.panel import Panel
     import questionary
