@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - after entering domain, check if its a valid domain, check if public resolvable (Use DNS-Servers from Quad9), if not resolvable, hide let's encrypt option
 After "? Would you like to start the Docker services now?" Open the Pre-Wizard no manage the configuration.
 -after adding custom certificates check if they are nginx compatible. Should also check if .key is the correct .key for the certificate
+## [0.3.3] - 2025-04-27
+### Changed
+- Adjust the client certificate workflow
+### Fixed
+- CRL List mounting in docker-compose.yml
 ## [0.3.2] - 2025-04-26
 ### Fixed
 - .htpasswd creation

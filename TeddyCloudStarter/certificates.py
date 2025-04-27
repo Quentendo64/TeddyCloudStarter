@@ -125,12 +125,62 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             console.print(f"[bold yellow]{self._translate(error_msg)}[/]")
             return False
     
-    def generate_client_certificate(self, client_name: Optional[str] = None, project_path: Optional[str] = None) -> bool:
+    def _update_certificate_info_in_config(self, client_name, safe_name, serial, creation_date, valid_till):
+        """Update certificate information in config.json."""
+        try:
+            # Find the correct config file to update
+            from .config_manager import ConfigManager
+            
+            # First try the project-specific config
+            if self.base_dir and self.base_dir != Path("."):
+                project_config_path = Path(self.base_dir) / "config.json"
+                if project_config_path.exists():
+                    config_manager = ConfigManager(config_path=str(project_config_path))
+                else:
+                    # If project config doesn't exist, fall back to default
+                    config_manager = ConfigManager()
+            else:
+                # Use default config if no project path
+                config_manager = ConfigManager()
+            
+            if config_manager and config_manager.config:
+                # Create certificate info dictionary
+                cert_info = {
+                    "client_name": client_name,
+                    "safe_name": safe_name,
+                    "serial": serial,
+                    "creation_date": creation_date,
+                    "valid_till": valid_till,
+                    "revoked": False,
+                    "path": str(self.clients_dir / f"{safe_name}.p12")
+                }
+                
+                # Initialize security section if it doesn't exist
+                if "security" not in config_manager.config:
+                    config_manager.config["security"] = {}
+                
+                # Initialize client_certificates array if it doesn't exist
+                if "client_certificates" not in config_manager.config["security"]:
+                    config_manager.config["security"]["client_certificates"] = []
+                
+                # Add certificate info to the array
+                config_manager.config["security"]["client_certificates"].append(cert_info)
+                config_manager.save()
+                
+                # Debug info
+                console.print(f"[green]{self._translate('Certificate information saved to')} {config_manager.config_path}[/]")
+                
+        except Exception as e:
+            error_msg = f"Warning: Could not update config with certificate info: {e}"
+            console.print(f"[bold yellow]{self._translate(error_msg)}[/]")
+    
+    def generate_client_certificate(self, client_name: Optional[str] = None, project_path: Optional[str] = None, passout: Optional[str] = None) -> bool:
         """Generate client certificates using OpenSSL.
         
         Args:
             client_name: Optional name for the client certificate. If not provided, will use default
             project_path: Optional path to the project directory. If provided, will override the base_dir
+            passout: Optional password for the PKCS#12 file. If not provided, will use default "teddycloud"
             
         Returns:
             bool: True if successful, False otherwise
@@ -160,6 +210,13 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             # Use default name if none provided
             if not client_name:
                 client_name = "TeddyCloudClient"
+            
+            # Store whether this is a default password for display purposes
+            is_default_password = not passout
+            
+            # Use default password if none provided
+            if not passout:
+                passout = "teddycloud"
             
             # Ensure client_name is valid as file name by removing special chars
             safe_name = re.sub(r'[^\w\-\.]', '_', client_name)
@@ -233,15 +290,66 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
                 "-days", "3650"
             ], check=True)
             
-            # Create PKCS#12 file for client
+            # Create PKCS#12 file for client with provided or default password
             subprocess.run([
                 "openssl", "pkcs12", "-export",
                 "-inkey", str(client_key),
                 "-in", str(client_crt),
                 "-certfile", str(ca_crt_path),
                 "-out", str(client_p12),
-                "-passout", "pass:teddycloud"
+                "-passout", f"pass:{passout}"
             ], check=True)
+            
+            # Get certificate serial number for tracking
+            result = subprocess.run(
+                ["openssl", "x509", "-noout", "-serial", "-in", str(client_crt)],
+                capture_output=True, text=True, check=True
+            )
+            serial = result.stdout.strip().split('=')[1]
+            
+            # Add the last 8 characters of serial to the filename to avoid overwriting
+            serial_suffix = serial[-8:]
+            new_safe_name = f"{safe_name}_{serial_suffix}"
+            
+            # Rename files to include serial suffix
+            client_p12_with_serial = self.clients_dir / f"{new_safe_name}.p12"
+            client_key_with_serial = self.clients_dir / f"{new_safe_name}.key"
+            client_crt_with_serial = self.clients_dir / f"{new_safe_name}.crt"
+            
+            # Rename the files
+            shutil.move(str(client_p12), str(client_p12_with_serial))
+            shutil.move(str(client_key), str(client_key_with_serial))
+            shutil.move(str(client_crt), str(client_crt_with_serial))
+            
+            # Update our variables to use the new filenames
+            client_p12 = client_p12_with_serial
+            client_key = client_key_with_serial
+            client_crt = client_crt_with_serial
+            
+            # Get certificate expiration date
+            result = subprocess.run(
+                ["openssl", "x509", "-noout", "-enddate", "-in", str(client_crt)],
+                capture_output=True, text=True, check=True
+            )
+            end_date = result.stdout.strip().split('=')[1]
+            
+            # Format the end date
+            from datetime import datetime
+            try:
+                # Parse the date format from OpenSSL (e.g., "May 14 12:00:00 2026 GMT")
+                parsed_date = datetime.strptime(end_date, "%b %d %H:%M:%S %Y %Z")
+                formatted_end_date = parsed_date.strftime("%Y-%m-%d")
+            except ValueError:
+                formatted_end_date = end_date  # Use original format if parsing fails
+                
+            # Add certificate info to config.json
+            self._update_certificate_info_in_config(
+                client_name=client_name,
+                safe_name=new_safe_name,
+                serial=serial,
+                creation_date=datetime.now().strftime("%Y-%m-%d"),
+                valid_till=formatted_end_date
+            )
             
             message = f"[bold green]{self._translate('Client certificate generated successfully!')}[/]\n\n"
             if server_created:
@@ -251,7 +359,13 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             message += f"{self._translate('Client certificate')} '{client_name}' {self._translate('has been created in the clients subfolder:')}\n"
             message += f"- {client_key}: {self._translate('The client private key')}\n"
             message += f"- {client_crt}: {self._translate('The client certificate')}\n"
-            message += f"- {client_p12}: {self._translate('Client certificate bundle (password: teddycloud)')}\n\n"
+            
+            # Display password differently based on whether it's the default or a custom one
+            if is_default_password:
+                message += f"- {client_p12}: {self._translate('Client certificate bundle (password: ')} {passout})\n\n"
+            else:
+                message += f"- {client_p12}: {self._translate('Client certificate bundle (password: ')} ******)\n\n"
+            
             message += f"{self._translate('Install the .p12 file on devices that need to access TeddyCloud.')}"
             
             console.print(Panel(
@@ -286,10 +400,23 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
                 console.print(f"[bold red]{self._translate('No client certificates directory found.')}[/]")
                 return False
             
-            # Check if clients subfolder exists
-            if not self.clients_dir.exists() or not any(self.clients_dir.glob('*.crt')):
-                console.print(f"[bold red]{self._translate('No client certificates found to revoke.')}[/]")
-                return False
+            # Get certificate information from config.json
+            from .config_manager import ConfigManager
+            config_manager = ConfigManager()
+            
+            # Check if certificates are stored in the config
+            certificates = []
+            if (config_manager and config_manager.config and 
+                "security" in config_manager.config and 
+                "client_certificates" in config_manager.config["security"]):
+                certificates = config_manager.config["security"]["client_certificates"]
+            
+            # Check if we have any certificates to revoke
+            if not certificates:
+                # Fall back to checking file system if no certificates in config
+                if not self.clients_dir.exists() or not any(self.clients_dir.glob('*.crt')):
+                    console.print(f"[bold red]{self._translate('No client certificates found to revoke.')}[/]")
+                    return False
             
             # Create crl subfolder if it doesn't exist
             self.crl_dir.mkdir(exist_ok=True)
@@ -311,25 +438,44 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
                 else:
                     console.print(f"[bold red]{self._translate('CA certificate or key not found. Cannot revoke certificate.')}[/]")
                     return False
-                
-            # Validate the certificate name or get from the list
+            
+            # Validate the certificate name or find it in the config
+            cert_info = None
+            safe_name = None
+            
             if cert_name:
-                cert_file = self.clients_dir / f"{cert_name}.crt"
-                if not cert_file.exists():
-                    error_msg = f"Certificate {cert_name}.crt not found."
-                    console.print(f"[bold red]{self._translate(error_msg)}[/]")
-                    return False
+                # Try to find the certificate in the config first
+                for cert in certificates:
+                    if cert.get("client_name") == cert_name or cert.get("safe_name") == cert_name:
+                        cert_info = cert
+                        safe_name = cert.get("safe_name")
+                        break
+                
+                # If not found in config, check file directly
+                if not cert_info:
+                    # Try to find the file directly
+                    cert_file = self.clients_dir / f"{cert_name}.crt"
+                    if not cert_file.exists():
+                        error_msg = f"Certificate {cert_name}.crt not found."
+                        console.print(f"[bold red]{self._translate(error_msg)}[/]")
+                        return False
+                    safe_name = cert_name
             else:
-                # Get a list of available certificates
-                cert_files = list(self.clients_dir.glob('*.crt'))
-                if not cert_files:
-                    console.print(f"[bold red]{self._translate('No client certificates found to revoke.')}[/]")
-                    return False
-                
-                # Get first available certificate as an example
-                cert_file = cert_files[0]
-                cert_name = cert_file.stem
-                
+                # If no cert_name provided and we have certificates in config, use the first one as an example
+                if certificates:
+                    cert_info = certificates[0]
+                    cert_name = cert_info.get("client_name")
+                    safe_name = cert_info.get("safe_name")
+                else:
+                    # If no certificates in config, check file system
+                    cert_files = list(self.clients_dir.glob('*.crt'))
+                    if not cert_files:
+                        console.print(f"[bold red]{self._translate('No client certificates found to revoke.')}[/]")
+                        return False
+                    cert_file = cert_files[0]
+                    cert_name = cert_file.stem
+                    safe_name = cert_name
+            
             # Initialize or update the certificate index file
             index_file = self.ca_dir / "index.txt"
             if not index_file.exists():
@@ -349,12 +495,23 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
                 with open(crlnumber_file, "w") as f:
                     f.write("01")
             
+            # Get the certificate path from safe_name
+            cert_path = self.clients_dir / f"{safe_name}.crt"
+            
             # Get the certificate serial number
-            result = subprocess.run(
-                ["openssl", "x509", "-noout", "-serial", "-in", str(cert_file)],
-                capture_output=True, text=True, check=True
-            )
-            serial = result.stdout.strip().split('=')[1]
+            serial = None
+            if cert_info and "serial" in cert_info:
+                serial = cert_info["serial"]
+            else:
+                try:
+                    result = subprocess.run(
+                        ["openssl", "x509", "-noout", "-serial", "-in", str(cert_path)],
+                        capture_output=True, text=True, check=True
+                    )
+                    serial = result.stdout.strip().split('=')[1]
+                except Exception as e:
+                    error_msg = f"Could not get certificate serial number: {e}"
+                    console.print(f"[bold yellow]{self._translate(error_msg)}[/]")
             
             # Create OpenSSL config file for revocation
             openssl_conf_file = self.ca_dir / "openssl.cnf"
@@ -405,9 +562,13 @@ authorityKeyIdentifier=keyid:always
                 original_dir = os.getcwd()
                 os.chdir(str(self.ca_dir.absolute()))
                 
+                # Always proceed with full revocation
+                console.print(f"[bold cyan]{self._translate('Fully revoking certificate with CA...')}[/]")
+                
+                # Revoke the certificate using OpenSSL
                 subprocess.run([
                     "openssl", "ca", "-config", "openssl.cnf",
-                    "-revoke", str(self.clients_dir / f"{cert_name}.crt"),
+                    "-revoke", str(cert_path),
                     "-keyfile", str(ca_key_path),
                     "-cert", str(ca_crt_path)
                 ], check=True)
@@ -423,6 +584,61 @@ authorityKeyIdentifier=keyid:always
                 
                 # Return to original directory
                 os.chdir(original_dir)
+                
+                # Update certificate status in config.json
+                if config_manager and certificates:
+                    for i, cert in enumerate(certificates):
+                        if (cert.get("client_name") == cert_name or 
+                            cert.get("safe_name") == safe_name or 
+                            (serial and cert.get("serial") == serial)):
+                            config_manager.config["security"]["client_certificates"][i]["revoked"] = True
+                            config_manager.config["security"]["client_certificates"][i]["revocation_date"] = time.strftime("%Y-%m-%d")
+                            config_manager.save()
+                            break
+                
+                # Regenerate Docker Compose and nginx configurations if in nginx mode with client certificate auth
+                try:
+                    # Only proceed if we're in nginx mode with client certificate authentication
+                    if config_manager and config_manager.config.get("mode") == "nginx" and \
+                       config_manager.config.get("nginx", {}).get("security", {}).get("type") == "client_cert":
+                        console.print(f"[cyan]{self._translate('Regenerating Docker Compose configuration...')}[/]")
+                        
+                        # Import required modules for configuration regeneration
+                        from .configuration.generator import generate_docker_compose, generate_nginx_configs
+                        from .configurations import TEMPLATES
+                        
+                        # Get the project path
+                        project_path = config_manager.config.get("environment", {}).get("path", str(self.base_dir))
+                        
+                        # Regenerate Docker Compose configuration
+                        if generate_docker_compose(config_manager.config, self.translator, TEMPLATES):
+                            console.print(f"[green]{self._translate('Docker Compose configuration regenerated successfully')}[/]")
+                            
+                            # Regenerate nginx configs
+                            if generate_nginx_configs(config_manager.config, self.translator, TEMPLATES):
+                                console.print(f"[green]{self._translate('Nginx configuration regenerated successfully')}[/]")
+                                
+                                # Ask if user wants to restart services to apply changes
+                                from rich.prompt import Confirm
+                                restart_service = Confirm.ask(
+                                    f"[yellow]{self._translate('Would you like to restart the nginx-auth service to apply the changes?')}[/]"
+                                )
+                                
+                                if restart_service:
+                                    # Import and use DockerManager to restart only the nginx-auth service
+                                    from .docker_manager import DockerManager
+                                    docker_manager = DockerManager(translator=self.translator)
+                                    
+                                    if docker_manager.restart_service("nginx-auth", project_path=project_path):
+                                        console.print(f"[bold green]{self._translate('nginx-auth service restarted successfully')}[/]")
+                                    else:
+                                        console.print(f"[bold yellow]{self._translate('Failed to restart nginx-auth service. You may need to restart it manually.')}[/]")
+                            else:
+                                console.print(f"[bold yellow]{self._translate('Failed to regenerate Nginx configuration')}[/]")
+                        else:
+                            console.print(f"[bold yellow]{self._translate('Failed to regenerate Docker Compose configuration')}[/]")
+                except Exception as e:
+                    console.print(f"[bold yellow]{self._translate('Error during configuration regeneration:')} {e}[/]")
                 
                 success_msg = f"Certificate {cert_name} has been revoked successfully."
                 console.print(f"[bold green]{self._translate(success_msg)}[/]")
@@ -551,9 +767,9 @@ authorityKeyIdentifier=keyid:always
             cmd = [
                 "docker", "run", "--rm",
                 "-v", "certbot_data:/etc/letsencrypt",
-                "-v", "certbot_www:/.well-known/acme-challenge",
+                "-v", "certbot_www:/var/www/certbot",
                 "certbot/certbot", "certonly", "--webroot",
-                "--webroot-path=/.well-known/acme-challenge",
+                "--webroot-path=/var/www/certbot",
                 "--register-unsafely-without-email", "--agree-tos",
             ]
             

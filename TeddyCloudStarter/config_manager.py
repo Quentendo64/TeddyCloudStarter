@@ -152,3 +152,68 @@ class ConfigManager:
         
         # Default to False if config file doesn't exist or doesn't have the setting
         return False
+
+    def invalidate_client_certificate(self, cert_serial, cert_manager=None):
+        """Invalidate a client certificate in the configuration.
+        
+        Args:
+            cert_serial: The serial number of the certificate to invalidate
+            cert_manager: Optional CertificateManager instance for actual revocation
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if "security" not in self.config or "client_certificates" not in self.config["security"]:
+            error_msg = "No client certificates found in configuration."
+            if self.translator:
+                error_msg = self.translator.get(error_msg)
+            console.print(f"[bold red]{error_msg}[/]")
+            return False
+        
+        certificates = self.config["security"]["client_certificates"]
+        cert_found = False
+        
+        for i, cert in enumerate(certificates):
+            if cert.get("serial") == cert_serial:
+                cert_found = True
+                
+                # Check if the certificate is already revoked
+                if cert.get("revoked", False):
+                    already_revoked_msg = f"Certificate with serial {cert_serial} is already revoked."
+                    if self.translator:
+                        already_revoked_msg = self.translator.get("Certificate with serial {serial} is already revoked.").format(serial=cert_serial)
+                    console.print(f"[bold yellow]{already_revoked_msg}[/]")
+                    return True
+                
+                # If cert_manager is provided, properly revoke the certificate
+                if cert_manager:
+                    safe_name = cert.get("safe_name")
+                    client_name = cert.get("client_name")
+                    if safe_name:
+                        revoke_result = cert_manager.revoke_client_certificate(safe_name)
+                        if not revoke_result:
+                            # If actual revocation fails, still mark as revoked in config
+                            error_msg = f"Certificate revocation process failed, but certificate will be marked as revoked in configuration."
+                            if self.translator:
+                                error_msg = self.translator.get(error_msg)
+                            console.print(f"[bold yellow]{error_msg}[/]")
+                
+                # Mark certificate as revoked in the configuration
+                self.config["security"]["client_certificates"][i]["revoked"] = True
+                self.config["security"]["client_certificates"][i]["revocation_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
+                self.save()
+                
+                success_msg = f"Certificate with serial {cert_serial} has been invalidated in configuration."
+                if self.translator:
+                    success_msg = self.translator.get("Certificate with serial {serial} has been invalidated in configuration.").format(serial=cert_serial)
+                console.print(f"[bold green]{success_msg}[/]")
+                
+                return True
+        
+        if not cert_found:
+            not_found_msg = f"Certificate with serial {cert_serial} not found in configuration."
+            if self.translator:
+                not_found_msg = self.translator.get("Certificate with serial {serial} not found in configuration.").format(serial=cert_serial)
+            console.print(f"[bold red]{not_found_msg}[/]")
+            
+        return cert_found

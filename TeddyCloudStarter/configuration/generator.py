@@ -50,11 +50,15 @@ def generate_docker_compose(config, translator, templates):
                 "teddycloud": config["ports"]["teddycloud"]
             })
         else:  # nginx mode
+            # Check for CRL file existence
+            crl_file = os.path.exists(os.path.join(data_dir, "client_certs", "crl", "ca.crl"))
+            
             context.update({
                 "domain": config["nginx"]["domain"],
                 "https_mode": config["nginx"]["https_mode"],
                 "security_type": config["nginx"]["security"]["type"],
-                "allowed_ips": config["nginx"]["security"]["allowed_ips"]
+                "allowed_ips": config["nginx"]["security"]["allowed_ips"],
+                "crl_file": crl_file
             })
             
             # Add paths for custom certificates if using custom HTTPS mode
@@ -138,7 +142,7 @@ def generate_nginx_configs(config, translator, templates):
             "https_mode": config["nginx"]["https_mode"],
             "security_type": config["nginx"]["security"]["type"],
             "allowed_ips": config["nginx"]["security"]["allowed_ips"],
-            "crl_file": os.path.exists(os.path.join(data_dir, "client_certs", "crl", "crl.pem"))
+            "crl_file": os.path.exists(os.path.join(data_dir, "client_certs", "crl", "ca.crl"))
         }
         
         with open(os.path.join(config_dir, "nginx-auth.conf"), "w") as f:

@@ -257,7 +257,7 @@ http {
         {% if security_type == "client_cert" %}
         ssl_client_certificate /etc/nginx/ca/ca.crt;
         {% if crl_file %}
-        ssl_crl /etc/nginx/client_certs/crl/crl.pem;
+        ssl_crl /etc/nginx/crl/ca.crl;
         {%- endif %}
         ssl_verify_client on;
         {%- endif %}
