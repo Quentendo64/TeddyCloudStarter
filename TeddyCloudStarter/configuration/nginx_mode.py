@@ -359,110 +359,124 @@ def configure_security(nginx_config, translator, cert_manager, project_path):
         cert_manager: The certificate manager instance
         project_path: The project path for file operations
     """
-    security_type = questionary.select(
-        translator.get("How would you like to secure your TeddyCloud instance?"),
-        choices=[
-            translator.get("No additional security"),
-            translator.get("Basic Authentication (.htpasswd)"),
-            translator.get("Client Certificates"),
-        ],
-        style=custom_style
-    ).ask()
-    
-    if security_type.startswith(translator.get("No")):
-        nginx_config["security"]["type"] = "none"
-    elif security_type.startswith(translator.get("Basic")):
-        nginx_config["security"]["type"] = "basic_auth"
-        
-        # Ask if user wants to provide their own .htpasswd or generate one
-        htpasswd_option = questionary.select(
-            translator.get("How would you like to handle the .htpasswd file?"),
+    while True:
+        security_type = questionary.select(
+            translator.get("How would you like to secure your TeddyCloud instance?"),
             choices=[
-                translator.get("Generate .htpasswd file with the wizard"),
-                translator.get("I'll provide my own .htpasswd file")                
+                translator.get("No additional security"),
+                translator.get("Basic Authentication (.htpasswd)"),
+                translator.get("Client Certificates"),
             ],
             style=custom_style
         ).ask()
         
-        # Use project path for data directory and htpasswd file
-        data_path = os.path.join(project_path, "data")
-        security_path = os.path.join(data_path, "security")
-        htpasswd_file_path = os.path.join(security_path, ".htpasswd")
-        
-        # Create security directory if it doesn't exist
-        Path(security_path).mkdir(parents=True, exist_ok=True)
-        
-        # Handle htpasswd creation choice
-        if htpasswd_option == translator.get("Generate .htpasswd file with the wizard"):
-            console.print(f"[bold cyan]{translator.get('Let\'s create a .htpasswd file with your users and passwords')}.[/]")
+        if security_type.startswith(translator.get("No")):
+            nginx_config["security"]["type"] = "none"
+            break
+        elif security_type.startswith(translator.get("Basic")):
+            nginx_config["security"]["type"] = "basic_auth"
             
-            # Use Docker to generate htpasswd file
-            generate_htpasswd_file(htpasswd_file_path, translator)
-        else:
-            console.print(f"[bold cyan]{translator.get('Remember to place your .htpasswd file at')} {htpasswd_file_path}[/]")
-        
-        # Check if .htpasswd exists
-        htpasswd_exists = Path(htpasswd_file_path).exists()
-        
-        if not htpasswd_exists:
-            console.print(f"[bold yellow]{translator.get('.htpasswd file not found. You must add it to continue.')}[/]")
-            
-            console.print(f"[bold cyan]{translator.get('Waiting for .htpasswd file to be added...')}[/]")
-            console.print(f"[cyan]{translator.get('Please add the file at')}: {htpasswd_file_path}[/]")
-            
-            # Wait for the .htpasswd to appear - user cannot proceed without it
-            import time
-            
-            while True:
-                # Sleep briefly to avoid high CPU usage and give time for file system operations
-                time.sleep(1)
-                
-                # Force refresh the directory
-                try:
-                    # Check if .htpasswd exists now
-                    htpasswd_exists = os.path.isfile(htpasswd_file_path)
-                    
-                    if htpasswd_exists:
-                        console.print(f"[bold green]{translator.get('.htpasswd file found! Continuing...')}[/]")
-                        break
-                except Exception as e:
-                    console.print(f"[bold red]Error checking files: {str(e)}[/]")
-                
-                console.print(f"[yellow]{translator.get('Still waiting for .htpasswd file at')}: {htpasswd_file_path}[/]")
-                
-                # Ask if user wants to change security method instead of adding .htpasswd
-                change_security_method = questionary.confirm(
-                    translator.get("Do you want to return to the security selection menu?"),
-                    default=False,
-                    style=custom_style
-                ).ask()
-                
-                if change_security_method:
-                    # Switch to no security
-                    nginx_config["security"]["type"] = "none"
-                    console.print(f"[bold cyan]{translator.get('Switching to no additional security mode...')}[/]")
-                    return
-        else:
-            console.print(f"[bold green]{translator.get('.htpasswd file found and ready to use.')}[/]")
-    else:  # Client Certificates
-        nginx_config["security"]["type"] = "client_cert"
-        
-        cert_source = questionary.select(
-            translator.get("How would you like to handle client certificates?"),
-            choices=[
-                translator.get("I'll provide my own certificates"),
-                translator.get("Generate certificates for me")
-            ],
-            style=custom_style
-        ).ask()
-        
-        if cert_source.startswith(translator.get("Generate")):
-            client_name = questionary.text(
-                translator.get("Enter a name for the client certificate:"),
-                default="TeddyCloudClient01",
+            # Ask if user wants to provide their own .htpasswd or generate one
+            htpasswd_option = questionary.select(
+                translator.get("How would you like to handle the .htpasswd file?"),
+                choices=[
+                    translator.get("Generate .htpasswd file with the wizard"),
+                    translator.get("I'll provide my own .htpasswd file")                
+                ],
                 style=custom_style
             ).ask()
-            cert_manager.generate_client_certificate(client_name, project_path)
+            
+            # Use project path for data directory and htpasswd file
+            data_path = os.path.join(project_path, "data")
+            security_path = os.path.join(data_path, "security")
+            htpasswd_file_path = os.path.join(security_path, ".htpasswd")
+            
+            # Create security directory if it doesn't exist
+            Path(security_path).mkdir(parents=True, exist_ok=True)
+            
+            # Handle htpasswd creation choice
+            if htpasswd_option == translator.get("Generate .htpasswd file with the wizard"):
+                console.print(f"[bold cyan]{translator.get('Let\'s create a .htpasswd file with your users and passwords')}.[/]")
+                
+                # Use Docker to generate htpasswd file
+                generate_htpasswd_file(htpasswd_file_path, translator)
+            else:
+                console.print(f"[bold cyan]{translator.get('Remember to place your .htpasswd file at')} {htpasswd_file_path}[/]")
+            
+            # Check if .htpasswd exists
+            htpasswd_exists = Path(htpasswd_file_path).exists()
+            
+            if not htpasswd_exists:
+                console.print(f"[bold yellow]{translator.get('.htpasswd file not found. You must add it to continue.')}[/]")
+                
+                # Flag to track if we need to return to security menu
+                should_return_to_menu = False
+                
+                console.print(f"[bold cyan]{translator.get('Waiting for .htpasswd file to be added...')}[/]")
+                console.print(f"[cyan]{translator.get('Please add the file at')}: {htpasswd_file_path}[/]")
+                
+                # Wait for the .htpasswd to appear - user cannot proceed without it
+                import time
+                
+                while True:
+                    # Sleep briefly to avoid high CPU usage and give time for file system operations
+                    time.sleep(1)
+                    
+                    # Force refresh the directory
+                    try:
+                        # Check if .htpasswd exists now
+                        htpasswd_exists = os.path.isfile(htpasswd_file_path)
+                        
+                        if htpasswd_exists:
+                            console.print(f"[bold green]{translator.get('.htpasswd file found! Continuing...')}[/]")
+                            break
+                    except Exception as e:
+                        console.print(f"[bold red]Error checking files: {str(e)}[/]")
+                    
+                    console.print(f"[yellow]{translator.get('Still waiting for .htpasswd file at')}: {htpasswd_file_path}[/]")
+                    
+                    # Ask if user wants to change security method instead of adding .htpasswd
+                    change_security_method = questionary.confirm(
+                        translator.get("Do you want to return to the security selection menu?"),
+                        default=False,
+                        style=custom_style
+                    ).ask()
+                    
+                    if change_security_method:
+                        # Set flag to return to security selection menu
+                        should_return_to_menu = True
+                        console.print(f"[bold cyan]{translator.get('Returning to security selection menu...')}[/]")
+                        break  # Break out of the waiting loop
+                
+                # If we need to return to security menu, skip the break and continue the outer loop
+                if should_return_to_menu:
+                    continue  # Continue the outer while loop to show the security menu again
+            else:
+                console.print(f"[bold green]{translator.get('.htpasswd file found and ready to use.')}[/]")
+            
+            break  # Break out of the outer while loop once configuration is complete
+            
+        else:  # Client Certificates
+            nginx_config["security"]["type"] = "client_cert"
+            
+            cert_source = questionary.select(
+                translator.get("How would you like to handle client certificates?"),
+                choices=[
+                    translator.get("I'll provide my own certificates"),
+                    translator.get("Generate certificates for me")
+                ],
+                style=custom_style
+            ).ask()
+            
+            if cert_source.startswith(translator.get("Generate")):
+                client_name = questionary.text(
+                    translator.get("Enter a name for the client certificate:"),
+                    default="TeddyCloudClient01",
+                    style=custom_style
+                ).ask()
+                cert_manager.generate_client_certificate(client_name, project_path)
+            
+            break  # Break out of the outer while loop once configuration is complete
     
     # Ask about IP restrictions
     configure_ip_restrictions(nginx_config, translator)

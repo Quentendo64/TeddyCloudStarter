@@ -8,11 +8,7 @@ A user-friendly wizard for setting up TeddyCloud deployments with Docker.
 ## ALPHA - RELEASE
 
 WARNING - Very early development stage
-
 Keep in mind that this project by far is not finished yet.
-
-NGINX Configs are not the correct ones yet. Some features are not available.
-
 But it should bring you the concept of how it will work. 
 
 Soon™ 

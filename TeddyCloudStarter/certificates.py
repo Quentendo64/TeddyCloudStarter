@@ -125,11 +125,12 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             console.print(f"[bold yellow]{self._translate(error_msg)}[/]")
             return False
     
-    def generate_client_certificate(self, client_name: Optional[str] = None) -> bool:
+    def generate_client_certificate(self, client_name: Optional[str] = None, project_path: Optional[str] = None) -> bool:
         """Generate client certificates using OpenSSL.
         
         Args:
             client_name: Optional name for the client certificate. If not provided, will use default
+            project_path: Optional path to the project directory. If provided, will override the base_dir
             
         Returns:
             bool: True if successful, False otherwise
@@ -137,6 +138,15 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
         console.print(f"[bold cyan]{self._translate('Generating client certificates...')}[/]")
         
         try:
+            # If project_path is provided, update the base_dir and related paths
+            if project_path:
+                self.base_dir = Path(project_path)
+                self.client_certs_dir = self.base_dir / "data" / "client_certs"
+                self.ca_dir = self.client_certs_dir / "ca"
+                self.clients_dir = self.client_certs_dir / "clients"
+                self.server_dir = self.client_certs_dir / "server"
+                self.crl_dir = self.client_certs_dir / "crl"
+            
             # Ensure directories exist
             self.client_certs_dir.mkdir(parents=True, exist_ok=True)
             self.server_dir.mkdir(exist_ok=True)
@@ -435,6 +445,94 @@ authorityKeyIdentifier=keyid:always
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
 
+    def test_domain_for_letsencrypt(self, domain: str) -> bool:
+        """Test if a domain is properly set up for Let's Encrypt.
+        
+        Tests DNS resolution and tries to obtain a test certificate in staging mode.
+        If staging mode fails, offers to try production mode.
+        
+        Args:
+            domain: Domain name to test
+            
+        Returns:
+            bool: True if domain passed at least one test, False otherwise
+        """
+        console.print(f"[bold cyan]{self._translate('Testing domain for Let\'s Encrypt compatibility...')}[/]")
+        
+        # 1. Check domain DNS resolution
+        console.print(f"[cyan]{self._translate('Step 1: Testing DNS resolution for')} {domain}...[/]")
+        try:
+            import socket
+            socket.gethostbyname(domain)
+            console.print(f"[bold green]{self._translate('DNS resolution successful!')}[/]")
+            dns_check_passed = True
+        except socket.gaierror:
+            console.print(f"[bold red]{self._translate('DNS resolution failed. Your domain may not be properly configured.')}[/]")
+            console.print(f"[yellow]{self._translate('Make sure your domain points to this server\'s public IP address.')}[/]")
+            dns_check_passed = False
+        
+        # 2. Test HTTP connectivity (port 80 reachability)
+        console.print(f"[cyan]{self._translate('Step 2: Testing port 80 accessibility for ACME challenge...')}[/]")
+        
+        # Create simple Docker container to test port 80
+        try:
+            check_cmd = [
+                "docker", "run", "--rm",
+                "busybox", "wget", "-q", "-T", "5", "-O-",
+                f"http://{domain}/.well-known/acme-challenge/test"
+            ]
+            process = subprocess.run(check_cmd, capture_output=True, text=True)
+            
+            # We actually expect a 404 error (page not found), if we get a connection
+            http_check_passed = process.returncode == 1 and "404" in process.stderr
+            
+            if http_check_passed:
+                console.print(f"[bold green]{self._translate('Port 80 appears to be accessible!')}[/]")
+            else:
+                console.print(f"[bold yellow]{self._translate('Port 80 might not be reachable from the internet.')}[/]")
+                console.print(f"[yellow]{self._translate('Make sure port 80 is forwarded to this server if you\'re behind a router/firewall.')}[/]")
+        except Exception as e:
+            console.print(f"[bold yellow]{self._translate('Could not test HTTP connectivity:')} {str(e)}[/]")
+            http_check_passed = False
+        
+        # 3. Request a certificate in staging mode
+        console.print(f"[cyan]{self._translate('Step 3: Testing certificate issuance in staging mode...')}[/]")
+        
+        staging_success = self.request_letsencrypt_certificate(domain, staging=True)
+        
+        if staging_success:
+            console.print(f"[bold green]{self._translate('Staging certificate request successful!')}[/]")
+            console.print(f"[green]{self._translate('Your domain seems to be properly configured for Let\'s Encrypt.')}[/]")
+            return True
+        else:
+            console.print(f"[bold yellow]{self._translate('Staging certificate request failed.')}[/]")
+            
+            # If DNS check passed, we'll offer to try production mode
+            if dns_check_passed:
+                from rich.prompt import Confirm
+                try_production = Confirm.ask(
+                    f"[bold yellow]{self._translate('Would you like to try a real certificate request?')}[/]"
+                )
+                
+                if try_production:
+                    console.print(f"[cyan]{self._translate('Attempting production Let\'s Encrypt certificate request...')}[/]")
+                    production_success = self.request_letsencrypt_certificate(domain, staging=False)
+                    
+                    if production_success:
+                        console.print(f"[bold green]{self._translate('Production certificate request successful!')}[/]")
+                        console.print(f"[green]{self._translate('Your domain is properly configured for Let\'s Encrypt.')}[/]")
+                        return True
+                    else:
+                        console.print(f"[bold red]{self._translate('Production certificate request also failed.')}[/]")
+                        console.print(f"[yellow]{self._translate('Please check that:')}[/]")
+                        console.print(f"[yellow]- {self._translate('Your domain points to this server')}")
+                        console.print(f"[yellow]- {self._translate('Ports 80 and 443 are properly forwarded')}")
+                        console.print(f"[yellow]- {self._translate('No firewall is blocking incoming connections')}")
+                        return False
+            else:
+                console.print(f"[bold red]{self._translate('Domain validation failed. Cannot proceed with Let\'s Encrypt.')}[/]")
+                return False
+        
     def request_letsencrypt_certificate(self, domain: str, staging: bool = True) -> bool:
         """Request Let's Encrypt certificate.
         

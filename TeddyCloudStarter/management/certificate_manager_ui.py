@@ -23,6 +23,7 @@ def show_certificate_management_menu(config, translator, cert_manager):
     # Add appropriate options based on configuration
     if config["mode"] == "nginx":
         if config["nginx"]["https_mode"] == "letsencrypt":
+            choices.append(translator.get("Test domain for Let's Encrypt"))
             choices.append(translator.get("Force refresh Let's Encrypt certificates"))
         
         if config["nginx"]["security"]["type"] == "client_cert":
@@ -48,6 +49,10 @@ def show_certificate_management_menu(config, translator, cert_manager):
         
     elif action == translator.get("Force refresh Let's Encrypt certificates"):
         refresh_letsencrypt_certificates(config, translator, cert_manager)
+        return False  # Continue showing menu
+        
+    elif action == translator.get("Test domain for Let's Encrypt"):
+        test_domain_for_letsencrypt(config, translator, cert_manager)
         return False  # Continue showing menu
         
     # Back to main menu
@@ -99,3 +104,20 @@ def refresh_letsencrypt_certificates(config, translator, cert_manager):
     
     cert_manager.force_refresh_letsencrypt_certificates(domain, email)
     console.print(f"[bold green]{translator.get('Let\'s Encrypt certificates refreshed for')} {domain}[/]")
+
+def test_domain_for_letsencrypt(config, translator, cert_manager):
+    """
+    Test domain for Let's Encrypt.
+    
+    Args:
+        config: The configuration dictionary
+        translator: The translator instance for localization
+        cert_manager: The certificate manager instance
+    """
+    domain = config["nginx"]["domain"]
+    console.print(f"[bold yellow]{translator.get('Testing domain')} {domain} {translator.get('for Let\'s Encrypt...')}[/]")
+    result = cert_manager.test_domain_for_letsencrypt(domain)
+    if result:
+        console.print(f"[bold green]{translator.get('Domain')} {domain} {translator.get('is valid for Let\'s Encrypt')}[/]")
+    else:
+        console.print(f"[bold red]{translator.get('Domain')} {domain} {translator.get('is not valid for Let\'s Encrypt')}[/]")

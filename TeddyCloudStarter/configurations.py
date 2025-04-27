@@ -41,7 +41,7 @@ services:
       start_period: 10s
 
   
-  # Backend Nginx - Handles client certificate authentication
+  # Backend Nginx - Handles authentication
   nginx-auth:
     container_name: nginx-auth
     tty: true
@@ -52,8 +52,11 @@ services:
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
       {% if https_mode == "custom" %}
       - {{ cert_path }}
+      {%- if security_type == "client_cert" %}
+      - ./client_certs/ca:/etc/nginx/ca:ro
       {% if crl_file %}
-      - ./data/client_certs/crl:/etc/nginx/crl:ro
+      - ./client_certs/crl:/etc/nginx/crl:ro
+      {%- endif %}
       {%- endif %}
       {%- endif %}
       {%- if https_mode == "letsencrypt" %}
@@ -252,7 +255,7 @@ http {
         ssl_certificate_key /etc/nginx/certificates/server.key;
         {%- endif %}
         {% if security_type == "client_cert" %}
-        ssl_client_certificate /etc/nginx/certificates/ca.crt;
+        ssl_client_certificate /etc/nginx/ca/ca.crt;
         {% if crl_file %}
         ssl_crl /etc/nginx/client_certs/crl/crl.pem;
         {%- endif %}

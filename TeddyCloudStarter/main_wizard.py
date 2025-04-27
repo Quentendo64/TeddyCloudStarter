@@ -119,7 +119,7 @@ class TeddyCloudWizard(BaseWizard):
         choices = [f"{code}: {name}" for code, name in available_langs.items()]
         
         language_choice = questionary.select(
-            self.translator.get("Select language / Sprache wÃ¤hlen:"),
+            self.translator.get("Select language / Sprache wählen:"),
             choices=choices,
             style=custom_style
         ).ask()
@@ -337,13 +337,16 @@ class TeddyCloudWizard(BaseWizard):
         
         console.print(f"[bold cyan]{self.translator.get('Current deployment mode')}: {current_mode}[/]")
         
+        direct_choice = self.translator.get("Direct (For internal networks)")
+        nginx_choice = self.translator.get("With Nginx (For internet-facing deployments)")
+        
         deployment_mode = questionary.select(
             self.translator.get("Select new deployment mode:"),
             choices=[
-                self.translator.get("Direct (For internal networks)"),
-                self.translator.get("With Nginx (For internet-facing deployments)")
+                direct_choice,
+                nginx_choice
             ],
-            default=0 if current_mode == "direct" else 1,
+            default=direct_choice if current_mode == "direct" else nginx_choice,
             style=custom_style
         ).ask()
         
