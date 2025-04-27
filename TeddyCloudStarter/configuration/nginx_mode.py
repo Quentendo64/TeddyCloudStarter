@@ -15,7 +15,7 @@ from rich.table import Table
 from rich import print as rprint
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
-from ..utils import check_port_available, validate_domain_name, validate_ip_address
+from ..utils import check_port_available, validate_domain_name, validate_ip_address, check_domain_resolvable
 
 def configure_nginx_mode(config, translator, cert_manager):
     """
@@ -77,17 +77,48 @@ def configure_nginx_mode(config, translator, cert_manager):
     
     nginx_config["domain"] = domain
     
+    # Check if domain is publicly resolvable
+    domain_resolvable = check_domain_resolvable(domain)
+    
+    # Define choices for HTTPS mode based on domain resolution
+    https_choices = []
+    if domain_resolvable:
+        # If domain is resolvable, both options are available
+        https_choices = [
+            translator.get("Let's Encrypt (automatic certificates)"),
+            translator.get("Custom certificates (provide your own)")
+        ]
+        default_choice = https_choices[0]
+    else:
+        # If domain is not resolvable, only custom certificates option is available
+        https_choices = [
+            translator.get("Custom certificates (provide your own)")
+        ]
+        default_choice = https_choices[0]
+        # Also update config to use custom certificates
+        nginx_config["https_mode"] = "custom"
+        
+        # Inform the user why Let's Encrypt option is not available
+        console.print(Panel(
+            f"[bold yellow]{translator.get('Let\'s Encrypt Not Available')}[/]\n\n"
+            f"{translator.get('The domain')} '{domain}' {translator.get('could not be resolved using public DNS servers (Quad9)')}\n"
+            f"{translator.get('Let\'s Encrypt requires a publicly resolvable domain to issue certificates.')}\n"
+            f"{translator.get('You can still use custom certificates for your setup.')}",
+            box=box.ROUNDED,
+            border_style="yellow"
+        ))
+    
     # Ask about HTTPS
     https_mode = questionary.select(
         translator.get("How would you like to handle HTTPS?"),
-        choices=[
-            translator.get("Let's Encrypt (automatic certificates)"),
-            translator.get("Custom certificates (provide your own)")
-        ],
+        choices=https_choices,
+        default=default_choice,
         style=custom_style
     ).ask()
     
-    nginx_config["https_mode"] = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "custom"
+    # Update HTTPS mode setting based on selection
+    if domain_resolvable:  # Only update if both options were available
+        nginx_config["https_mode"] = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "custom"
     
     if nginx_config["https_mode"] == "letsencrypt":
         # Warn about Let's Encrypt requirements

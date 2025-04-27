@@ -23,8 +23,8 @@ def show_certificate_management_menu(config, translator, cert_manager):
     # Add appropriate options based on configuration
     if config["mode"] == "nginx":
         if config["nginx"]["https_mode"] == "letsencrypt":
+            choices.append(translator.get("Let's Encrypt Certificate Management"))
             choices.append(translator.get("Test domain for Let's Encrypt"))
-            choices.append(translator.get("Force refresh Let's Encrypt certificates"))
         
         if config["nginx"]["security"]["type"] == "client_cert":
             choices.append(translator.get("Create additional client certificate"))
@@ -47,8 +47,8 @@ def show_certificate_management_menu(config, translator, cert_manager):
         invalidate_client_certificate(config, translator, cert_manager)
         return False  # Continue showing menu
         
-    elif action == translator.get("Force refresh Let's Encrypt certificates"):
-        refresh_letsencrypt_certificates(config, translator, cert_manager)
+    elif action == translator.get("Let's Encrypt Certificate Management"):
+        show_letsencrypt_management_menu(config, translator, cert_manager)
         return False  # Continue showing menu
         
     elif action == translator.get("Test domain for Let's Encrypt"):
@@ -215,6 +215,144 @@ def invalidate_client_certificate(config, translator, cert_manager):
     else:
         console.print(f"[bold red]{translator.get('Failed to invalidate certificate.')}[/]")
 
+def show_letsencrypt_management_menu(config, translator, cert_manager):
+    """
+    Show Let's Encrypt certificate management submenu.
+    
+    Args:
+        config: The configuration dictionary
+        translator: The translator instance for localization
+        cert_manager: The certificate manager instance
+        
+    Returns:
+        bool: True if user chose to exit, False otherwise
+    """
+    choices = [
+        translator.get("Request production certificate (webroot mode)"),
+        translator.get("Request production certificate (standalone mode)"),
+        translator.get("Request staging certificate (webroot mode)"),
+        translator.get("Request staging certificate (standalone mode)"),
+        translator.get("Force refresh Let's Encrypt certificates"),
+        translator.get("Back to certificate menu")
+    ]
+    
+    action = questionary.select(
+        translator.get("Let's Encrypt Certificate Management"),
+        choices=choices,
+        style=custom_style
+    ).ask()
+    
+    if action == translator.get("Request production certificate (webroot mode)"):
+        request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="webroot")
+        return False
+        
+    elif action == translator.get("Request production certificate (standalone mode)"):
+        request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="standalone")
+        return False
+        
+    elif action == translator.get("Request staging certificate (webroot mode)"):
+        request_letsencrypt_certificate(config, translator, cert_manager, staging=True, mode="webroot")
+        return False
+        
+    elif action == translator.get("Request staging certificate (standalone mode)"):
+        request_letsencrypt_certificate(config, translator, cert_manager, staging=True, mode="standalone")
+        return False
+        
+    elif action == translator.get("Force refresh Let's Encrypt certificates"):
+        refresh_letsencrypt_certificates(config, translator, cert_manager)
+        return False
+    
+    # Back to certificate menu
+    return True
+
+def request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="webroot"):
+    """
+    Request Let's Encrypt certificate.
+    
+    Args:
+        config: The configuration dictionary
+        translator: The translator instance for localization
+        cert_manager: The certificate manager instance
+        staging: Whether to use staging environment
+        mode: Authentication mode, "webroot" or "standalone"
+    """
+    domain = config["nginx"]["domain"]
+    
+    # Ask for email
+    use_email = questionary.confirm(
+        translator.get("Would you like to receive email notifications about certificate expiry?"),
+        default=True,
+        style=custom_style
+    ).ask()
+    
+    email = None
+    if use_email:
+        email = questionary.text(
+            translator.get("Enter your email address:"),
+            validate=lambda x: re.match(r"[^@]+@[^@]+\.[^@]+", x),
+            style=custom_style
+        ).ask()
+    
+    # Ask for additional domains (SANs)
+    additional_domains = []
+    add_sans = questionary.confirm(
+        translator.get("Would you like to add additional domain names (SANs) to the certificate?"),
+        default=False,
+        style=custom_style
+    ).ask()
+    
+    if add_sans:
+        adding_domains = True
+        while adding_domains:
+            san = questionary.text(
+                translator.get("Enter additional domain name (leave empty to finish):"),
+                style=custom_style
+            ).ask()
+            
+            if not san:
+                adding_domains = False
+            else:
+                additional_domains.append(san)
+                console.print(f"[green]{translator.get('Added domain:')} {san}[/]")
+    
+    # Show certificate request info
+    staging_str = translator.get("staging") if staging else translator.get("production")
+    mode_str = mode
+    
+    console.print(f"[bold cyan]{translator.get('Requesting')} {staging_str} {translator.get('certificate using')} {mode_str} {translator.get('mode')}...[/]")
+    console.print(f"[cyan]{translator.get('Primary domain:')} {domain}[/]")
+    
+    if additional_domains:
+        console.print(f"[cyan]{translator.get('Additional domains:')} {', '.join(additional_domains)}[/]")
+    
+    if email:
+        console.print(f"[cyan]{translator.get('Email:')} {email}[/]")
+    
+    # Request the certificate
+    if mode == "standalone":
+        result = cert_manager.request_letsencrypt_certificate_standalone(
+            domain=domain,
+            staging=staging,
+            email=email,
+            additional_domains=additional_domains
+        )
+    else:  # webroot
+        result = cert_manager.request_letsencrypt_certificate(
+            domain=domain,
+            staging=staging,
+            email=email,
+            additional_domains=additional_domains
+        )
+    
+    if result:
+        cert_type = translator.get("Staging") if staging else translator.get("Production")
+        success_msg = f"{cert_type} {translator.get('certificate requested successfully for')} {domain}"
+        console.print(f"[bold green]{success_msg}[/]")
+    else:
+        cert_type = translator.get("staging") if staging else translator.get("production")
+        error_msg = f"{translator.get('Failed to request')} {cert_type} {translator.get('certificate')}"
+        console.print(f"[bold red]{error_msg}[/]")
+
 def refresh_letsencrypt_certificates(config, translator, cert_manager):
     """
     Refresh Let's Encrypt certificates.
@@ -241,7 +379,33 @@ def refresh_letsencrypt_certificates(config, translator, cert_manager):
             style=custom_style
         ).ask()
     
-    cert_manager.force_refresh_letsencrypt_certificates(domain, email)
+    # Ask for additional domains (SANs)
+    additional_domains = []
+    add_sans = questionary.confirm(
+        translator.get("Would you like to add additional domain names (SANs) to the certificate?"),
+        default=False,
+        style=custom_style
+    ).ask()
+    
+    if add_sans:
+        adding_domains = True
+        while adding_domains:
+            san = questionary.text(
+                translator.get("Enter additional domain name (leave empty to finish):"),
+                style=custom_style
+            ).ask()
+            
+            if not san:
+                adding_domains = False
+            else:
+                additional_domains.append(san)
+                console.print(f"[green]{translator.get('Added domain:')} {san}[/]")
+    
+    cert_manager.force_refresh_letsencrypt_certificates(
+        domain=domain, 
+        email=email,
+        additional_domains=additional_domains
+    )
     console.print(f"[bold green]{translator.get('Let\'s Encrypt certificates refreshed for')} {domain}[/]")
 
 def test_domain_for_letsencrypt(config, translator, cert_manager):

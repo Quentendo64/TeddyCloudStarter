@@ -13,6 +13,7 @@ try:
     from rich.panel import Panel
     import questionary
     import jinja2
+    import dns.resolver
 except ImportError:
     print("Required packages not found. Installing them...")
     try:
@@ -28,11 +29,11 @@ except ImportError:
             sys.exit(1)
 
         # If we got here, pip is available, so try to install the packages
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2", "dnspython"])
     except Exception as e:
         print(f"\nFailed to install required packages: {e}")
         print("Please install them manually using:")
-        print(f"{sys.executable} -m pip install rich questionary jinja2\n")
+        print(f"{sys.executable} -m pip install rich questionary jinja2 dnspython\n")
         sys.exit(1)
         
     # Try importing again after installation
@@ -40,6 +41,12 @@ except ImportError:
     from rich.panel import Panel
     import questionary
     import jinja2
+    try:
+        import dns.resolver
+    except ImportError:
+        print("\nFailed to import dnspython package after installation.")
+        print("This package is required for domain validation.")
+        sys.exit(1)
 
 # Import our modules
 from .main_wizard import TeddyCloudWizard

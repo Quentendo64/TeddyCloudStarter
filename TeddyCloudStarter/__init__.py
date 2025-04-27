@@ -3,5 +3,5 @@
 TeddyCloudStarter - An OS-independent wizard for setting up TeddyCloud with Docker
 """
 
-__version__ = '0.3.4'
+__version__ = '0.3.5'
 __author__ = "Quentendo64"

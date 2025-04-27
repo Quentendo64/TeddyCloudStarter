@@ -42,9 +42,10 @@ setup(
     ],
     python_requires=">=3.6",
     install_requires=[
-        "rich>=10.0.0",
-        "questionary>=1.10.0",
-        "jinja2>=2.11.0",
+        "rich>=14.0.0",
+        "questionary>=2.1.0",
+        "jinja2>=3.1.6",
+        "dnspython>=2.7.0",
     ],
     entry_points={
         "console_scripts": [

@@ -13,6 +13,7 @@ from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich import box
+from .lets_encrypt import LetsEncrypt
 
 # Global console instance for rich output
 console = Console()
@@ -43,6 +44,9 @@ class CertificateManager:
         self.server_dir = self.client_certs_dir / "server"
         self.crl_dir = self.client_certs_dir / "crl"
         self.translator = translator
+        
+        # Create LetsEncrypt instance for certificate operations
+        self.lets_encrypt = LetsEncrypt(translator=translator)
 
     
     def _translate(self, text):
@@ -661,11 +665,12 @@ authorityKeyIdentifier=keyid:always
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
 
+    # Forward Let's Encrypt related methods to the new class
     def test_domain_for_letsencrypt(self, domain: str) -> bool:
-        """Test if a domain is properly set up for Let's Encrypt.
+        """
+        Test if a domain is properly set up for Let's Encrypt.
         
-        Tests DNS resolution and tries to obtain a test certificate in staging mode.
-        If staging mode fails, offers to try production mode.
+        Delegates to the new LetsEncrypt class.
         
         Args:
             domain: Domain name to test
@@ -673,190 +678,78 @@ authorityKeyIdentifier=keyid:always
         Returns:
             bool: True if domain passed at least one test, False otherwise
         """
-        console.print(f"[bold cyan]{self._translate('Testing domain for Let\'s Encrypt compatibility...')}[/]")
+        return self.lets_encrypt.test_domain_for_letsencrypt(domain)
+    
+    def request_letsencrypt_certificate(self, domain: str, 
+                                       staging: bool = False, 
+                                       email: Optional[str] = None,
+                                       additional_domains: Optional[list] = None) -> bool:
+        """
+        Request a Let's Encrypt certificate using webroot mode.
         
-        # 1. Check domain DNS resolution
-        console.print(f"[cyan]{self._translate('Step 1: Testing DNS resolution for')} {domain}...[/]")
-        try:
-            import socket
-            socket.gethostbyname(domain)
-            console.print(f"[bold green]{self._translate('DNS resolution successful!')}[/]")
-            dns_check_passed = True
-        except socket.gaierror:
-            console.print(f"[bold red]{self._translate('DNS resolution failed. Your domain may not be properly configured.')}[/]")
-            console.print(f"[yellow]{self._translate('Make sure your domain points to this server\'s public IP address.')}[/]")
-            dns_check_passed = False
+        Delegates to the new LetsEncrypt class.
         
-        # 2. Test HTTP connectivity (port 80 reachability)
-        console.print(f"[cyan]{self._translate('Step 2: Testing port 80 accessibility for ACME challenge...')}[/]")
-        
-        # Create simple Docker container to test port 80
-        try:
-            check_cmd = [
-                "docker", "run", "--rm",
-                "busybox", "wget", "-q", "-T", "5", "-O-",
-                f"http://{domain}/.well-known/acme-challenge/test"
-            ]
-            process = subprocess.run(check_cmd, capture_output=True, text=True)
+        Args:
+            domain: Domain name for the certificate
+            staging: Whether to use staging environment (default is False)
+            email: Optional email address for registration
+            additional_domains: Optional list of additional domain names (SANs)
             
-            # We actually expect a 404 error (page not found), if we get a connection
-            http_check_passed = process.returncode == 1 and "404" in process.stderr
-            
-            if http_check_passed:
-                console.print(f"[bold green]{self._translate('Port 80 appears to be accessible!')}[/]")
-            else:
-                console.print(f"[bold yellow]{self._translate('Port 80 might not be reachable from the internet.')}[/]")
-                console.print(f"[yellow]{self._translate('Make sure port 80 is forwarded to this server if you\'re behind a router/firewall.')}[/]")
-        except Exception as e:
-            console.print(f"[bold yellow]{self._translate('Could not test HTTP connectivity:')} {str(e)}[/]")
-            http_check_passed = False
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        return self.lets_encrypt.request_certificate(
+            domain=domain,
+            mode="webroot",
+            staging=staging,
+            email=email,
+            additional_domains=additional_domains
+        )
         
-        # 3. Request a certificate in staging mode
-        console.print(f"[cyan]{self._translate('Step 3: Testing certificate issuance in staging mode...')}[/]")
+    def request_letsencrypt_certificate_standalone(self, domain: str, 
+                                                 staging: bool = True,
+                                                 email: Optional[str] = None,
+                                                 additional_domains: Optional[list] = None) -> bool:
+        """
+        Request Let's Encrypt certificate using standalone mode.
         
-        staging_success = self.request_letsencrypt_certificate(domain, staging=True)
-        
-        if staging_success:
-            console.print(f"[bold green]{self._translate('Staging certificate request successful!')}[/]")
-            console.print(f"[green]{self._translate('Your domain seems to be properly configured for Let\'s Encrypt.')}[/]")
-            return True
-        else:
-            console.print(f"[bold yellow]{self._translate('Staging certificate request failed.')}[/]")
-            
-            # If DNS check passed, we'll offer to try production mode
-            if dns_check_passed:
-                from rich.prompt import Confirm
-                try_production = Confirm.ask(
-                    f"[bold yellow]{self._translate('Would you like to try a real certificate request?')}[/]"
-                )
-                
-                if try_production:
-                    console.print(f"[cyan]{self._translate('Attempting production Let\'s Encrypt certificate request...')}[/]")
-                    production_success = self.request_letsencrypt_certificate(domain, staging=False)
-                    
-                    if production_success:
-                        console.print(f"[bold green]{self._translate('Production certificate request successful!')}[/]")
-                        console.print(f"[green]{self._translate('Your domain is properly configured for Let\'s Encrypt.')}[/]")
-                        return True
-                    else:
-                        console.print(f"[bold red]{self._translate('Production certificate request also failed.')}[/]")
-                        console.print(f"[yellow]{self._translate('Please check that:')}[/]")
-                        console.print(f"[yellow]- {self._translate('Your domain points to this server')}")
-                        console.print(f"[yellow]- {self._translate('Ports 80 and 443 are properly forwarded')}")
-                        console.print(f"[yellow]- {self._translate('No firewall is blocking incoming connections')}")
-                        return False
-            else:
-                console.print(f"[bold red]{self._translate('Domain validation failed. Cannot proceed with Let\'s Encrypt.')}[/]")
-                return False
-        
-    def request_letsencrypt_certificate(self, domain: str, staging: bool = True) -> bool:
-        """Request Let's Encrypt certificate.
+        Delegates to the new LetsEncrypt class.
         
         Args:
             domain: Domain name for the certificate
             staging: Whether to use staging environment (default is True)
+            email: Optional email address for registration
+            additional_domains: Optional list of additional domain names (SANs)
             
         Returns:
             bool: True if successful, False otherwise
         """
-        mode_msg = f"Requesting Let's Encrypt certificate{' in staging mode' if staging else ''}..."
-        console.print(f"[bold cyan]{self._translate(mode_msg)}[/]")
+        return self.lets_encrypt.request_certificate(
+            domain=domain,
+            mode="standalone",
+            staging=staging,
+            email=email, 
+            additional_domains=additional_domains
+        )
+    
+    def force_refresh_letsencrypt_certificates(self, domain: str, 
+                                             email: Optional[str] = None,
+                                             additional_domains: Optional[list] = None) -> bool:
+        """
+        Force refresh Let's Encrypt certificates.
         
-        try:
-    
-            cmd = [
-                "docker", "run", "--rm",
-                "-v", "certbot_data:/etc/letsencrypt",
-                "-v", "certbot_www:/var/www/certbot",
-                "certbot/certbot", "certonly", "--webroot",
-                "--webroot-path=/var/www/certbot",
-                "--register-unsafely-without-email", "--agree-tos",
-            ]
-            
-            # Add staging flag if requested
-            if staging:
-                cmd.append("--staging")
-                
-            # Add domain
-            cmd.extend(["-d", domain])
-            
-            process = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if process.returncode == 0:
-                console.print(f"[bold green]{self._translate('Certificate request was successful!')}[/]")
-                return True
-            else:
-                error_msg = f"Certificate request failed: {process.stderr}"
-                console.print(f"[bold red]{self._translate(error_msg)}[/]")
-                return False
-                
-        except Exception as e:
-            error_msg = f"Error requesting certificate: {e}"
-            console.print(f"[bold red]{self._translate(error_msg)}[/]")
-            return False
-    
-    def force_refresh_letsencrypt_certificates(self, domain: str, email: Optional[str] = None) -> bool:
-        """Force refresh Let's Encrypt certificates.
+        Delegates to the new LetsEncrypt class.
         
         Args:
             domain: Domain name for the certificate
             email: Optional email address for notifications
+            additional_domains: Optional list of additional domain names (SANs)
             
         Returns:
             bool: True if successful, False otherwise
         """
-        console.print(f"[bold cyan]{self._translate('Force refreshing Let\'s Encrypt certificates...')}[/]")
-        
-        try:
-
-            # Run certbot certonly with force-renewal option
-            cmd = [
-                "docker", "run", "--rm",
-                "-v", "certbot_data:/etc/letsencrypt",
-                "-v", "certbot_www:/var/www/certbot",
-                "certbot/certbot", "certonly", "--webroot",
-                "--webroot-path=/var/www/certbot",
-                "--force-renewal",
-                "-d", domain
-            ]
-            
-            # Add email or register-unsafely-without-email
-            if email:
-                cmd.extend(["--email", email])
-            else:
-                cmd.append("--register-unsafely-without-email")
-            
-            cmd.append("--agree-tos")
-            
-            # Run the command
-            process = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if process.returncode == 0:
-                console.print(f"[bold green]{self._translate('Certificate refresh was successful!')}[/]")
-                return True
-            else:
-                error_msg = f"Certificate refresh failed with return code {process.returncode}"
-                console.print(f"[bold red]{self._translate(error_msg)}[/]")
-                
-                # Display error details
-                if process.stderr:
-                    error_lines = process.stderr.split('\n')
-                    filtered_errors = [line for line in error_lines if line.strip() and not line.startswith('Saving debug log')]
-                    
-                    if filtered_errors:
-                        console.print(f"[bold red]{self._translate('Error details:')}[/]")
-                        for line in filtered_errors[:10]:  # Show first 10 lines to avoid flooding
-                            if "error:" in line.lower() or "critical:" in line.lower() or "problem" in line.lower():
-                                console.print(f"[red]{line}[/]")
-                            else:
-                                console.print(line)
-                        
-                        if len(filtered_errors) > 10:
-                            console.print(f"[dim]{self._translate('... additional error lines omitted ...')}[/]")
-                
-                return False
-                
-        except Exception as e:
-            error_msg = f"Error during certificate refresh: {e}"
-            console.print(f"[bold red]{self._translate(error_msg)}[/]")
-            return False
+        return self.lets_encrypt.force_refresh_certificates(
+            domain=domain,
+            email=email,
+            additional_domains=additional_domains
+        )

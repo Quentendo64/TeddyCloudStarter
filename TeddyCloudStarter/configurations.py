@@ -52,11 +52,11 @@ services:
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
       {% if https_mode == "custom" %}
       - {{ cert_path }}
+      {%- endif %}
       {%- if security_type == "client_cert" %}
       - ./client_certs/ca:/etc/nginx/ca:ro
       {% if crl_file %}
       - ./client_certs/crl:/etc/nginx/crl:ro
-      {%- endif %}
       {%- endif %}
       {%- endif %}
       {%- if https_mode == "letsencrypt" %}
