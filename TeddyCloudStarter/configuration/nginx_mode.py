@@ -29,6 +29,12 @@ def configure_nginx_mode(config, translator, cert_manager):
     Returns:
         dict: The updated configuration dictionary
     """
+    # Import standard modules that might be needed during execution
+    import time
+    import subprocess
+    import traceback
+    from pathlib import Path
+    
     # Initialize nginx configuration if it doesn't exist
     if "nginx" not in config:
         config["nginx"] = {
@@ -77,303 +83,340 @@ def configure_nginx_mode(config, translator, cert_manager):
     
     nginx_config["domain"] = domain
     
-    # Check if domain is publicly resolvable
-    domain_resolvable = check_domain_resolvable(domain)
-    
-    # Define choices for HTTPS mode based on domain resolution
-    https_choices = []
-    if domain_resolvable:
-        # If domain is resolvable, both options are available
-        https_choices = [
-            translator.get("Let's Encrypt (automatic certificates)"),
-            translator.get("Custom certificates (provide your own)")
-        ]
-        default_choice = https_choices[0]
-    else:
-        # If domain is not resolvable, only custom certificates option is available
-        https_choices = [
-            translator.get("Custom certificates (provide your own)")
-        ]
-        default_choice = https_choices[0]
-        # Also update config to use custom certificates
-        nginx_config["https_mode"] = "custom"
+    # Main certificate selection loop
+    while True:
+        # Check if domain is publicly resolvable
+        domain_resolvable = check_domain_resolvable(domain)
         
-        # Inform the user why Let's Encrypt option is not available
-        console.print(Panel(
-            f"[bold yellow]{translator.get('Let\'s Encrypt Not Available')}[/]\n\n"
-            f"{translator.get('The domain')} '{domain}' {translator.get('could not be resolved using public DNS servers (Quad9)')}\n"
-            f"{translator.get('Let\'s Encrypt requires a publicly resolvable domain to issue certificates.')}\n"
-            f"{translator.get('You can still use custom certificates for your setup.')}",
-            box=box.ROUNDED,
-            border_style="yellow"
-        ))
-    
-    # Ask about HTTPS
-    https_mode = questionary.select(
-        translator.get("How would you like to handle HTTPS?"),
-        choices=https_choices,
-        default=default_choice,
-        style=custom_style
-    ).ask()
-    
-    # Update HTTPS mode setting based on selection
-    if domain_resolvable:  # Only update if both options were available
-        nginx_config["https_mode"] = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "custom"
-    
-    if nginx_config["https_mode"] == "letsencrypt":
-        # Warn about Let's Encrypt requirements
-        console.print(Panel(
-            f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
-            f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
-            f"1. {translator.get('A public domain name pointing to this server')}\n"
-            f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
-            f"3. {translator.get('This server must be reachable from the internet')}",
-            box=box.ROUNDED,
-            border_style="yellow"
-        ))
+        # Define choices for HTTPS mode based on domain resolution
+        https_choices = []
+        if domain_resolvable:
+            # If domain is resolvable, all options are available
+            https_choices = [
+                translator.get("Let's Encrypt (automatic certificates)"),
+                translator.get("Create self-signed certificates"),
+                translator.get("Custom certificates (provide your own)")
+            ]
+            default_choice = https_choices[0]
+        else:
+            # If domain is not resolvable, Let's Encrypt is not available
+            https_choices = [
+                translator.get("Create self-signed certificates"),
+                translator.get("Custom certificates (provide your own)")
+            ]
+            default_choice = https_choices[0]
+            # Also update config to use self-signed certificates
+            nginx_config["https_mode"] = "self_signed"
+            
+            # Inform the user why Let's Encrypt option is not available
+            console.print(Panel(
+                f"[bold yellow]{translator.get('Let\'s Encrypt Not Available')}[/]\n\n"
+                f"{translator.get('The domain')} '{domain}' {translator.get('could not be resolved using public DNS servers (Quad9)')}\n"
+                f"{translator.get('Let\'s Encrypt requires a publicly resolvable domain to issue certificates.')}\n"
+                f"{translator.get('You can use self-signed or custom certificates for your setup.')}",
+                box=box.ROUNDED,
+                border_style="yellow"
+            ))
         
-        confirm_letsencrypt = questionary.confirm(
-            translator.get("Do you meet these requirements?"),
-            default=True,
+        # Ask about HTTPS
+        https_mode = questionary.select(
+            translator.get("How would you like to handle HTTPS?"),
+            choices=https_choices,
+            default=default_choice,
             style=custom_style
         ).ask()
         
-        if confirm_letsencrypt:
-            # Test if domain is properly set up
-            test_cert = questionary.confirm(
-                translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
+        # Update HTTPS mode setting based on selection
+        if domain_resolvable:  # Only update if all options were available
+            if https_mode.startswith(translator.get("Let's")):
+                nginx_config["https_mode"] = "letsencrypt"
+            elif https_mode.startswith(translator.get("Create self-signed")):
+                nginx_config["https_mode"] = "self_signed"
+            else:
+                nginx_config["https_mode"] = "custom"
+        else:  # Domain not resolvable, only self-signed or custom options
+            if https_mode.startswith(translator.get("Create self-signed")):
+                nginx_config["https_mode"] = "self_signed"
+            else:
+                nginx_config["https_mode"] = "custom"
+        
+        if nginx_config["https_mode"] == "letsencrypt":
+            # Warn about Let's Encrypt requirements
+            console.print(Panel(
+                f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
+                f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
+                f"1. {translator.get('A public domain name pointing to this server')}\n"
+                f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
+                f"3. {translator.get('This server must be reachable from the internet')}",
+                box=box.ROUNDED,
+                border_style="yellow"
+            ))
+            
+            confirm_letsencrypt = questionary.confirm(
+                translator.get("Do you meet these requirements?"),
                 default=True,
                 style=custom_style
             ).ask()
             
-            if test_cert:
-                cert_manager.request_letsencrypt_certificate(domain)
-        else:
-            # Switch to custom mode
-            nginx_config["https_mode"] = "custom"
-            console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
-    
-    if nginx_config["https_mode"] == "custom":
-        server_certs_path = os.path.join(project_path, "data", "server_certs")
-        server_crt_path = os.path.join(server_certs_path, "server.crt")
-        server_key_path = os.path.join(server_certs_path, "server.key")
+            if confirm_letsencrypt:
+                # Test if domain is properly set up
+                test_cert = questionary.confirm(
+                    translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
+                    default=True,
+                    style=custom_style
+                ).ask()
+                
+                if test_cert:
+                    cert_manager.request_letsencrypt_certificate(domain)
+            else:
+                # Switch to self-signed mode as fallback
+                nginx_config["https_mode"] = "self_signed"
+                console.print(f"[bold cyan]{translator.get('Switching to self-signed certificates mode')}...[/]")
+                # Continue with self-signed certificate handling
         
-        console.print(Panel(
-            f"[bold cyan]{translator.get('Custom Certificate Instructions')}[/]\n\n"
-            f"{translator.get('You will need to provide your own SSL certificates.')}\n"
-            f"1. {translator.get('Create a directory')}: {server_certs_path}\n"
-            f"2. {translator.get('Place your certificate as')}: {server_crt_path}\n"
-            f"3. {translator.get('Place your private key as')}: {server_key_path}",
-            box=box.ROUNDED,
-            border_style="cyan"
-        ))
-        
-        # Create server_certs directory if it doesn't exist
-        Path(server_certs_path).mkdir(parents=True, exist_ok=True)
-        
-        # Check if certificates exist
-        server_cert_exists = Path(server_crt_path).exists()
-        server_key_exists = Path(server_key_path).exists()
-        
-        if not (server_cert_exists and server_key_exists):
-            console.print(f"[bold yellow]{translator.get('Certificates not found. You must add them to continue.')}[/]")
+        if nginx_config["https_mode"] == "self_signed":
+            server_certs_path = os.path.join(project_path, "data", "server_certs")
+            server_crt_path = os.path.join(server_certs_path, "server.crt")
+            server_key_path = os.path.join(server_certs_path, "server.key")
             
-            console.print(f"[bold cyan]{translator.get('Waiting for certificates to be added...')}[/]")
-            console.print(f"[cyan]{translator.get('Please add the following files:')}\n"
-                          f"1. {server_crt_path}\n"
-                          f"2. {server_key_path}[/]")
+            console.print(Panel(
+                f"[bold cyan]{translator.get('Self-Signed Certificate Generation')}[/]\n\n"
+                f"{translator.get('A self-signed certificate will be generated for')} '{domain}'.\n"
+                f"{translator.get('This certificate will not be trusted by browsers, but is suitable for testing and development.')}",
+                box=box.ROUNDED,
+                border_style="cyan"
+            ))
             
-            # Wait for the certificates to appear - user cannot proceed without them
-            import time
-            import subprocess
-            
-            # Try to create empty marker files to ensure directory is writeable
+            # Check if OpenSSL is available
             try:
-                Path(os.path.join(server_certs_path, "certificate_check.tmp")).touch()
-                os.remove(os.path.join(server_certs_path, "certificate_check.tmp"))
-                console.print(f"[green]{translator.get('Directory is writable.')}[/]")
-            except Exception as e:
-                console.print(f"[bold yellow]{translator.get('Warning: Directory permissions issue - ')} {str(e)}[/]")
+                subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
+            except (subprocess.SubprocessError, FileNotFoundError):
+                console.print(f"[bold red]{translator.get('OpenSSL is not available. Cannot generate self-signed certificate.')}[/]")
+                console.print(f"[bold yellow]{translator.get('Falling back to custom certificate mode.')}[/]")
+                nginx_config["https_mode"] = "custom"
+                continue
             
-            attempt_count = 0
-            while True:
-                attempt_count += 1
-                # Sleep briefly to avoid high CPU usage and give time for file system operations
-                time.sleep(1)
+            # Generate self-signed certificate
+            success, message = generate_self_signed_certificate(server_certs_path, domain, translator)
+            
+            if not success:
+                console.print(f"[bold red]{translator.get('Failed to generate self-signed certificate')}: {message}[/]")
                 
-                # Force directory refresh with system commands (can help with file system cache issues)
-                if attempt_count % 5 == 0:
-                    try:
-                        if os.name == 'nt':  # Windows
-                            subprocess.run(f'dir "{server_certs_path}"', shell=True, capture_output=True)
-                        else:  # Unix-based
-                            subprocess.run(f'ls -la "{server_certs_path}"', shell=True, capture_output=True)
-                    except Exception:
-                        pass
+                # Ask user if they want to try again, use custom certificates, or quit
+                fallback_option = questionary.select(
+                    translator.get("What would you like to do?"),
+                    choices=[
+                        translator.get("Try generating the self-signed certificate again"),
+                        translator.get("Switch to custom certificate mode (provide your own certificates)"),
+                    ],
+                    style=custom_style
+                ).ask()
                 
-                # Try multiple detection methods
-                server_cert_exists = False
-                server_key_exists = False
+                if fallback_option.startswith(translator.get("Try generating")):
+                    # Stay in self-signed mode and try again in the next loop iteration
+                    continue
+                else:
+                    # Switch to custom certificates mode
+                    nginx_config["https_mode"] = "custom"
+                    console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
+                    continue
+            
+        elif nginx_config["https_mode"] == "custom":
+            server_certs_path = os.path.join(project_path, "data", "server_certs")
+            server_crt_path = os.path.join(server_certs_path, "server.crt")
+            server_key_path = os.path.join(server_certs_path, "server.key")
+            
+            console.print(Panel(
+                f"[bold cyan]{translator.get('Custom Certificate Instructions')}[/]\n\n"
+                f"{translator.get('You will need to provide your own SSL certificates.')}\n"
+                f"1. {translator.get('Create a directory')}: {server_certs_path}\n"
+                f"2. {translator.get('Place your certificate as')}: {server_crt_path}\n"
+                f"3. {translator.get('Place your private key as')}: {server_key_path}",
+                box=box.ROUNDED,
+                border_style="cyan"
+            ))
+            
+            # Create server_certs directory if it doesn't exist
+            Path(server_certs_path).mkdir(parents=True, exist_ok=True)
+            
+            # Check if certificates exist
+            server_cert_exists = Path(server_crt_path).exists()
+            server_key_exists = Path(server_key_path).exists()
+            
+            if not (server_cert_exists and server_key_exists):
+                console.print(f"[bold yellow]{translator.get('Certificates not found. You must add them to continue.')}[/]")
                 
-                # Method 1: Direct os.path.isfile check
+                console.print(f"[bold cyan]{translator.get('Waiting for certificates to be added...')}[/]")
+                console.print(f"[cyan]{translator.get('Please add the following files:')}\n"
+                              f"1. {server_crt_path}\n"
+                              f"2. {server_key_path}[/]")
+                
+                # Wait for the certificates to appear - user cannot proceed without them
+                import time
+                import subprocess
+                
+                # Try to create empty marker files to ensure directory is writeable
                 try:
-                    server_cert_exists = os.path.isfile(server_crt_path)
-                    server_key_exists = os.path.isfile(server_key_path)
-                except Exception:
-                    pass
+                    Path(os.path.join(server_certs_path, "certificate_check.tmp")).touch()
+                    os.remove(os.path.join(server_certs_path, "certificate_check.tmp"))
+                    console.print(f"[green]{translator.get('Directory is writable.')}[/]")
+                except Exception as e:
+                    console.print(f"[bold yellow]{translator.get('Warning: Directory permissions issue - ')} {str(e)}[/]")
                 
-                # Method 2: Try direct file open if method 1 failed
-                if not server_cert_exists:
+                attempt_count = 0
+                should_return_to_menu = False
+                
+                while True:
+                    attempt_count += 1
+                    # Sleep briefly to avoid high CPU usage and give time for file system operations
+                    time.sleep(1)
+                    
+                    # Force directory refresh with system commands (can help with file system cache issues)
+                    if attempt_count % 5 == 0:
+                        try:
+                            if os.name == 'nt':  # Windows
+                                subprocess.run(f'dir "{server_certs_path}"', shell=True, capture_output=True)
+                            else:  # Unix-based
+                                subprocess.run(f'ls -la "{server_certs_path}"', shell=True, capture_output=True)
+                        except Exception:
+                            pass
+                    
+                    # Try multiple detection methods
+                    server_cert_exists = False
+                    server_key_exists = False
+                    
+                    # Method 1: Direct os.path.isfile check
                     try:
-                        with open(server_crt_path, 'rb') as f:
-                            server_cert_exists = True
+                        server_cert_exists = os.path.isfile(server_crt_path)
+                        server_key_exists = os.path.isfile(server_key_path)
                     except Exception:
                         pass
-                        
-                if not server_key_exists:
-                    try:
-                        with open(server_key_path, 'rb') as f:
-                            server_key_exists = True
-                    except Exception:
-                        pass
-                
-                # Method 3: Use subprocess as a last resort
-                if not (server_cert_exists and server_key_exists) and attempt_count % 10 == 0:
-                    try:
-                        if os.name == 'nt':  # Windows
-                            cert_result = subprocess.run(f'if exist "{server_crt_path}" echo EXISTS', 
-                                                        shell=True, capture_output=True, text=True)
-                            key_result = subprocess.run(f'if exist "{server_key_path}" echo EXISTS', 
-                                                        shell=True, capture_output=True, text=True)
+                    
+                    # Method 2: Try direct file open if method 1 failed
+                    if not server_cert_exists:
+                        try:
+                            with open(server_crt_path, 'rb') as f:
+                                server_cert_exists = True
+                        except Exception:
+                            pass
                             
-                            server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
-                            server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
-                        else:
-                            cert_result = subprocess.run(f'test -f "{server_crt_path}" && echo "EXISTS"', 
-                                                        shell=True, capture_output=True, text=True)
-                            key_result = subprocess.run(f'test -f "{server_key_path}" && echo "EXISTS"', 
-                                                        shell=True, capture_output=True, text=True)
+                    if not server_key_exists:
+                        try:
+                            with open(server_key_path, 'rb') as f:
+                                server_key_exists = True
+                        except Exception:
+                            pass
+                    
+                    # Method 3: Use subprocess as a last resort
+                    if not (server_cert_exists and server_key_exists) and attempt_count % 10 == 0:
+                        try:
+                            if os.name == 'nt':  # Windows
+                                cert_result = subprocess.run(f'if exist "{server_crt_path}" echo EXISTS', 
+                                                            shell=True, capture_output=True, text=True)
+                                key_result = subprocess.run(f'if exist "{server_key_path}" echo EXISTS', 
+                                                            shell=True, capture_output=True, text=True)
+                                
+                                server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
+                                server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
+                            else:
+                                cert_result = subprocess.run(f'test -f "{server_crt_path}" && echo "EXISTS"', 
+                                                            shell=True, capture_output=True, text=True)
+                                key_result = subprocess.run(f'test -f "{server_key_path}" && echo "EXISTS"', 
+                                                            shell=True, capture_output=True, text=True)
+                                
+                                server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
+                                server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
+                        except Exception:
+                            pass
+                    
+                    # Provide detailed update about file detection
+                    if attempt_count % 5 == 0:
+                        console.print(f"[dim]{translator.get('Checking for certificate files (attempt')}: {attempt_count})...[/]")
+                        
+                        # Print file sizes if they exist to help diagnose issues
+                        try:
+                            if os.path.exists(server_crt_path):
+                                size = os.path.getsize(server_crt_path)
+                                console.print(f"[dim]{translator.get('Found')} server.crt - {size} bytes[/]")
+                            if os.path.exists(server_key_path):
+                                size = os.path.getsize(server_key_path)
+                                console.print(f"[dim]{translator.get('Found')} server.key - {size} bytes[/]")
+                        except Exception:
+                            pass
+                    
+                    if server_cert_exists and server_key_exists:
+                        console.print(f"[bold green]{translator.get('Both certificate files found! Continuing...')}[/]")
+                        
+                        # Validate certificates for Nginx compatibility and matching
+                        console.print(f"[cyan]{translator.get('Validating certificates for Nginx compatibility...')}[/]")
+                        is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
+                        
+                        if not is_valid:
+                            console.print(f"[bold red]{translator.get('Certificate validation failed')}:[/]")
+                            console.print(f"[red]{error_msg}[/]")
                             
-                            server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
-                            server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
-                    except Exception:
-                        pass
-                
-                # Provide detailed update about file detection
-                if attempt_count % 5 == 0:
-                    console.print(f"[dim]{translator.get('Checking for certificate files (attempt')}: {attempt_count})...[/]")
-                    
-                    # Print file sizes if they exist to help diagnose issues
-                    try:
-                        if os.path.exists(server_crt_path):
-                            size = os.path.getsize(server_crt_path)
-                            console.print(f"[dim]{translator.get('Found')} server.crt - {size} bytes[/]")
-                        if os.path.exists(server_key_path):
-                            size = os.path.getsize(server_key_path)
-                            console.print(f"[dim]{translator.get('Found')} server.key - {size} bytes[/]")
-                    except Exception:
-                        pass
-                
-                if server_cert_exists and server_key_exists:
-                    console.print(f"[bold green]{translator.get('Both certificate files found! Continuing...')}[/]")
-                    
-                    # Validate certificates for Nginx compatibility and matching
-                    console.print(f"[cyan]{translator.get('Validating certificates for Nginx compatibility...')}[/]")
-                    is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
-                    
-                    if not is_valid:
-                        console.print(f"[bold red]{translator.get('Certificate validation failed')}:[/]")
-                        console.print(f"[red]{error_msg}[/]")
-                        
-                        # Ask if user wants to try again with different certificates
-                        retry_cert = questionary.confirm(
-                            translator.get("Do you want to replace the certificates with valid ones?"),
-                            default=True,
-                            style=custom_style
-                        ).ask()
-                        
-                        if retry_cert:
-                            # Remove the invalid certificates
-                            try:
-                                if os.path.exists(server_crt_path):
-                                    os.remove(server_crt_path)
-                                if os.path.exists(server_key_path):
-                                    os.remove(server_key_path)
-                                console.print(f"[yellow]{translator.get('Invalid certificates removed. Please provide new ones.')}[/]")
-                                # Continue the loop to wait for new certificates
-                                continue
-                            except Exception as e:
-                                console.print(f"[bold red]{translator.get('Error removing invalid certificates')}: {str(e)}[/]")
-                        else:
-                            # User wants to continue anyway
-                            console.print(f"[bold yellow]{translator.get('Warning: Continuing with invalid certificates. Nginx may fail to start.')}[/]")
-                    else:
-                        console.print(f"[bold green]{translator.get('Certificates validated successfully!')}[/]")
-                    
-                    break
-                
-                # Give status update on which files are still missing
-                missing_files = []
-                if not server_cert_exists:
-                    missing_files.append(f"server.crt ({server_crt_path})")
-                if not server_key_exists:
-                    missing_files.append(f"server.key ({server_key_path})")
-                
-                missing_str = ", ".join(missing_files)
-                
-                # Only show the waiting message every few seconds to avoid flooding the console
-                if attempt_count % 3 == 0:
-                    console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
-                
-                # Ask if user wants to return to certificate selection every 15 seconds
-                if attempt_count % 15 == 0:
-                    change_cert_method = questionary.confirm(
-                        translator.get("Do you want to return to the certificate selection menu?"),
-                        default=False,
-                        style=custom_style
-                    ).ask()
-                    
-                    if change_cert_method:
-                        # Switch to Let's Encrypt and continue with proper configuration
-                        nginx_config["https_mode"] = "letsencrypt"
-                        console.print(f"[bold cyan]{translator.get('Switching to Let\'s Encrypt certificate mode...')}[/]")
-                        
-                        # Show Let's Encrypt requirements
-                        console.print(Panel(
-                            f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
-                            f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
-                            f"1. {translator.get('A public domain name pointing to this server')}\n"
-                            f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
-                            f"3. {translator.get('This server must be reachable from the internet')}",
-                            box=box.ROUNDED,
-                            border_style="yellow"
-                        ))
-                        
-                        # Ask if user meets Let's Encrypt requirements to continue properly
-                        confirm_letsencrypt = questionary.confirm(
-                            translator.get("Do you meet these requirements?"),
-                            default=True,
-                            style=custom_style
-                        ).ask()
-                        
-                        if confirm_letsencrypt:
-                            # Test if domain is properly set up
-                            test_cert = questionary.confirm(
-                                translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
+                            # Ask if user wants to try again with different certificates
+                            retry_cert = questionary.confirm(
+                                translator.get("Do you want to replace the certificates with valid ones?"),
                                 default=True,
                                 style=custom_style
                             ).ask()
                             
-                            if test_cert:
-                                cert_manager.request_letsencrypt_certificate(domain)
+                            if retry_cert:
+                                # Remove the invalid certificates
+                                try:
+                                    if os.path.exists(server_crt_path):
+                                        os.remove(server_crt_path)
+                                    if os.path.exists(server_key_path):
+                                        os.remove(server_key_path)
+                                    console.print(f"[yellow]{translator.get('Invalid certificates removed. Please provide new ones.')}[/]")
+                                    # Continue the loop to wait for new certificates
+                                    continue
+                                except Exception as e:
+                                    console.print(f"[bold red]{translator.get('Error removing invalid certificates')}: {str(e)}[/]")
+                            else:
+                                # User wants to continue anyway
+                                console.print(f"[bold yellow]{translator.get('Warning: Continuing with invalid certificates. Nginx may fail to start.')}[/]")
                         else:
-                            # If user doesn't meet requirements, we won't test Let's Encrypt
-                            console.print(f"[bold yellow]{translator.get('Skipping Let\'s Encrypt certificate test.')}[/]")
+                            console.print(f"[bold green]{translator.get('Certificates validated successfully!')}[/]")
                         
-                        # Continue with the rest of configuration - don't return
                         break
-        else:
-            console.print(f"[bold green]{translator.get('Certificate files found and ready to use.')}[/]")
+                    
+                    # Give status update on which files are still missing
+                    missing_files = []
+                    if not server_cert_exists:
+                        missing_files.append(f"server.crt ({server_crt_path})")
+                    if not server_key_exists:
+                        missing_files.append(f"server.key ({server_key_path})")
+                    
+                    missing_str = ", ".join(missing_files)
+                    
+                    # Only show the waiting message every few seconds to avoid flooding the console
+                    if attempt_count % 3 == 0:
+                        console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
+                    
+                    # Ask if user wants to return to certificate selection every 15 seconds
+                    if attempt_count % 15 == 0:
+                        change_cert_method = questionary.confirm(
+                            translator.get("Do you want to return to the certificate selection menu?"),
+                            default=False,
+                            style=custom_style
+                        ).ask()
+                        
+                        if change_cert_method:
+                            # Set flag to return to certificate selection menu
+                            should_return_to_menu = True
+                            console.print(f"[bold cyan]{translator.get('Returning to certificate selection menu...')}[/]")
+                            break  # Break out of the waiting loop
+                
+                # If we should return to the certificate menu, continue the outer loop
+                if should_return_to_menu:
+                    continue  # This will restart from the certificate type selection
+            else:
+                console.print(f"[bold green]{translator.get('Certificate files found and ready to use.')}[/]")
+        
+        # Only break out of the main certificate selection loop when we've successfully configured certificates
+        break
     
     # Configure security
     configure_security(nginx_config, translator, cert_manager, project_path)
@@ -591,6 +634,12 @@ def modify_https_mode(config, translator, cert_manager):
         translator: The translator instance for localization
         cert_manager: The certificate manager instance
     """
+    # Import standard modules that might be needed during execution
+    import time
+    import subprocess
+    import traceback
+    from pathlib import Path
+    
     nginx_config = config["nginx"]
     current_mode = nginx_config["https_mode"]
     
@@ -600,63 +649,109 @@ def modify_https_mode(config, translator, cert_manager):
         console.print(f"[bold red]{translator.get('Warning')}: {translator.get('Project path not set. Using current directory.')}[/]")
         project_path = os.getcwd()
     
-    console.print(f"[bold cyan]{translator.get('Current HTTPS mode')}: {current_mode}[/]")
-    
-    # Define the choices
-    choices = [
-        translator.get("Let's Encrypt (automatic certificates)"),
-        translator.get("Custom certificates (provide your own)")
-    ]
-    
-    # Determine the default choice based on current mode
-    default_choice = choices[0] if current_mode == "letsencrypt" else choices[1]
-    
-    https_mode = questionary.select(
-        translator.get("How would you like to handle HTTPS?"),
-        choices=choices,
-        default=default_choice,
-        style=custom_style
-    ).ask()
-    
-    new_mode = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "custom"
-    
-    if new_mode != current_mode:
-        nginx_config["https_mode"] = new_mode
-        console.print(f"[bold green]{translator.get('HTTPS mode updated to')} {new_mode}[/]")
+    # Main certificate selection loop
+    while True:
+        console.print(f"[bold cyan]{translator.get('Current HTTPS mode')}: {current_mode}[/]")
         
-        if new_mode == "letsencrypt":
-            # Warn about Let's Encrypt requirements
-            console.print(Panel(
-                f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
-                f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
-                f"1. {translator.get('A public domain name pointing to this server')}\n"
-                f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
-                f"3. {translator.get('This server must be reachable from the internet')}",
-                box=box.ROUNDED,
-                border_style="yellow"
-            ))
+        # Define the choices
+        choices = [
+            translator.get("Let's Encrypt (automatic certificates)"),
+            translator.get("Create self-signed certificates"),
+            translator.get("Custom certificates (provide your own)")
+        ]
+        
+        # Determine the default choice based on current mode
+        default_choice = choices[0] if current_mode == "letsencrypt" else choices[1] if current_mode == "self_signed" else choices[2]
+        
+        https_mode = questionary.select(
+            translator.get("How would you like to handle HTTPS?"),
+            choices=choices,
+            default=default_choice,
+            style=custom_style
+        ).ask()
+        
+        new_mode = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "self_signed" if https_mode.startswith(translator.get("Create self-signed")) else "custom"
+        
+        if new_mode != current_mode:
+            nginx_config["https_mode"] = new_mode
+            console.print(f"[bold green]{translator.get('HTTPS mode updated to')} {new_mode}[/]")
             
-            confirm_letsencrypt = questionary.confirm(
-                translator.get("Do you meet these requirements?"),
-                default=True,
-                style=custom_style
-            ).ask()
-            
-            if confirm_letsencrypt:
-                # Test if domain is properly set up
-                test_cert = questionary.confirm(
-                    translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
+            if new_mode == "letsencrypt":
+                # Warn about Let's Encrypt requirements
+                console.print(Panel(
+                    f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
+                    f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
+                    f"1. {translator.get('A public domain name pointing to this server')}\n"
+                    f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
+                    f"3. {translator.get('This server must be reachable from the internet')}",
+                    box=box.ROUNDED,
+                    border_style="yellow"
+                ))
+                
+                confirm_letsencrypt = questionary.confirm(
+                    translator.get("Do you meet these requirements?"),
                     default=True,
                     style=custom_style
                 ).ask()
                 
-                if test_cert:
-                    cert_manager.request_letsencrypt_certificate(nginx_config["domain"])
-            else:
-                # Switch back to custom mode
-                nginx_config["https_mode"] = "custom"
-                console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
+                if confirm_letsencrypt:
+                    # Test if domain is properly set up
+                    test_cert = questionary.confirm(
+                        translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
+                        default=True,
+                        style=custom_style
+                    ).ask()
+                    
+                    if test_cert:
+                        cert_manager.request_letsencrypt_certificate(nginx_config["domain"])
+                else:
+                    # Switch back to self-signed mode
+                    nginx_config["https_mode"] = "self_signed"
+                    console.print(f"[bold cyan]{translator.get('Switching to self-signed certificates mode')}...[/]")
+                    # Continue to self-signed certificate handling in the next iteration
+                    current_mode = "self_signed"
+                    continue
         
+        # Handle self-signed certificate mode
+        if nginx_config["https_mode"] == "self_signed":
+            server_certs_path = os.path.join(project_path, "data", "server_certs")
+            server_crt_path = os.path.join(server_certs_path, "server.crt")
+            server_key_path = os.path.join(server_certs_path, "server.key")
+            
+            console.print(Panel(
+                f"[bold cyan]{translator.get('Self-Signed Certificate Generation')}[/]\n\n"
+                f"{translator.get('A self-signed certificate will be generated for')} '{nginx_config['domain']}'.\n"
+                f"{translator.get('This certificate will not be trusted by browsers, but is suitable for testing and development.')}",
+                box=box.ROUNDED,
+                border_style="cyan"
+            ))
+            
+            # Generate self-signed certificate
+            success, message = generate_self_signed_certificate(server_certs_path, nginx_config["domain"], translator)
+            
+            if not success:
+                console.print(f"[bold red]{translator.get('Failed to generate self-signed certificate')}: {message}[/]")
+                
+                # Ask user if they want to try again, use custom certificates, or quit
+                fallback_option = questionary.select(
+                    translator.get("What would you like to do?"),
+                    choices=[
+                        translator.get("Try generating the self-signed certificate again"),
+                        translator.get("Switch to custom certificate mode (provide your own certificates)"),
+                    ],
+                    style=custom_style
+                ).ask()
+                
+                if fallback_option.startswith(translator.get("Try generating")):
+                    # Stay in self-signed mode and try again in the next loop iteration
+                    continue
+                else:
+                    # Switch to custom certificates mode
+                    nginx_config["https_mode"] = "custom"
+                    console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
+                    continue
+        
+        # Handle custom certificate mode
         if nginx_config["https_mode"] == "custom":
             server_certs_path = os.path.join(project_path, "data", "server_certs")
             server_crt_path = os.path.join(server_certs_path, "server.crt")
@@ -690,7 +785,9 @@ def modify_https_mode(config, translator, cert_manager):
                 # Wait for the certificates to appear - user cannot proceed without them
                 import time
                 
+                attempt_count = 0
                 while True:
+                    attempt_count += 1
                     # Sleep briefly to avoid high CPU usage and give time for file system operations
                     time.sleep(1)
                     
@@ -748,56 +845,34 @@ def modify_https_mode(config, translator, cert_manager):
                         missing_files.append(f"server.key ({server_key_path})")
                     
                     missing_str = ", ".join(missing_files)
-                    console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
                     
-                    # Ask if user wants to return to certificate selection instead of adding custom certificates
-                    change_cert_method = questionary.confirm(
-                        translator.get("Do you want to return to the certificate selection menu?"),
-                        default=False,
-                        style=custom_style
-                    ).ask()
+                    # Only show the waiting message every few seconds to avoid flooding the console
+                    if attempt_count % 3 == 0:
+                        console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
                     
-                    if change_cert_method:
-                        # Switch to Let's Encrypt and continue with proper configuration
-                        nginx_config["https_mode"] = "letsencrypt"
-                        console.print(f"[bold cyan]{translator.get('Switching to Let\'s Encrypt certificate mode...')}[/]")
-                        
-                        # Show Let's Encrypt requirements
-                        console.print(Panel(
-                            f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
-                            f"{translator.get('To use Let\'s Encrypt, you need:')}\n"
-                            f"1. {translator.get('A public domain name pointing to this server')}\n"
-                            f"2. {translator.get('Public internet access on ports 80 and 443')}\n"
-                            f"3. {translator.get('This server must be reachable from the internet')}",
-                            box=box.ROUNDED,
-                            border_style="yellow"
-                        ))
-                        
-                        # Ask if user meets Let's Encrypt requirements to continue properly
-                        confirm_letsencrypt = questionary.confirm(
-                            translator.get("Do you meet these requirements?"),
-                            default=True,
+                    # Ask if user wants to return to certificate selection every 15 seconds
+                    if attempt_count % 15 == 0:
+                        change_cert_method = questionary.confirm(
+                            translator.get("Do you want to return to the certificate selection menu?"),
+                            default=False,
                             style=custom_style
                         ).ask()
                         
-                        if confirm_letsencrypt:
-                            # Test if domain is properly set up
-                            test_cert = questionary.confirm(
-                                translator.get("Would you like to test if Let's Encrypt can issue a certificate for your domain?"),
-                                default=True,
-                                style=custom_style
-                            ).ask()
-                            
-                            if test_cert:
-                                cert_manager.request_letsencrypt_certificate(nginx_config["domain"])
-                        else:
-                            # If user doesn't meet requirements, we won't test Let's Encrypt
-                            console.print(f"[bold yellow]{translator.get('Skipping Let\'s Encrypt certificate test.')}[/]")
-                        
-                        # Continue with the rest of configuration - don't return
-                        break
+                        if change_cert_method:
+                            # Return to the beginning of the function to show the certificate selection menu
+                            console.print(f"[bold cyan]{translator.get('Returning to certificate selection menu...')}[/]")
+                            # Break out of the file waiting loop and continue with the outer certificate selection loop
+                            break
+                
+                # Check if we should return to the certificate selection menu
+                if attempt_count % 15 == 0 and change_cert_method:
+                    # Continue the main loop to show certificate options again
+                    continue
             else:
                 console.print(f"[bold green]{translator.get('Certificate files found and ready to use.')}[/]")
+        
+        # Break out of the main loop when configuration is complete
+        break
     
     return config
 
@@ -1009,9 +1084,7 @@ def generate_htpasswd_file(htpasswd_file_path, translator):
             # Try to see if a Docker registry communication works (this actually tests Docker's ability to talk to registry)
             result = subprocess.run(
                 ["docker", "search", "--limit=1", "alpine"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
         except Exception:
@@ -1413,3 +1486,122 @@ def validate_certificates(cert_path, key_path, translator):
         return False, f"{translator.get('Error checking if certificate and key match')}: {str(e)}"
     
     return True, ""
+
+def generate_self_signed_certificate(server_certs_path, domain, translator):
+    """
+    Generate a self-signed SSL certificate for the given domain.
+    
+    Args:
+        server_certs_path: Path where certificate files will be saved
+        domain: Domain name for the certificate
+        translator: The translator instance for localization
+    
+    Returns:
+        tuple: (bool, str) - (is_success, message)
+    """
+    # Check if OpenSSL is available
+    try:
+        subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False, translator.get('OpenSSL is not available. Cannot generate self-signed certificate.')
+    
+    # Create directory if it doesn't exist
+    Path(server_certs_path).mkdir(parents=True, exist_ok=True)
+    
+    server_key_path = os.path.join(server_certs_path, "server.key")
+    server_crt_path = os.path.join(server_certs_path, "server.crt")
+    
+    # Remove existing files if they exist
+    for file_path in [server_key_path, server_crt_path]:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                return False, f"{translator.get('Could not remove existing certificate file')}: {str(e)}"
+    
+    try:
+        # Generate a private key
+        console.print(f"[cyan]{translator.get('Generating private key...')}[/]")
+        key_result = subprocess.run(
+            ["openssl", "genrsa", "-out", server_key_path, "2048"],
+            check=False, capture_output=True, text=True
+        )
+        
+        if key_result.returncode != 0:
+            return False, f"{translator.get('Failed to generate private key')}: {key_result.stderr}"
+        
+        # Generate a certificate signing request (CSR)
+        console.print(f"[cyan]{translator.get('Generating certificate...')}[/]")
+        
+        # Create a temporary OpenSSL configuration file with proper X509v3 extensions
+        openssl_config = f"""[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_ca
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = US
+ST = State
+L = City
+O = TeddyCloud
+OU = TeddyCloudServer
+CN = {domain}
+
+[v3_ca]
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+basicConstraints = CA:true
+keyUsage = digitalSignature, keyEncipherment, keyCertSign
+
+[v3_req]
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = {domain}
+DNS.2 = localhost
+IP.1 = 127.0.0.1
+"""
+        
+        config_path = os.path.join(server_certs_path, "openssl_temp.cnf")
+        with open(config_path, 'w') as f:
+            f.write(openssl_config)
+        
+        # Generate self-signed certificate with explicit X509v3 extensions
+        cert_result = subprocess.run(
+            ["openssl", "req", "-x509", "-new", "-nodes",
+             "-days", "3650",  # 10 year validity
+             "-key", server_key_path,
+             "-out", server_crt_path,
+             "-config", config_path],
+            check=False, capture_output=True, text=True
+        )
+        
+        # Remove the temporary config file
+        if os.path.exists(config_path):
+            try:
+                os.remove(config_path)
+            except Exception:
+                pass  # Ignore errors when deleting temporary config
+        
+        if cert_result.returncode != 0:
+            return False, f"{translator.get('Failed to generate certificate')}: {cert_result.stderr}"
+        
+        # Verify the certificate was created and contains X509v3 extensions
+        if not os.path.exists(server_crt_path) or os.path.getsize(server_crt_path) == 0:
+            return False, translator.get('Certificate file was not created or is empty')
+        
+        # Validate the generated certificate
+        is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
+        if not is_valid:
+            return False, error_msg
+        
+        console.print(f"[bold green]{translator.get('Self-signed certificate generated successfully!')}[/]")
+        return True, translator.get('Self-signed certificate generated successfully!')
+        
+    except Exception as e:
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/]")
+        return False, f"{translator.get('Error generating self-signed certificate')}: {str(e)}"

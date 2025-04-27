@@ -26,8 +26,6 @@ services:
       {%- if https_mode == "letsencrypt" %}
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
-      {%- else %}
-      - {{ cert_path }}
       {%- endif %}
     ports:
       - 80:80
@@ -51,6 +49,9 @@ services:
     volumes:
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
       {% if https_mode == "custom" %}
+      - {{ cert_path }}
+      {%- endif %}
+      {% if https_mode == "self_signed" %}
       - {{ cert_path }}
       {%- endif %}
       {%- if security_type == "client_cert" %}

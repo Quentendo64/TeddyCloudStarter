@@ -73,11 +73,11 @@ def generate_docker_compose(config, translator, templates):
                 context.update({
                     "cert_path": "./server_certs:/etc/nginx/certificates"
                 })
-            elif config["nginx"]["https_mode"] == "letsencrypt":
-                # For Let's Encrypt, the certificates will be managed by the container
+            elif config["nginx"]["https_mode"] == "self_signed":
                 context.update({
-                    "cert_path": "./letsencrypt:/etc/letsencrypt"
+                    "cert_path": "./server_certs:/etc/nginx/certificates"
                 })
+
         
         rendered = template.render(**context)
         with open(os.path.join(data_dir, "docker-compose.yml"), "w") as f:

@@ -25,7 +25,6 @@ except ImportError:
             print("Please install pip first using one of these methods:")
             print("- On Ubuntu/Debian: sudo apt update && sudo apt install python3-pip")
             print("- On Windows: python -m ensurepip")
-            print("- Download get-pip.py: curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py\n")
             sys.exit(1)
 
         # If we got here, pip is available, so try to install the packages

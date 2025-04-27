@@ -196,6 +196,8 @@ class TeddyCloudWizard(BaseWizard):
             exit_menu = show_certificate_management_menu(self.config_manager.config, self.translator, self.cert_manager)
             if not exit_menu:
                 return self.show_pre_wizard()  # Show menu again after certificate management
+            else:
+                return self.show_pre_wizard()  # Return to the main menu when "Back to main menu" was selected
             
         elif action == self.translator.get("Configuration management"):
             result = self.show_configuration_management_menu()

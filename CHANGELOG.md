@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
--after adding custom certificates check if they are nginx compatible. Should also check if .key is the correct .key for the certificate
+## [0.3.6] - 2025-04-27
+### Added
+- Custom SSL for self-signed certificates
 ## [0.3.5] - 2025-04-27
 ### Fixed
 - Let's Encrypt Workflow
