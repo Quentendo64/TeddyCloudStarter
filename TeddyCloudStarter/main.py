@@ -94,8 +94,8 @@ def main():
         # If no config, select language
         wizard.select_language()
     
-    wizard.show_welcome()
-    wizard.show_develmsg()
+    wizard.display_welcome_message()
+    wizard.display_development_message()
     # Project path selection - always show this page if path is not set
     if not wizard.config_manager.config.get("environment", {}).get("path"):
         wizard.select_project_path()
@@ -108,13 +108,13 @@ def main():
         # If config exists, show pre-wizard menu in a loop until user exits
         show_menu = True
         while show_menu:
-            result = wizard.show_pre_wizard()
+            result = wizard.show_pre_wizard_menu()
             # If the result is False, it means the user chose to exit
             if result == False:
                 show_menu = False
     else:
         # If no config, run the wizard
-        wizard.run_wizard()
+        wizard.execute_wizard()
     
     return 0
 

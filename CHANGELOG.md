@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.3.7] - 2025-04-28
+### Changed
+- Menue entries
+- function name
+### Removed
+- old deprecated wizard
+- tests
 ## [0.3.6] - 2025-04-27
 ### Added
 - Custom SSL for self-signed certificates
@@ -40,11 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backup/Restore
 - Consolidate ProjectData
 ## [0.2.1] - 2025-04-22
-### Changed global config 
-- PyPi Workflow
-## [0.2.1] - 2025-04-22
-### Fixed
-- PyPi Workflow
+### Changed
+- PyPi Workflow - Global configuration update
 ## [0.2.0] - 2025-04-22
 ### Added
 - Initial alpha release after overhaul

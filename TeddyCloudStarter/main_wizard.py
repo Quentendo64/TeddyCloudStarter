@@ -98,7 +98,7 @@ class TeddyCloudWizard(BaseWizard):
         # Pass config_manager to ensure project path is available
         exit_menu = show_application_management_menu(self.config_manager, self.docker_manager, self.translator)
         if not exit_menu:
-            return self.show_pre_wizard()  # Show menu again after application management
+            return self.show_pre_wizard_menu()  # Show menu again after application management
         else:
             return True  # Return to main menu
             
@@ -131,15 +131,15 @@ class TeddyCloudWizard(BaseWizard):
             # Save the selected language in config.json
             self.config_manager.save()
     
-    def show_welcome(self):
+    def display_welcome_message(self):
         """Show welcome message."""
         show_welcome_message(self.translator)
 
-    def show_develmsg(self):
+    def display_development_message(self):
         """Show developer message."""
         show_development_message(self.translator)
 
-    def show_pre_wizard(self):
+    def show_pre_wizard_menu(self):
         """Show pre-wizard menu when config exists."""
         current_config = self.config_manager.config
 
@@ -161,29 +161,38 @@ class TeddyCloudWizard(BaseWizard):
             
             if action == self.translator.get("Reset configuration and start over"):
                 self.config_manager.delete()
-                return self.run_wizard()
+                return self.execute_wizard()
                 
             return False  # Exit
 
-        # Build choices based on config
+        # Build menu choices
         choices = []
 
+        # Add standard menu options
+        menu_options = [
+            self.translator.get("Application management"),
+            self.translator.get("Backup / Recovery management"),
+            self.translator.get("Configuration management"),
+            self.translator.get("Docker management"),
+            self.translator.get("Exit")
+        ]
+        
+        # Add Certificate management option conditionally
         if (current_config.get("mode") == "nginx" and 
             "nginx" in current_config and
             ((current_config["nginx"].get("https_mode") == "letsencrypt") or 
              ("security" in current_config["nginx"] and 
               current_config["nginx"]["security"].get("type") == "client_cert"))
         ):
-            choices.append(self.translator.get("Certificate management"))
+            menu_options.insert(0, self.translator.get("Certificate management"))
 
-        # Add standard menu options with restructured items
-        choices.extend([
-            self.translator.get("Configuration management"),
-            self.translator.get("Docker management"),
-            self.translator.get("Application management"),
-            self.translator.get("Backup / Recovery management"),
-            self.translator.get("Exit")
-        ])
+        # Sort menu options alphabetically (except "Exit" which should always be last)
+        exit_option = self.translator.get("Exit")
+        menu_options.remove(exit_option)
+        menu_options.sort()  # Sort alphabetically
+        menu_options.append(exit_option)  # Add Exit as the last option
+        
+        choices.extend(menu_options)
 
         # Show pre-wizard menu
         action = questionary.select(
@@ -195,21 +204,21 @@ class TeddyCloudWizard(BaseWizard):
         if action == self.translator.get("Certificate management"):
             exit_menu = show_certificate_management_menu(self.config_manager.config, self.translator, self.cert_manager)
             if not exit_menu:
-                return self.show_pre_wizard()  # Show menu again after certificate management
+                return self.show_pre_wizard_menu()  # Show menu again after certificate management
             else:
-                return self.show_pre_wizard()  # Return to the main menu when "Back to main menu" was selected
+                return self.show_pre_wizard_menu()  # Return to the main menu when "Back to main menu" was selected
             
         elif action == self.translator.get("Configuration management"):
             result = self.show_configuration_management_menu()
             if result:  # If configuration was modified or wizard was run
                 return True
-            return self.show_pre_wizard()  # Show menu again
+            return self.show_pre_wizard_menu()  # Show menu again
             
         elif action == self.translator.get("Docker management"):
             # Pass config_manager to ensure project path is available for Docker operations
             exit_menu = show_docker_management_menu(self.translator, self.docker_manager, self.config_manager)
             if not exit_menu:
-                return self.show_pre_wizard()  # Show menu again
+                return self.show_pre_wizard_menu()  # Show menu again
             else:
                 return True  # Return to main menu
                 
@@ -219,9 +228,9 @@ class TeddyCloudWizard(BaseWizard):
         elif action == self.translator.get("Backup / Recovery management"):
             exit_menu = show_backup_recovery_menu(self.config_manager, self.docker_manager, self.translator)
             if not exit_menu:
-                return self.show_pre_wizard()  # Show menu again
+                return self.show_pre_wizard_menu()  # Show menu again
             else:
-                return self.show_pre_wizard()  # Return to the main menu when "Back to main menu" was selected
+                return self.show_pre_wizard_menu()  # Return to the main menu when "Back to main menu" was selected
 
         return False  # Exit
     
@@ -246,7 +255,7 @@ class TeddyCloudWizard(BaseWizard):
             return self.show_configuration_management_menu()
             
         elif action == self.translator.get("Run full configuration wizard"):
-            self.run_wizard(is_modification=True)
+            self.execute_wizard(is_modification=True)
             return True  # Return to main menu after modification
             
         elif action == self.translator.get("Delete configuration and start over"):
@@ -256,7 +265,7 @@ class TeddyCloudWizard(BaseWizard):
                 style=custom_style
             ).ask():
                 self.config_manager.delete()
-                return self.run_wizard()
+                return self.execute_wizard()
             return self.show_configuration_management_menu()  # Show submenu again
             
         elif action == self.translator.get("Refresh server configuration"):
@@ -400,7 +409,7 @@ class TeddyCloudWizard(BaseWizard):
         else:
             console.print(f"[yellow]{self.translator.get('Deployment mode unchanged')}[/]")
     
-    def run_wizard(self, is_modification=False):
+    def execute_wizard(self, is_modification=False):
         """Run the main wizard."""
         # If it's a modification, we don't need to ask about everything again
         if not is_modification:

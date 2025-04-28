@@ -19,7 +19,7 @@ from rich.layout import Layout
 from rich.panel import Panel
 
 # Add platform-agnostic getch implementation
-def get_key():
+def capture_keypress():
     """Cross-platform function to get a single keypress without requiring Enter"""
     if os.name == 'nt':
         import msvcrt
@@ -77,7 +77,7 @@ def get_key():
 console = Console()
 
 
-def show_live_logs(docker_manager, service_name=None, project_path=None):
+def display_live_logs(docker_manager, service_name=None, project_path=None):
     """
     Show live logs from Docker services with interactive controls.
     
@@ -109,7 +109,7 @@ def show_live_logs(docker_manager, service_name=None, project_path=None):
     paused = False
     
     # Create a function to collect logs
-    def collect_logs():
+    def _collect_logs():
         while running:
             if not paused:
                 # Windows-compatible approach to read from stdout without blocking
@@ -127,7 +127,7 @@ def show_live_logs(docker_manager, service_name=None, project_path=None):
             time.sleep(0.1)  # Small sleep to prevent CPU hogging
         
     # Start log collection in a thread
-    collector_thread = threading.Thread(target=collect_logs)
+    collector_thread = threading.Thread(target=_collect_logs)
     collector_thread.daemon = True
     collector_thread.start()
     
@@ -153,8 +153,8 @@ def show_live_logs(docker_manager, service_name=None, project_path=None):
     try:
         with Live(layout, auto_refresh=True, refresh_per_second=4) as live:
             while True:
-                # Check for key press events using our cross-platform get_key function
-                key = get_key()
+                # Check for key press events using our cross-platform capture_keypress function
+                key = capture_keypress()
                 if key:
                     if key == 'q':
                         break  # Exit log view

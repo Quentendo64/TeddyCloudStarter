@@ -7,7 +7,7 @@ import questionary
 from rich.table import Table
 from rich import box
 from ..wizard.ui_helpers import console, custom_style
-from ..log_viewer import show_live_logs
+from ..log_viewer import display_live_logs
 
 def show_docker_management_menu(translator, docker_manager, config_manager=None):
     """
@@ -168,7 +168,7 @@ def handle_docker_action(action, translator, docker_manager, running_services, s
         return handle_stop_specific_service(translator, docker_manager, running_services, project_path)
 
     elif action == translator.get("Live logs from all services"):
-        show_live_logs(docker_manager, project_path=project_path)
+        display_live_logs(docker_manager, project_path=project_path)
         return False  # Show the menu again
         
     elif action == translator.get("Live logs from specific service"):
@@ -307,6 +307,6 @@ def handle_live_logs_specific_service(translator, docker_manager, running_servic
     ).ask()
     
     if selected_service and selected_service != translator.get("Back"):
-        show_live_logs(docker_manager, selected_service, project_path=project_path)
+        display_live_logs(docker_manager, selected_service, project_path=project_path)
     
     return False  # Show the menu again
