@@ -19,6 +19,7 @@ from .ui.certificate_manager_ui import show_certificate_management_menu
 from .ui.docker_manager_ui import show_docker_management_menu
 from .ui.backup_manager_ui import show_backup_recovery_menu
 from .ui.configuration_manager_ui import show_configuration_management_menu
+from .ui.support_features_ui import show_support_features_menu
 from .utilities.file_system import browse_directory
 
 
@@ -103,6 +104,14 @@ class TeddyCloudWizard(BaseWizard):
         else:
             return True  # Return to main menu
             
+    def show_support_features_menu(self):
+        """Show support features submenu."""
+        exit_menu = show_support_features_menu(self.config_manager, self.docker_manager, self.translator)
+        if not exit_menu:
+            return self.show_pre_wizard_menu()  # Show menu again after support features
+        else:
+            return True  # Return to main menu
+            
     def select_language(self):
         """Let the user select a language."""
         languages = {
@@ -175,6 +184,7 @@ class TeddyCloudWizard(BaseWizard):
             self.translator.get("Backup / Recovery management"),
             self.translator.get("Configuration management"),
             self.translator.get("Docker management"),
+            self.translator.get("Support features"),
             self.translator.get("Exit")
         ]
         
@@ -247,6 +257,9 @@ class TeddyCloudWizard(BaseWizard):
                 return self.show_pre_wizard_menu()  # Show menu again
             else:
                 return self.show_pre_wizard_menu()  # Return to the main menu when "Back to main menu" was selected
+        
+        elif action == self.translator.get("Support features"):
+            return self.show_support_features_menu()
 
         return False  # Exit
 
