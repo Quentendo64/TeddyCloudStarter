@@ -5,7 +5,7 @@ Configuration management UI module for TeddyCloudStarter.
 import questionary
 from ..wizard.ui_helpers import console, custom_style
 from ..configuration.direct_mode import modify_http_port, modify_https_port, modify_teddycloud_port
-from ..configuration.nginx_mode import modify_domain_name, modify_https_mode, modify_security_settings
+from ..configuration.nginx_mode import modify_domain_name, modify_https_mode, modify_security_settings, modify_ip_restrictions
 
 def show_configuration_management_menu(wizard, config_manager, translator, security_managers=None):
     """Show configuration management menu.
@@ -36,11 +36,16 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
     if current_mode == "direct":
         choices.insert(2, translator.get("Modify HTTP port"))
         choices.insert(3, translator.get("Modify HTTPS port")) 
-        choices.insert(4, translator.get("Modify TeddyCloud port"))
+        #choices.insert(4, translator.get("Modify TeddyCloud port"))
     elif current_mode == "nginx":
         choices.insert(2, translator.get("Modify domain name"))
         choices.insert(3, translator.get("Modify HTTPS configuration"))
         choices.insert(4, translator.get("Modify security settings"))
+        choices.insert(5, translator.get("Configure IP address filtering"))  # This restricts access by IP
+        
+        # Add basic auth bypass option if basic auth is configured
+        if (current_config.get("nginx", {}).get("security", {}).get("type") == "basic_auth"):
+            choices.insert(6, translator.get("Configure basic auth bypass IPs"))  # This allows IP-based auth bypass
         
     # Show configuration management menu
     action = questionary.select(
@@ -69,7 +74,7 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
     elif action == translator.get("Refresh server configuration"):
         wizard.refresh_server_configuration()
         return True
-        
+
     elif current_mode == "direct" and action == translator.get("Modify HTTP port"):
         modify_http_port(config_manager.config, translator)
         config_manager.save()
@@ -91,28 +96,23 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
         return True
         
     elif current_mode == "nginx" and action == translator.get("Modify HTTPS configuration"):
-        if security_managers:
-            modify_https_mode(config_manager.config, translator, security_managers)
-        else:
-            console.print(f"[yellow]{translator.get('Warning')}: {translator.get('No security managers provided.')}[/]")
-            modify_https_mode(config_manager.config, translator)
+        modify_https_mode(config_manager.config, translator, security_managers)
         config_manager.save()
         return True
         
     elif current_mode == "nginx" and action == translator.get("Modify security settings"):
-        # Make sure basic_auth_manager is available in security_managers
-        if security_managers and "basic_auth_manager" not in security_managers and hasattr(wizard, "basic_auth_manager"):
-            security_managers["basic_auth_manager"] = wizard.basic_auth_manager
-            
-        if security_managers:
-            modify_security_settings(config_manager.config, translator, security_managers)
-        else:
-            console.print(f"[yellow]{translator.get('Warning')}: {translator.get('No security managers provided.')}[/]")
-            # Initialize security managers as empty dict if none provided
-            empty_security_managers = {}
-            if hasattr(wizard, "basic_auth_manager"):
-                empty_security_managers["basic_auth_manager"] = wizard.basic_auth_manager
-            modify_security_settings(config_manager.config, translator, empty_security_managers)
+        modify_security_settings(config_manager.config, translator, security_managers)
+        config_manager.save()
+        return True
+        
+    elif current_mode == "nginx" and action == translator.get("Configure IP address filtering"):
+        modify_ip_restrictions(config_manager.config, translator, security_managers)
+        config_manager.save()
+        return True
+        
+    elif current_mode == "nginx" and action == translator.get("Configure basic auth bypass IPs"):
+        from ..configuration.nginx_mode import configure_auth_bypass_ips
+        configure_auth_bypass_ips(config_manager.config, translator, security_managers)
         config_manager.save()
         return True
         

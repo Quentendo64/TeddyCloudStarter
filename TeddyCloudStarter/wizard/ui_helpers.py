@@ -138,6 +138,11 @@ def _display_nginx_mode_config(table, config, translator):
         table.add_row(translator.get("Security Type"), nginx_config["security"]["type"])
         if "allowed_ips" in nginx_config["security"] and nginx_config["security"]["allowed_ips"]:
             table.add_row(translator.get("Allowed IPs"), ", ".join(nginx_config["security"]["allowed_ips"]))
+        # Display auth bypass IPs if they exist and security type is basic_auth
+        if (nginx_config["security"]["type"] == "basic_auth" and 
+            "auth_bypass_ips" in nginx_config["security"] and 
+            nginx_config["security"]["auth_bypass_ips"]):
+            table.add_row(translator.get("Auth Bypass IPs"), ", ".join(nginx_config["security"]["auth_bypass_ips"]))
 
 def display_configuration_table(config, translator):
     """

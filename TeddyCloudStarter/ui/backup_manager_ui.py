@@ -10,13 +10,7 @@ import shutil
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
 from ..utilities.file_system import get_project_path
-
-# Platform-specific imports
-if sys.platform == 'win32':
-    import msvcrt  # For Windows key input
-else:
-    # For non-Windows platforms
-    msvcrt = None
+from ..utilities.log import capture_keypress
 
 def show_backup_recovery_menu(config_manager, docker_manager, translator):
     """
@@ -313,18 +307,15 @@ def handle_backup_selection(selected_volume, docker_manager, translator, project
         if selected_backup == translator.get("Back"):
             return
         
-        # Handle key press for backup file actions - cross-platform approach
-        if sys.platform == 'win32' and msvcrt:
-            # Windows approach
-            while msvcrt.kbhit():
-                msvcrt.getch()  # Clear any pending keypresses
-                
-            console.print(f"[bold cyan]{translator.get('Press \'L\' to list contents, \'R\' to remove backup, or any other key to continue')}...[/]")
-            key = msvcrt.getch().decode('utf-8', errors='ignore').lower()
-        else:
-            # Non-Windows approach using input()
-            console.print(f"[bold cyan]{translator.get('Enter \'L\' to list contents, \'R\' to remove backup, or press Enter to continue')}:[/]")
-            key = input().lower()
+        # Handle key press for backup file actions using cross-platform capture_keypress function
+        console.print(f"[bold cyan]{translator.get('Press \'L\' to list contents, \'R\' to remove backup, or any other key to continue')}...[/]")
+        
+        # Wait for key input
+        key = None
+        while key is None:
+            key = capture_keypress()
+            if key is None:
+                time.sleep(0.1)  # Short delay to prevent high CPU usage
         
         if key == 'l':
             # Show backup contents

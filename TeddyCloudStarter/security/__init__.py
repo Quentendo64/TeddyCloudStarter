@@ -8,9 +8,10 @@ This module contains various security-related functionalities:
 - Client certificate operations
 - Let's Encrypt certificate management
 - IP address restrictions
+- Authentication bypass for specific IPs
 """
 from .basic_auth import BasicAuthManager
 from .certificate_authority import CertificateAuthority
 from .client_certificates import ClientCertificateManager
 from .lets_encrypt import LetsEncryptManager
-from .ip_restrictions import IPRestrictionsManager
+from .ip_restrictions import IPRestrictionsManager, AuthBypassIPManager

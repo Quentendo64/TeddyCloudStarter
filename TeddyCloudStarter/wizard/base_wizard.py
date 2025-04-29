@@ -6,7 +6,7 @@ from pathlib import Path
 from ..config_manager import ConfigManager
 from ..docker.manager import DockerManager
 from ..utilities.localization import Translator
-from ..security import CertificateAuthority, ClientCertificateManager, LetsEncryptManager, BasicAuthManager, IPRestrictionsManager
+from ..security import CertificateAuthority, ClientCertificateManager, LetsEncryptManager, BasicAuthManager, IPRestrictionsManager, AuthBypassIPManager
 from ..configurations import TEMPLATES
 
 class BaseWizard:
@@ -29,5 +29,6 @@ class BaseWizard:
         self.lets_encrypt_manager = LetsEncryptManager(translator=self.translator)
         self.basic_auth_manager = BasicAuthManager(translator=self.translator)
         self.ip_restrictions_manager = IPRestrictionsManager(translator=self.translator)
+        self.auth_bypass_manager = AuthBypassIPManager(translator=self.translator)
         
         self.templates = TEMPLATES

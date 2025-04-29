@@ -63,6 +63,9 @@ services:
       - ./client_certs/crl:/etc/nginx/crl:ro
       {%- endif %}
       {%- endif %}
+      {%- if security_type == "basic_auth" %}
+      - ./data/security:/etc/nginx/security:ro
+      {%- endif %}
       {%- if https_mode == "letsencrypt" %}
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
@@ -246,9 +249,29 @@ events {
 }
 
 http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
     # Log configuration
     log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
-    access_log /var/log/nginx/access.log teddystarter_format;    
+    access_log /var/log/nginx/access.log teddystarter_format;
+    
+    # Set up geo map for IP-based authentication bypass when using basic auth
+    {% if security_type == "basic_auth" and auth_bypass_ips %}
+    geo $auth_bypass {
+        default 0;
+        {% for ip in auth_bypass_ips %}
+        {{ ip }} 1;
+        {% endfor %}
+    }
+    
+    # Map variable to conditionally set auth requirements
+    map $auth_bypass $auth_basic_realm {
+        0 "TeddyCloud Admin Area";
+        1 "off";
+    }
+    {% endif %}
+    
     server {
         listen 443 ssl;
         {%if https_mode == "letsencrypt" %}        
@@ -271,6 +294,18 @@ http {
 
         # Forward all requests to TeddyCloud
         location / {
+            {% if security_type == "basic_auth" %}
+            {% if auth_bypass_ips %}
+            # Apply basic auth conditionally based on IP
+            auth_basic $auth_basic_realm;
+            auth_basic_user_file /etc/nginx/security/.htpasswd;
+            {% else %}
+            # Always require authentication
+            auth_basic "TeddyCloud Admin Area";
+            auth_basic_user_file /etc/nginx/security/.htpasswd;
+            {% endif %}
+            {% endif %}
+            
             proxy_pass http://teddycloud-app:80;  
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

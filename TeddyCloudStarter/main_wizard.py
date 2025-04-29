@@ -369,7 +369,8 @@ class TeddyCloudWizard(BaseWizard):
             "client_cert_manager": self.client_cert_manager,
             "lets_encrypt_manager": self.lets_encrypt_manager,
             "basic_auth_manager": self.basic_auth_manager,
-            "ip_restrictions_manager": self.ip_restrictions_manager
+            "ip_restrictions_manager": self.ip_restrictions_manager,
+            "auth_bypass_manager": self.auth_bypass_manager
         }
         configure_nginx_mode(self.config_manager.config, self.translator, security_managers)
         self.config_manager.save()

@@ -146,6 +146,7 @@ def generate_nginx_configs(config, translator, templates):
             "https_mode": config["nginx"]["https_mode"],
             "security_type": config["nginx"]["security"]["type"],
             "allowed_ips": config["nginx"]["security"]["allowed_ips"],
+            "auth_bypass_ips": config["nginx"]["security"].get("auth_bypass_ips", []),
             "crl_file": os.path.exists(os.path.join(data_dir, "client_certs", "crl", "ca.crl"))
         }
         
