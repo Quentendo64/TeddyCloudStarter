@@ -24,28 +24,33 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
     current_config = config_manager.config
     current_mode = current_config.get("mode", "direct")
     
+    # Check auto-update status to display appropriate menu option
+    auto_update_enabled = current_config.get("app_settings", {}).get("auto_update", False)
+    auto_update_option = translator.get("Disable auto-update") if auto_update_enabled else translator.get("Enable auto-update")
+    
     # Build menu choices based on the current deployment mode
     choices = [
         translator.get("Change deployment mode"),
         translator.get("Change project path"),
+        auto_update_option,
         translator.get("Refresh server configuration"),
         translator.get("Back to main menu")
     ]
     
     # Add mode-specific options
     if current_mode == "direct":
-        choices.insert(2, translator.get("Modify HTTP port"))
-        choices.insert(3, translator.get("Modify HTTPS port")) 
-        #choices.insert(4, translator.get("Modify TeddyCloud port"))
+        choices.insert(3, translator.get("Modify HTTP port"))
+        choices.insert(4, translator.get("Modify HTTPS port")) 
+        #choices.insert(5, translator.get("Modify TeddyCloud port"))
     elif current_mode == "nginx":
-        choices.insert(2, translator.get("Modify domain name"))
-        choices.insert(3, translator.get("Modify HTTPS configuration"))
-        choices.insert(4, translator.get("Modify security settings"))
-        choices.insert(5, translator.get("Configure IP address filtering"))  # This restricts access by IP
+        choices.insert(3, translator.get("Modify domain name"))
+        choices.insert(4, translator.get("Modify HTTPS configuration"))
+        choices.insert(5, translator.get("Modify security settings"))
+        choices.insert(6, translator.get("Configure IP address filtering"))  # This restricts access by IP
         
         # Add basic auth bypass option if basic auth is configured
         if (current_config.get("nginx", {}).get("security", {}).get("type") == "basic_auth"):
-            choices.insert(6, translator.get("Configure basic auth bypass IPs"))  # This allows IP-based auth bypass
+            choices.insert(7, translator.get("Configure basic auth bypass IPs"))  # This allows IP-based auth bypass
         
     # Show configuration management menu
     action = questionary.select(
@@ -69,6 +74,11 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
         
     elif action == translator.get("Change project path"):
         wizard.select_project_path()
+        return True
+        
+    elif action == translator.get("Enable auto-update") or action == translator.get("Disable auto-update"):
+        # Use the toggle_auto_update function we added
+        config_manager.toggle_auto_update()
         return True
         
     elif action == translator.get("Refresh server configuration"):

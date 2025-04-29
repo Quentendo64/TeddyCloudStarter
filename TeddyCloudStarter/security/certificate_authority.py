@@ -14,7 +14,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich import box
 
-# Re-export console to ensure compatibility
 console = Console()
 
 class CertificateAuthority:
@@ -30,7 +29,6 @@ class CertificateAuthority:
         """
         # Use provided base_dir or try to get project path from config
         if base_dir is None:
-            # Import here to avoid circular imports
             from ..config_manager import ConfigManager
             config_manager = ConfigManager()
             project_path = None
@@ -39,7 +37,7 @@ class CertificateAuthority:
                     project_path = config_manager.config.get("environment", {}).get("path")
             except Exception:
                 pass
-            self.base_dir = Path(project_path) if project_path else Path(".")
+            self.base_dir = Path(project_path)
         else:
             self.base_dir = Path(base_dir)
             
@@ -216,24 +214,33 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             # Create OpenSSL config file for certificate operations
             openssl_conf_file = self.ca_dir / "openssl.cnf"
             if not openssl_conf_file.exists():
-                # Create minimal OpenSSL configuration
+                # Get absolute paths for configuration
+                ca_dir_abs = str(self.ca_dir.absolute())
+                ca_crt_abs = str((self.ca_dir / "ca.crt").absolute())
+                ca_key_abs = str((self.ca_dir / "ca.key").absolute())
+                index_abs = str((self.ca_dir / "index.txt").absolute())
+                serial_abs = str((self.ca_dir / "serial").absolute())
+                newcerts_abs = str((self.ca_dir / "newcerts").absolute())
+                crlnumber_abs = str((self.ca_dir / "crlnumber").absolute())
+                
+                # Create minimal OpenSSL configuration with absolute paths
                 with open(openssl_conf_file, "w") as f:
-                    f.write("""
+                    f.write(f"""
 [ ca ]
-default_ca = CA_default
+default_ca = TCS_default
 
-[ CA_default ]
-dir               = ./
-database         = $dir/index.txt
-serial           = $dir/serial
-new_certs_dir    = $dir/newcerts
-certificate      = $dir/ca.crt
-private_key      = $dir/ca.key
+[ TCS_default ]
+dir               = {ca_dir_abs}
+database         = {index_abs}
+serial           = {serial_abs}
+new_certs_dir    = {newcerts_abs}
+certificate      = {ca_crt_abs}
+private_key      = {ca_key_abs}
 default_days     = 3650
 default_crl_days = 30
 default_md       = sha256
 policy           = policy_any
-crlnumber        = $dir/crlnumber
+crlnumber        = {crlnumber_abs}
 
 [ policy_any ]
 countryName            = optional
@@ -252,10 +259,6 @@ basicConstraints = critical,CA:true
 authorityKeyIdentifier=keyid:always
 """)
             
-            # Create newcerts directory if it doesn't exist
-            newcerts_dir = self.ca_dir / "newcerts"
-            newcerts_dir.mkdir(exist_ok=True)
-            
             return True
         except Exception as e:
             error_msg = f"Error setting up CA directory: {e}"
@@ -270,17 +273,13 @@ authorityKeyIdentifier=keyid:always
             Tuple[bool, str]: (success, CRL path)
         """
         try:
-            # Ensure we're in the CA directory for relative paths in the config
-            original_dir = os.getcwd()
-            os.chdir(str(self.ca_dir.absolute()))
-            
             # Check if CA exists
             ca_key_path = self.ca_dir / "ca.key"
             ca_crt_path = self.ca_dir / "ca.crt"
+            openssl_conf_path = self.ca_dir / "openssl.cnf"
             
             if not ca_key_path.exists() or not ca_crt_path.exists():
                 console.print(f"[bold red]{self._translate('CA certificate or key not found. Cannot generate CRL.')}[/]")
-                os.chdir(original_dir)
                 return False, ""
             
             # Create crl subfolder if it doesn't exist
@@ -292,16 +291,15 @@ authorityKeyIdentifier=keyid:always
             # Set up the CA directory structure if it doesn't exist
             self._setup_ca_directory()
             
+            # Use absolute paths everywhere instead of changing directories
             subprocess.run([
-                "openssl", "ca", "-config", "openssl.cnf",
+                "openssl", "ca", 
+                "-config", str(openssl_conf_path.absolute()),
                 "-gencrl",
-                "-keyfile", str(ca_key_path),
-                "-cert", str(ca_crt_path),
-                "-out", str(crl_path)
+                "-keyfile", str(ca_key_path.absolute()),
+                "-cert", str(ca_crt_path.absolute()),
+                "-out", str(crl_path.absolute())
             ], check=True)
-            
-            # Return to original directory
-            os.chdir(original_dir)
             
             if not crl_path.exists():
                 return False, ""
@@ -312,18 +310,10 @@ authorityKeyIdentifier=keyid:always
         except subprocess.SubprocessError as e:
             error_msg = f"Error generating CRL: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
-            try:
-                os.chdir(original_dir)
-            except:
-                pass
             return False, ""
         except Exception as e:
             error_msg = f"Error: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
-            try:
-                os.chdir(original_dir)
-            except:
-                pass
             return False, ""
     
     def validate_certificate(self, cert_path: str) -> Tuple[bool, str, Optional[dict]]:

@@ -387,3 +387,21 @@ class TeddyCloudWizard(BaseWizard):
         }
         configure_nginx_mode(self.config_manager.config, self.translator, security_managers)
         self.config_manager.save()
+    
+    def set_project_path(self, project_path: str) -> None:
+        """
+        Set the project path for all certificate-related operations.
+        
+        Args:
+            project_path: The path to the project directory
+        """
+        # Update the base_dir for certificate operations
+        from .security.certificate_authority import CertificateAuthority
+        from .security.client_certificates import ClientCertificateManager
+        
+        # Store the validated project path
+        self.project_path = project_path
+        
+        # Create instances with the project path
+        self.ca_manager = CertificateAuthority(base_dir=project_path, translator=self.translator)
+        self.cert_manager = ClientCertificateManager(base_dir=project_path, translator=self.translator)

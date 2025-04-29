@@ -60,13 +60,35 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
     
     # Test if domain is properly set up
     if confirm_test_certificate(translator):
-        # Always use standalone mode for initial certificate generation
-        result = lets_encrypt_manager.request_certificate(
+        # First test with staging certificate
+        console.print(f"[bold cyan]{translator.get('Requesting Let\'s Encrypt certificate (staging) using standalone mode...')}[/]")
+        staging_result = lets_encrypt_manager.request_certificate(
+            domain=domain,
+            mode="standalone",
+            staging=True
+        )
+        
+        if not staging_result:
+            console.print(f"[bold red]{translator.get('Staging certificate request failed. Your domain may not be properly configured for Let\'s Encrypt.')}[/]")
+            return False
+        
+        console.print(f"[bold green]{translator.get('Staging certificate request successful! Your domain is properly configured for Let\'s Encrypt.')}[/]")
+        console.print(f"[bold cyan]{translator.get('Requesting Let\'s Encrypt certificate (production) using standalone mode...')}[/]")
+        
+        # If staging was successful, request production certificate
+        production_result = lets_encrypt_manager.request_certificate(
             domain=domain,
             mode="standalone",
             staging=False
         )
-        return result
+        
+        if not production_result:
+            console.print(f"[bold red]{translator.get('Production certificate request failed. You may need to try again later.')}[/]")
+            # Still return True as staging worked, so the setup is likely correct
+            return True
+            
+        console.print(f"[bold green]{translator.get('Production certificate request successful! Your Let\'s Encrypt certificate is ready to use.')}[/]")
+        return True
     
     return True  # User chose not to test, but we'll continue with Let's Encrypt
 

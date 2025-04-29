@@ -152,6 +152,40 @@ class ConfigManager:
         
         # Default to False if config file doesn't exist or doesn't have the setting
         return False
+        
+    def toggle_auto_update(self):
+        """
+        Toggle the auto_update setting in the configuration.
+        
+        Returns:
+            bool: The new auto_update setting value
+        """
+        # Ensure app_settings section exists
+        if "app_settings" not in self.config:
+            self.config["app_settings"] = {
+                "log_level": "info",
+                "auto_update": False
+            }
+        elif "auto_update" not in self.config["app_settings"]:
+            self.config["app_settings"]["auto_update"] = False
+            
+        # Toggle the setting
+        current_value = self.config["app_settings"]["auto_update"]
+        new_value = not current_value
+        self.config["app_settings"]["auto_update"] = new_value
+        
+        # Save the configuration
+        self.save()
+        
+        toggle_msg = f"Auto-update {'enabled' if new_value else 'disabled'}"
+        if self.translator:
+            if new_value:
+                toggle_msg = self.translator.get("Auto-update enabled")
+            else:
+                toggle_msg = self.translator.get("Auto-update disabled")
+        console.print(f"[bold {'green' if new_value else 'yellow'}]{toggle_msg}[/]")
+        
+        return new_value
 
     def invalidate_client_certificate(self, cert_serial, client_cert_manager=None):
         """Invalidate a client certificate in the configuration.

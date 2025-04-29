@@ -92,6 +92,9 @@ def main():
     project_path = get_project_path(wizard.config_manager)
     ensure_project_directories(project_path)
     
+    # Make sure all modules use this project_path as base_dir
+    wizard.set_project_path(project_path)
+    
     if config_exists:
         # If config exists, show pre-wizard menu in a loop until user exits
         show_menu = True
