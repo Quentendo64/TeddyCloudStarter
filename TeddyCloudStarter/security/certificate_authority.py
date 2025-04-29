@@ -101,10 +101,8 @@ class CertificateAuthority:
             current_datetime = time.strftime("%Y-%m-%d %H:%M:%S")
             
             # Get operating system info
-            os_info = f"{platform.system()} {platform.release()}"
-            
-            # TeddyCloudStarter version - hardcoded for now, could be dynamic in the future
-            teddycloudstarter_version = "1.0.0"  # This should ideally come from a central version
+            os_info = f"{platform.system()} {platform.release()}"                        
+            from .. import __version__ as teddycloudstarter_version  # Dynamically fetch the version
             
             # Create the info file
             info_file = self.ca_dir / "ca_info.txt"

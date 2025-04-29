@@ -9,6 +9,7 @@ from pathlib import Path
 from ..wizard.ui_helpers import console
 from ..utilities.network import check_port_available, check_domain_resolvable
 from ..utilities.validation import ConfigValidator
+import questionary
 from ..ui.nginx_mode_ui import (
     prompt_for_domain,
     prompt_for_https_mode,
@@ -26,7 +27,7 @@ from ..ui.nginx_mode_ui import (
     prompt_for_fallback_option
 )
 from .letsencrypt_helper import handle_letsencrypt_setup, check_domain_suitable_for_letsencrypt
-
+from ..wizard.ui_helpers import console, custom_style
 # Initialize the validator once at module level
 _validator = ConfigValidator()
 
@@ -335,27 +336,77 @@ def modify_https_mode(config, translator, security_managers):
         _, new_mode = select_https_mode_for_modification(current_mode, translator)
         
         if new_mode != current_mode:
-            nginx_config["https_mode"] = new_mode
-            console.print(f"[bold green]{translator.get('HTTPS mode updated to')} {new_mode}[/]")
-            
-            if new_mode == "letsencrypt":
-                # Use the Let's Encrypt helper function for setup
-                letsencrypt_success = handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager)
-                
-                if not letsencrypt_success:
-                    # Switch back to self-signed mode
-                    nginx_config["https_mode"] = "self_signed"
-                    console.print(f"[bold cyan]{translator.get('Switching to self-signed certificates mode')}...[/]")
-                    # Continue to self-signed certificate handling in the next iteration
-                    current_mode = "self_signed"
-                    continue
-            
-            # Generate self-signed certificates immediately when that option is selected
-            elif new_mode == "self_signed":
+            # If changing to Let's Encrypt from another mode, use our special handler
+            if new_mode == "letsencrypt" and current_mode != "letsencrypt":
+                # Check if domain is suitable for Let's Encrypt
                 domain = nginx_config.get("domain", "")
                 if not domain:
-                    console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('No domain set. Using example.com as fallback.')}[/]")
-                    domain = "example.com"
+                    console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('No domain set. Let\'s Encrypt requires a valid domain.')}[/]")
+                    continue
+                
+                # Check if domain is publicly resolvable
+                if not check_domain_suitable_for_letsencrypt(domain, translator):
+                    continue
+                
+                # Check if port 80 is available (necessary for standalone mode)
+                port_available = check_port_available(80)
+                if not port_available:
+                    console.print(f"[bold yellow]{translator.get('Warning: Port 80 appears to be in use')}")
+                    console.print(f"[yellow]{translator.get('Let\'s Encrypt requires port 80 to be available for domain verification')}")
+                    
+                    use_anyway = questionary.confirm(
+                        translator.get("Would you like to proceed anyway? (Certbot will attempt to bind to port 80)"),
+                        default=False,
+                        style=custom_style
+                    ).ask()
+                    
+                    if not use_anyway:
+                        continue
+                
+                # Use our special function for switching to Let's Encrypt
+                from .letsencrypt_helper import switch_to_letsencrypt_https_mode
+                
+                success = switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager)
+                if not success:
+                    # If failed, switch back to previous mode
+                    nginx_config["https_mode"] = current_mode
+                    console.print(f"[bold red]{translator.get('Failed to switch to Let\'s Encrypt. Keeping')} {current_mode} {translator.get('mode')}.[/]")
+                    continue
+                
+                # Always use standalone mode for initial certificate generation
+                console.print(f"[bold cyan]{translator.get('Requesting initial Let\'s Encrypt certificate in standalone mode...')}[/]")
+                cert_success = lets_encrypt_manager.request_certificate(
+                    domain=domain,
+                    mode="standalone",
+                    staging=False
+                )
+                
+                if not cert_success:
+                    console.print(f"[bold yellow]{translator.get('Certificate request failed. You may need to try again later.')}[/]")
+                    # Still continue with Let's Encrypt mode since configs are set up correctly
+            else:
+                # Normal HTTPS mode change
+                nginx_config["https_mode"] = new_mode
+                console.print(f"[bold green]{translator.get('HTTPS mode updated to')} {new_mode}[/]")
+                
+                if new_mode == "letsencrypt":
+                    # Use the Let's Encrypt helper function for setup
+                    letsencrypt_success = handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager)
+                    
+                    if not letsencrypt_success:
+                        # Switch back to self-signed mode
+                        nginx_config["https_mode"] = "self_signed"
+                        console.print(f"[bold cyan]{translator.get('Switching to self-signed certificates mode')}...[/]")
+                        # Continue to self-signed certificate handling in the next iteration
+                        current_mode = "self_signed"
+                        continue
+            
+                # Generate self-signed certificates immediately when that option is selected
+                elif new_mode == "self_signed":
+                    domain = nginx_config.get("domain", "")
+                if not domain:
+                    console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('No domain set. Using localhost as fallback.')}[/]")
+                    domain = "localhost"
                     nginx_config["domain"] = domain
                 
                 server_certs_path = os.path.join(project_path, "data", "server_certs")

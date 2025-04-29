@@ -480,6 +480,7 @@ server {
                     cmd.extend([
                         "certbot/certbot", "certonly", 
                         "--standalone",
+                        "--non-interactive",
                         "-v"  # Verbose output
                     ])
                     
@@ -510,6 +511,7 @@ server {
                             "certbot", "certonly",
                             "--webroot",
                             "--webroot-path=/var/www/certbot",
+                            "--non-interactive",
                             "-v"  # Verbose output
                         ]
                     else:
@@ -529,6 +531,7 @@ server {
                             "certbot/certbot", "certonly",
                             "--webroot",
                             "--webroot-path=/var/www/certbot",
+                            "--non-interactive",
                             "-v"  # Verbose output
                         ])
                         
