@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Utility functions for TeddyCloudStarter.
+Network utility functions for TeddyCloudStarter.
 """
 import socket
 import re
 import ipaddress
-import os
 import dns.resolver
-from pathlib import Path
 
 
 def check_port_available(port: int) -> bool:
@@ -86,34 +84,3 @@ def validate_ip_address(ip_str: str) -> bool:
         return True
     except ValueError:
         return False
-
-
-def get_project_path(config_manager=None):
-    """
-    Get the project path from config or return None if not set.
-    
-    Args:
-        config_manager: The configuration manager instance
-        
-    Returns:
-        str: The project path, or None if not set
-    """
-    try:
-        if config_manager and config_manager.config:
-            return config_manager.config.get("environment", {}).get("path")
-        return None
-    except Exception:
-        return None
-
-
-def ensure_project_directories(project_path=None):
-    """
-    Create necessary directories in the project path if provided, otherwise in current working directory.
-    
-    Args:
-        project_path: The path to the project directory
-    """
-    base_path = Path(project_path) if project_path else Path(".")
-    (base_path / "data").mkdir(exist_ok=True)
-    (base_path / "data" / "configurations").mkdir(exist_ok=True)
-    (base_path / "data" / "backup").mkdir(exist_ok=True)

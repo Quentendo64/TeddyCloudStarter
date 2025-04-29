@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Translation functionality for TeddyCloudStarter.
+Localization utilities for TeddyCloudStarter.
 """
 import os
 import locale
@@ -10,7 +10,7 @@ from typing import Optional
 
 
 class Translator:
-    """Handles translations for the wizard."""
+    """Handles translations for TeddyCloudStarter."""
     
     def __init__(self, locales_dir: Path):
         self.translations = {}
@@ -66,7 +66,6 @@ class Translator:
         """
         try:
             # Create a new translation object each time to ensure we get fresh translations
-            # This fixes issues where language changes aren't reflected
             translation = gettext.translation('teddycloudstarter', 
                                              localedir=str(self.locales_dir), 
                                              languages=[self.current_language],

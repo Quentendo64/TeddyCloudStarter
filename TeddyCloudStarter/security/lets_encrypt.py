@@ -12,11 +12,10 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 from rich.console import Console
 from rich.prompt import Confirm
 
-# Global console instance for rich output
+# Re-export console to ensure compatibility
 console = Console()
 
-
-class LetsEncrypt:
+class LetsEncryptManager:
     """
     Handles Let's Encrypt certificate operations for TeddyCloudStarter.
     
@@ -282,7 +281,7 @@ server {
                 if len(filtered_errors) > 10:
                     console.print(f"[dim]{self._translate('... additional error lines omitted ...')}[/]")
 
-    def test_domain_for_letsencrypt(self, domain: str) -> bool:
+    def test_domain(self, domain: str) -> bool:
         """
         Test if a domain is properly set up for Let's Encrypt.
         

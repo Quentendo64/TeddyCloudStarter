@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-File browser module for TeddyCloudStarter.
-
-This module provides a simple file system browser to select directories
-for various purposes in the wizard.
+File system utility functions for TeddyCloudStarter.
 """
 import os
 import platform
@@ -32,29 +29,37 @@ PARENT_DIR = ".."
 CREATE_NEW = "[Create new folder]"
 MANUAL_ENTRY = "[Enter path manually]"
 
-# Get common root directories based on operating system
-def get_common_roots() -> List[str]:
-    """Get a list of common root directories based on the OS.
-    
-    Returns:
-        List[str]: List of common root directories
+
+def get_project_path(config_manager=None):
     """
-    system = platform.system()
+    Get the project path from config or return None if not set.
     
-    if system == "Windows":
-        import string
-        # Get all available drive letters
-        drives = []
-        for drive in string.ascii_uppercase:
-            if os.path.exists(f"{drive}:"):
-                drives.append(f"{drive}:")
-        return drives
+    Args:
+        config_manager: The configuration manager instance
+        
+    Returns:
+        str: The project path, or None if not set
+    """
+    try:
+        if config_manager and config_manager.config:
+            return config_manager.config.get("environment", {}).get("path")
+        return None
+    except Exception:
+        return None
+
+
+def ensure_project_directories(project_path=None):
+    """
+    Create necessary directories in the project path if provided, otherwise in current working directory.
     
-    elif system == "Darwin":  # macOS
-        return ["/", "/Users", "/Applications", "/Volumes"]
-    
-    else:  # Linux and others
-        return ["/", "/home", "/mnt", "/media"]
+    Args:
+        project_path: The path to the project directory
+    """
+    base_path = Path(project_path) if project_path else Path.cwd()
+    (base_path / "data").mkdir(exist_ok=True)
+    (base_path / "data" / "configurations").mkdir(exist_ok=True)
+    (base_path / "data" / "backup").mkdir(exist_ok=True)
+
 
 def normalize_path(path: str) -> str:
     """Normalize a file path by resolving ../ and ./ references.
@@ -66,6 +71,7 @@ def normalize_path(path: str) -> str:
         str: The normalized path
     """
     return os.path.normpath(path)
+
 
 def create_directory(path: str) -> bool:
     """Create a directory at the specified path.
@@ -82,6 +88,7 @@ def create_directory(path: str) -> bool:
     except Exception as e:
         console.print(f"[bold red]Error creating directory: {e}[/]")
         return False
+
 
 def get_directory_contents(path: str) -> List[str]:
     """Get contents of a directory, separated into directories and files.
@@ -110,6 +117,7 @@ def get_directory_contents(path: str) -> List[str]:
         console.print(f"[bold red]Error listing directory: {e}[/]")
         return []
 
+
 def validate_path(path: str) -> bool:
     """Validate that a path exists and is a directory.
     
@@ -120,6 +128,32 @@ def validate_path(path: str) -> bool:
         bool: True if the path is valid, False otherwise
     """
     return os.path.isdir(path)
+
+
+# Get common root directories based on operating system
+def get_common_roots() -> List[str]:
+    """Get a list of common root directories based on the OS.
+    
+    Returns:
+        List[str]: List of common root directories
+    """
+    system = platform.system()
+    
+    if system == "Windows":
+        import string
+        # Get all available drive letters
+        drives = []
+        for drive in string.ascii_uppercase:
+            if os.path.exists(f"{drive}:"):
+                drives.append(f"{drive}:")
+        return drives
+    
+    elif system == "Darwin":  # macOS
+        return ["/", "/Users", "/Applications", "/Volumes"]
+    
+    else:  # Linux and others
+        return ["/", "/home", "/mnt", "/media"]
+
 
 def browse_directory(start_path: Optional[str] = None, 
                      translator=None, 

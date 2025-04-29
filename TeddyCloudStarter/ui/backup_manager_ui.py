@@ -9,7 +9,7 @@ import questionary
 import shutil
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
-from ..utils import get_project_path
+from ..utilities.file_system import get_project_path
 
 # Platform-specific imports
 if sys.platform == 'win32':

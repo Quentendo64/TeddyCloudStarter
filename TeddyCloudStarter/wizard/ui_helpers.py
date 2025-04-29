@@ -7,6 +7,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 import questionary
+from ..utilities.validation import validate_config
 
 # Global console instance for rich output
 console = Console()
@@ -77,6 +78,32 @@ def _show_config_error(table, translator, missing_key, error_message):
     ))
     return False
 
+def _show_validation_errors(table, translator, errors):
+    """
+    Helper function to display validation errors.
+    
+    Args:
+        table: Rich table object to add error rows to
+        translator: The translator instance to use for localization
+        errors: List of error messages
+    
+    Returns:
+        False to indicate configuration error
+    """
+    table.add_row(translator.get("Status"), f"[bold red]{translator.get('Corrupt Configuration')}")
+    error_list = "\n".join([f"- {error}" for error in errors])
+    table.add_row(translator.get("Validation Errors"), f"[red]{error_list}")
+    console.print(table)
+    console.print(Panel(
+        f"[bold red]{translator.get('WARNING')}[/] - {translator.get('Configuration Validation Failed')}\n\n"
+        f"{translator.get('Your configuration file contains errors:')}\n{error_list}\n\n"
+        f"{translator.get('It is recommended to reset your configuration by choosing:')}\n"
+        f"[bold white]{translator.get('Configuration management → Delete configuration and start over')}\n",
+        box=box.ROUNDED,
+        border_style="red"
+    ))
+    return False
+
 def _display_direct_mode_config(table, config, translator):
     """
     Display direct mode configuration in the table.
@@ -127,25 +154,12 @@ def display_configuration_table(config, translator):
     table.add_column(translator.get("Setting"), style="cyan")
     table.add_column(translator.get("Value"), style="green")
     
-    # Validate basic configuration
-    required_keys = ["mode"]
-    missing_keys = [key for key in required_keys if key not in config]
+    # Use the centralized validation system
+    is_valid, errors = validate_config(config, translator)
     
-    if missing_keys:
-        return _show_config_error(
-            table, 
-            translator, 
-            ', '.join(missing_keys),
-            'Your configuration file is missing critical data. It is recommended to reset your configuration by choosing: Configuration management → Delete configuration and start over'
-        )
+    if not is_valid:
+        return _show_validation_errors(table, translator, errors)
     
-    # Check mode-specific required keys
-    if config["mode"] == "direct" and "ports" not in config:
-        return _show_config_error(table, translator, "ports", "Direct mode configuration is missing ports data.")
-    
-    if config["mode"] == "nginx" and "nginx" not in config:
-        return _show_config_error(table, translator, "nginx", "Nginx mode configuration is missing nginx data.")
-
     # Display available configuration data
     table.add_row(translator.get("Mode"), config["mode"])
 

@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 """
-Version handler to check if the latest version of TeddyCloudStarter is being used.
+Version handling utilities for TeddyCloudStarter.
 """
 
 import json
@@ -11,8 +12,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich import box
 from rich.prompt import Confirm
-from .config_manager import ConfigManager
-from . import __version__
+import subprocess
+from .. import __version__
 
 # Global console instance for rich output
 console = Console()
@@ -98,8 +99,12 @@ def check_for_updates(quiet=False):
     else:
         message = f"Update available! Current version: {current_version}, Latest version: {latest_version}"
         if not quiet:
-            # Check if auto_update is enabled
-            auto_update = ConfigManager.get_auto_update_setting()
+            # Check if auto_update is enabled in config
+            try:
+                from ..config_manager import ConfigManager
+                auto_update = ConfigManager.get_auto_update_setting()
+            except (ImportError, AttributeError):
+                auto_update = False
             
             console.print(Panel(
                 f"[bold yellow]Update Available![/]\n\n"
@@ -144,8 +149,6 @@ def install_update():
     Returns:
         bool: True if the update was successfully installed, False otherwise
     """
-    import subprocess
-    
     package_name = "TeddyCloudStarter"
     commands = [
         [sys.executable, "-m", "pip", "install", "--upgrade", package_name],

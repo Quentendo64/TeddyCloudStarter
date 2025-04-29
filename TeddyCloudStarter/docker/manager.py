@@ -28,17 +28,11 @@ class DockerManager:
                           check=True, capture_output=True, text=True)
             
             # Check for Docker Compose v2
-            result = subprocess.run(["docker", "compose", "version"], 
-                                  check=False, capture_output=True, text=True)
+            subprocess.run(["docker", "compose", "version"], 
+                         check=True, capture_output=True, text=True)
             
-            if result.returncode != 0:
-                # Try Docker Compose v1
-                subprocess.run(["docker-compose", "--version"], 
-                              check=True, capture_output=True, text=True)
-                self.compose_cmd = ["docker-compose"]
-            else:
-                self.compose_cmd = ["docker", "compose"]
-            
+            # Use Docker Compose v2
+            self.compose_cmd = ["docker", "compose"]
             self.docker_available = True
         except (subprocess.SubprocessError, FileNotFoundError):
             self.docker_available = False

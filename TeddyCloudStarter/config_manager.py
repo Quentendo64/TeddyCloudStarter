@@ -7,7 +7,7 @@ import json
 import time
 import shutil
 import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from rich.console import Console
 from pathlib import Path
 from . import __version__ 
@@ -153,12 +153,12 @@ class ConfigManager:
         # Default to False if config file doesn't exist or doesn't have the setting
         return False
 
-    def invalidate_client_certificate(self, cert_serial, cert_manager=None):
+    def invalidate_client_certificate(self, cert_serial, client_cert_manager=None):
         """Invalidate a client certificate in the configuration.
         
         Args:
             cert_serial: The serial number of the certificate to invalidate
-            cert_manager: Optional CertificateManager instance for actual revocation
+            client_cert_manager: Optional ClientCertificateManager instance for actual revocation
             
         Returns:
             bool: True if successful, False otherwise
@@ -185,13 +185,12 @@ class ConfigManager:
                     console.print(f"[bold yellow]{already_revoked_msg}[/]")
                     return True
                 
-                # If cert_manager is provided, properly revoke the certificate
-                if cert_manager:
+                # If client_cert_manager is provided, properly revoke the certificate
+                if client_cert_manager:
                     safe_name = cert.get("safe_name")
-                    client_name = cert.get("client_name")
                     if safe_name:
-                        revoke_result = cert_manager.revoke_client_certificate(safe_name)
-                        if not revoke_result:
+                        success, _ = client_cert_manager.revoke_client_certificate(cert_name=safe_name)
+                        if not success:
                             # If actual revocation fails, still mark as revoked in config
                             error_msg = f"Certificate revocation process failed, but certificate will be marked as revoked in configuration."
                             if self.translator:

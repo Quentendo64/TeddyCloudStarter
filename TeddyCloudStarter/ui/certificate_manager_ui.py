@@ -6,14 +6,14 @@ import re
 import questionary
 from ..wizard.ui_helpers import console, custom_style
 
-def show_certificate_management_menu(config, translator, cert_manager):
+def show_certificate_management_menu(config, translator, security_managers):
     """
     Show certificate management submenu.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        security_managers: Dictionary containing security manager instances
         
     Returns:
         bool: True if user chose to exit, False otherwise
@@ -40,31 +40,31 @@ def show_certificate_management_menu(config, translator, cert_manager):
     ).ask()
     
     if action == translator.get("Create additional client certificate"):
-        create_client_certificate(translator, cert_manager)
+        create_client_certificate(translator, security_managers["client_cert_manager"])
         return False  # Continue showing menu
         
     elif action == translator.get("Invalidate client certificate"):
-        invalidate_client_certificate(config, translator, cert_manager)
+        invalidate_client_certificate(config, translator, security_managers["client_cert_manager"])
         return False  # Continue showing menu
         
     elif action == translator.get("Let's Encrypt Certificate Management"):
-        show_letsencrypt_management_menu(config, translator, cert_manager)
+        show_letsencrypt_management_menu(config, translator, security_managers["lets_encrypt_manager"])
         return False  # Continue showing menu
         
     elif action == translator.get("Test domain for Let's Encrypt"):
-        test_domain_for_letsencrypt(config, translator, cert_manager)
+        test_domain_for_letsencrypt(config, translator, security_managers["lets_encrypt_manager"])
         return False  # Continue showing menu
         
     # Back to main menu
     return True
 
-def create_client_certificate(translator, cert_manager):
+def create_client_certificate(translator, client_cert_manager):
     """
     Create a new client certificate.
     
     Args:
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        client_cert_manager: The client certificate manager instance
     """
     client_name = questionary.text(
         translator.get("Enter a name for the client certificate:"),
@@ -93,17 +93,20 @@ def create_client_certificate(translator, cert_manager):
             console.print(f"[bold yellow]{translator.get('Empty password provided, using default password \"teddycloud\"')}[/]")
             passout = None
     
-    cert_manager.generate_client_certificate(client_name, passout=passout)
-    console.print(f"[bold green]{translator.get('Client certificate created for')} {client_name}[/]")
+    success, _ = client_cert_manager.generate_client_certificate(client_name, passout=passout)
+    if success:
+        console.print(f"[bold green]{translator.get('Client certificate created for')} {client_name}[/]")
+    else:
+        console.print(f"[bold red]{translator.get('Failed to create client certificate for')} {client_name}[/]")
 
-def invalidate_client_certificate(config, translator, cert_manager):
+def invalidate_client_certificate(config, translator, client_cert_manager):
     """
     Revoke a client certificate.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        client_cert_manager: The client certificate manager instance
     """
     # Create a fresh instance of ConfigManager to get the latest certificate data
     from ..config_manager import ConfigManager
@@ -173,10 +176,13 @@ def invalidate_client_certificate(config, translator, cert_manager):
     # Always use full revocation (no prompt)
     console.print(f"[bold cyan]{translator.get('Fully revoking certificate...')}[/]")
     
-    # Attempt to use cert_manager for full revocation
-    result = config_manager.invalidate_client_certificate(selected_cert, cert_manager)
+    # Use client_cert_manager for revocation
+    success, _ = client_cert_manager.revoke_client_certificate(cert_name=selected_cert)
     
-    if result:
+    if success:
+        # Update certificate status in config
+        config_manager.invalidate_client_certificate(selected_cert)
+        
         console.print(f"[bold green]{translator.get('Certificate successfully invalidated.')}[/]")
         
         # Check if we are in nginx mode with client certificate authentication
@@ -215,14 +221,14 @@ def invalidate_client_certificate(config, translator, cert_manager):
     else:
         console.print(f"[bold red]{translator.get('Failed to invalidate certificate.')}[/]")
 
-def show_letsencrypt_management_menu(config, translator, cert_manager):
+def show_letsencrypt_management_menu(config, translator, lets_encrypt_manager):
     """
     Show Let's Encrypt certificate management submenu.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        lets_encrypt_manager: The Let's Encrypt manager instance
         
     Returns:
         bool: True if user chose to exit, False otherwise
@@ -243,36 +249,36 @@ def show_letsencrypt_management_menu(config, translator, cert_manager):
     ).ask()
     
     if action == translator.get("Request production certificate (webroot mode)"):
-        request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="webroot")
+        request_letsencrypt_certificate(config, translator, lets_encrypt_manager, staging=False, mode="webroot")
         return False
         
     elif action == translator.get("Request production certificate (standalone mode)"):
-        request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="standalone")
+        request_letsencrypt_certificate(config, translator, lets_encrypt_manager, staging=False, mode="standalone")
         return False
         
     elif action == translator.get("Request staging certificate (webroot mode)"):
-        request_letsencrypt_certificate(config, translator, cert_manager, staging=True, mode="webroot")
+        request_letsencrypt_certificate(config, translator, lets_encrypt_manager, staging=True, mode="webroot")
         return False
         
     elif action == translator.get("Request staging certificate (standalone mode)"):
-        request_letsencrypt_certificate(config, translator, cert_manager, staging=True, mode="standalone")
+        request_letsencrypt_certificate(config, translator, lets_encrypt_manager, staging=True, mode="standalone")
         return False
         
     elif action == translator.get("Force refresh Let's Encrypt certificates"):
-        refresh_letsencrypt_certificates(config, translator, cert_manager)
+        refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager)
         return False
     
     # Back to certificate menu
     return True
 
-def request_letsencrypt_certificate(config, translator, cert_manager, staging=False, mode="webroot"):
+def request_letsencrypt_certificate(config, translator, lets_encrypt_manager, staging=False, mode="webroot"):
     """
     Request Let's Encrypt certificate.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        lets_encrypt_manager: The Let's Encrypt manager instance
         staging: Whether to use staging environment
         mode: Authentication mode, "webroot" or "standalone"
     """
@@ -328,21 +334,14 @@ def request_letsencrypt_certificate(config, translator, cert_manager, staging=Fa
     if email:
         console.print(f"[cyan]{translator.get('Email:')} {email}[/]")
     
-    # Request the certificate
-    if mode == "standalone":
-        result = cert_manager.request_letsencrypt_certificate_standalone(
-            domain=domain,
-            staging=staging,
-            email=email,
-            additional_domains=additional_domains
-        )
-    else:  # webroot
-        result = cert_manager.request_letsencrypt_certificate(
-            domain=domain,
-            staging=staging,
-            email=email,
-            additional_domains=additional_domains
-        )
+    # Request the certificate using the new API
+    result = lets_encrypt_manager.request_certificate(
+        domain=domain,
+        mode=mode,
+        staging=staging,
+        email=email,
+        additional_domains=additional_domains
+    )
     
     if result:
         cert_type = translator.get("Staging") if staging else translator.get("Production")
@@ -353,14 +352,14 @@ def request_letsencrypt_certificate(config, translator, cert_manager, staging=Fa
         error_msg = f"{translator.get('Failed to request')} {cert_type} {translator.get('certificate')}"
         console.print(f"[bold red]{error_msg}[/]")
 
-def refresh_letsencrypt_certificates(config, translator, cert_manager):
+def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
     """
     Refresh Let's Encrypt certificates.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        lets_encrypt_manager: The Let's Encrypt manager instance
     """
     domain = config["nginx"]["domain"]
     
@@ -401,25 +400,29 @@ def refresh_letsencrypt_certificates(config, translator, cert_manager):
                 additional_domains.append(san)
                 console.print(f"[green]{translator.get('Added domain:')} {san}[/]")
     
-    cert_manager.force_refresh_letsencrypt_certificates(
+    result = lets_encrypt_manager.force_refresh_certificates(
         domain=domain, 
         email=email,
         additional_domains=additional_domains
     )
-    console.print(f"[bold green]{translator.get('Let\'s Encrypt certificates refreshed for')} {domain}[/]")
+    
+    if result:
+        console.print(f"[bold green]{translator.get('Let\'s Encrypt certificates refreshed for')} {domain}[/]")
+    else:
+        console.print(f"[bold red]{translator.get('Failed to refresh Let\'s Encrypt certificates for')} {domain}[/]")
 
-def test_domain_for_letsencrypt(config, translator, cert_manager):
+def test_domain_for_letsencrypt(config, translator, lets_encrypt_manager):
     """
     Test domain for Let's Encrypt.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        lets_encrypt_manager: The Let's Encrypt manager instance
     """
     domain = config["nginx"]["domain"]
     console.print(f"[bold yellow]{translator.get('Testing domain')} {domain} {translator.get('for Let\'s Encrypt...')}[/]")
-    result = cert_manager.test_domain_for_letsencrypt(domain)
+    result = lets_encrypt_manager.test_domain(domain)
     if result:
         console.print(f"[bold green]{translator.get('Domain')} {domain} {translator.get('is valid for Let\'s Encrypt')}[/]")
     else:

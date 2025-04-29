@@ -15,16 +15,20 @@ from rich.table import Table
 from rich import print as rprint
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
-from ..utils import check_port_available, validate_domain_name, validate_ip_address, check_domain_resolvable
+from ..utilities.network import check_port_available, check_domain_resolvable
+from ..utilities.validation import validate_domain_name, validate_ip_address, ConfigValidator
 
-def configure_nginx_mode(config, translator, cert_manager):
+# Initialize the validator once at module level
+_validator = ConfigValidator()
+
+def configure_nginx_mode(config, translator, security_managers):
     """
     Configure nginx deployment mode settings.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        security_managers: Dictionary containing the security module managers
         
     Returns:
         dict: The updated configuration dictionary
@@ -34,6 +38,12 @@ def configure_nginx_mode(config, translator, cert_manager):
     import subprocess
     import traceback
     from pathlib import Path
+    
+    # Extract security managers
+    lets_encrypt_manager = security_managers.get("lets_encrypt_manager")
+    ca_manager = security_managers.get("ca_manager")
+    client_cert_manager = security_managers.get("client_cert_manager")
+    basic_auth_manager = security_managers.get("basic_auth_manager")
     
     # Initialize nginx configuration if it doesn't exist
     if "nginx" not in config:
@@ -167,7 +177,7 @@ def configure_nginx_mode(config, translator, cert_manager):
                 ).ask()
                 
                 if test_cert:
-                    cert_manager.request_letsencrypt_certificate(domain)
+                    lets_encrypt_manager.request_certificate(domain)
             else:
                 # Switch to self-signed mode as fallback
                 nginx_config["https_mode"] = "self_signed"
@@ -196,8 +206,8 @@ def configure_nginx_mode(config, translator, cert_manager):
                 nginx_config["https_mode"] = "custom"
                 continue
             
-            # Generate self-signed certificate
-            success, message = generate_self_signed_certificate(server_certs_path, domain, translator)
+            # Generate self-signed certificate using the CertificateAuthority class
+            success, message = ca_manager.generate_self_signed_certificate(server_certs_path, domain, translator)
             
             if not success:
                 console.print(f"[bold red]{translator.get('Failed to generate self-signed certificate')}: {message}[/]")
@@ -221,218 +231,30 @@ def configure_nginx_mode(config, translator, cert_manager):
                     console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
                     continue
             
-        elif nginx_config["https_mode"] == "custom":
-            server_certs_path = os.path.join(project_path, "data", "server_certs")
-            server_crt_path = os.path.join(server_certs_path, "server.crt")
-            server_key_path = os.path.join(server_certs_path, "server.key")
-            
-            console.print(Panel(
-                f"[bold cyan]{translator.get('Custom Certificate Instructions')}[/]\n\n"
-                f"{translator.get('You will need to provide your own SSL certificates.')}\n"
-                f"1. {translator.get('Create a directory')}: {server_certs_path}\n"
-                f"2. {translator.get('Place your certificate as')}: {server_crt_path}\n"
-                f"3. {translator.get('Place your private key as')}: {server_key_path}",
-                box=box.ROUNDED,
-                border_style="cyan"
-            ))
-            
-            # Create server_certs directory if it doesn't exist
-            Path(server_certs_path).mkdir(parents=True, exist_ok=True)
-            
-            # Check if certificates exist
-            server_cert_exists = Path(server_crt_path).exists()
-            server_key_exists = Path(server_key_path).exists()
-            
-            if not (server_cert_exists and server_key_exists):
-                console.print(f"[bold yellow]{translator.get('Certificates not found. You must add them to continue.')}[/]")
-                
-                console.print(f"[bold cyan]{translator.get('Waiting for certificates to be added...')}[/]")
-                console.print(f"[cyan]{translator.get('Please add the following files:')}\n"
-                              f"1. {server_crt_path}\n"
-                              f"2. {server_key_path}[/]")
-                
-                # Wait for the certificates to appear - user cannot proceed without them
-                import time
-                import subprocess
-                
-                # Try to create empty marker files to ensure directory is writeable
-                try:
-                    Path(os.path.join(server_certs_path, "certificate_check.tmp")).touch()
-                    os.remove(os.path.join(server_certs_path, "certificate_check.tmp"))
-                    console.print(f"[green]{translator.get('Directory is writable.')}[/]")
-                except Exception as e:
-                    console.print(f"[bold yellow]{translator.get('Warning: Directory permissions issue - ')} {str(e)}[/]")
-                
-                attempt_count = 0
-                should_return_to_menu = False
-                
-                while True:
-                    attempt_count += 1
-                    # Sleep briefly to avoid high CPU usage and give time for file system operations
-                    time.sleep(1)
-                    
-                    # Force directory refresh with system commands (can help with file system cache issues)
-                    if attempt_count % 5 == 0:
-                        try:
-                            if os.name == 'nt':  # Windows
-                                subprocess.run(f'dir "{server_certs_path}"', shell=True, capture_output=True)
-                            else:  # Unix-based
-                                subprocess.run(f'ls -la "{server_certs_path}"', shell=True, capture_output=True)
-                        except Exception:
-                            pass
-                    
-                    # Try multiple detection methods
-                    server_cert_exists = False
-                    server_key_exists = False
-                    
-                    # Method 1: Direct os.path.isfile check
-                    try:
-                        server_cert_exists = os.path.isfile(server_crt_path)
-                        server_key_exists = os.path.isfile(server_key_path)
-                    except Exception:
-                        pass
-                    
-                    # Method 2: Try direct file open if method 1 failed
-                    if not server_cert_exists:
-                        try:
-                            with open(server_crt_path, 'rb') as f:
-                                server_cert_exists = True
-                        except Exception:
-                            pass
-                            
-                    if not server_key_exists:
-                        try:
-                            with open(server_key_path, 'rb') as f:
-                                server_key_exists = True
-                        except Exception:
-                            pass
-                    
-                    # Method 3: Use subprocess as a last resort
-                    if not (server_cert_exists and server_key_exists) and attempt_count % 10 == 0:
-                        try:
-                            if os.name == 'nt':  # Windows
-                                cert_result = subprocess.run(f'if exist "{server_crt_path}" echo EXISTS', 
-                                                            shell=True, capture_output=True, text=True)
-                                key_result = subprocess.run(f'if exist "{server_key_path}" echo EXISTS', 
-                                                            shell=True, capture_output=True, text=True)
-                                
-                                server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
-                                server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
-                            else:
-                                cert_result = subprocess.run(f'test -f "{server_crt_path}" && echo "EXISTS"', 
-                                                            shell=True, capture_output=True, text=True)
-                                key_result = subprocess.run(f'test -f "{server_key_path}" && echo "EXISTS"', 
-                                                            shell=True, capture_output=True, text=True)
-                                
-                                server_cert_exists = server_cert_exists or 'EXISTS' in cert_result.stdout
-                                server_key_exists = server_key_exists or 'EXISTS' in key_result.stdout
-                        except Exception:
-                            pass
-                    
-                    # Provide detailed update about file detection
-                    if attempt_count % 5 == 0:
-                        console.print(f"[dim]{translator.get('Checking for certificate files (attempt')}: {attempt_count})...[/]")
-                        
-                        # Print file sizes if they exist to help diagnose issues
-                        try:
-                            if os.path.exists(server_crt_path):
-                                size = os.path.getsize(server_crt_path)
-                                console.print(f"[dim]{translator.get('Found')} server.crt - {size} bytes[/]")
-                            if os.path.exists(server_key_path):
-                                size = os.path.getsize(server_key_path)
-                                console.print(f"[dim]{translator.get('Found')} server.key - {size} bytes[/]")
-                        except Exception:
-                            pass
-                    
-                    if server_cert_exists and server_key_exists:
-                        console.print(f"[bold green]{translator.get('Both certificate files found! Continuing...')}[/]")
-                        
-                        # Validate certificates for Nginx compatibility and matching
-                        console.print(f"[cyan]{translator.get('Validating certificates for Nginx compatibility...')}[/]")
-                        is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
-                        
-                        if not is_valid:
-                            console.print(f"[bold red]{translator.get('Certificate validation failed')}:[/]")
-                            console.print(f"[red]{error_msg}[/]")
-                            
-                            # Ask if user wants to try again with different certificates
-                            retry_cert = questionary.confirm(
-                                translator.get("Do you want to replace the certificates with valid ones?"),
-                                default=True,
-                                style=custom_style
-                            ).ask()
-                            
-                            if retry_cert:
-                                # Remove the invalid certificates
-                                try:
-                                    if os.path.exists(server_crt_path):
-                                        os.remove(server_crt_path)
-                                    if os.path.exists(server_key_path):
-                                        os.remove(server_key_path)
-                                    console.print(f"[yellow]{translator.get('Invalid certificates removed. Please provide new ones.')}[/]")
-                                    # Continue the loop to wait for new certificates
-                                    continue
-                                except Exception as e:
-                                    console.print(f"[bold red]{translator.get('Error removing invalid certificates')}: {str(e)}[/]")
-                            else:
-                                # User wants to continue anyway
-                                console.print(f"[bold yellow]{translator.get('Warning: Continuing with invalid certificates. Nginx may fail to start.')}[/]")
-                        else:
-                            console.print(f"[bold green]{translator.get('Certificates validated successfully!')}[/]")
-                        
-                        break
-                    
-                    # Give status update on which files are still missing
-                    missing_files = []
-                    if not server_cert_exists:
-                        missing_files.append(f"server.crt ({server_crt_path})")
-                    if not server_key_exists:
-                        missing_files.append(f"server.key ({server_key_path})")
-                    
-                    missing_str = ", ".join(missing_files)
-                    
-                    # Only show the waiting message every few seconds to avoid flooding the console
-                    if attempt_count % 3 == 0:
-                        console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
-                    
-                    # Ask if user wants to return to certificate selection every 15 seconds
-                    if attempt_count % 15 == 0:
-                        change_cert_method = questionary.confirm(
-                            translator.get("Do you want to return to the certificate selection menu?"),
-                            default=False,
-                            style=custom_style
-                        ).ask()
-                        
-                        if change_cert_method:
-                            # Set flag to return to certificate selection menu
-                            should_return_to_menu = True
-                            console.print(f"[bold cyan]{translator.get('Returning to certificate selection menu...')}[/]")
-                            break  # Break out of the waiting loop
-                
-                # If we should return to the certificate menu, continue the outer loop
-                if should_return_to_menu:
-                    continue  # This will restart from the certificate type selection
-            else:
-                console.print(f"[bold green]{translator.get('Certificate files found and ready to use.')}[/]")
-        
         # Only break out of the main certificate selection loop when we've successfully configured certificates
         break
     
     # Configure security
-    configure_security(nginx_config, translator, cert_manager, project_path)
+    configure_security(nginx_config, translator, security_managers, project_path)
     
     return config
 
-def configure_security(nginx_config, translator, cert_manager, project_path):
+def configure_security(nginx_config, translator, security_managers, project_path):
     """
     Configure security settings for Nginx mode.
     
     Args:
         nginx_config: The nginx configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        security_managers: Dictionary containing the security module managers
         project_path: The project path for file operations
     """
+    # Extract security managers
+    ca_manager = security_managers.get("ca_manager")
+    client_cert_manager = security_managers.get("client_cert_manager")
+    basic_auth_manager = security_managers.get("basic_auth_manager")
+    ip_restrictions_manager = security_managers.get("ip_restrictions_manager")
+    
     while True:
         security_type = questionary.select(
             translator.get("How would you like to secure your TeddyCloud instance?"),
@@ -472,8 +294,16 @@ def configure_security(nginx_config, translator, cert_manager, project_path):
             if htpasswd_option == translator.get("Generate .htpasswd file with the wizard"):
                 console.print(f"[bold cyan]{translator.get('Let\'s create a .htpasswd file with your users and passwords')}.[/]")
                 
-                # Use Docker to generate htpasswd file
-                generate_htpasswd_file(htpasswd_file_path, translator)
+                # Use basic_auth_manager to generate htpasswd file
+                if basic_auth_manager:
+                    success = basic_auth_manager.generate_htpasswd_file(htpasswd_file_path)
+                    if success:
+                        console.print(f"[bold green]{translator.get('.htpasswd file successfully created at')} {htpasswd_file_path}[/]")
+                    else:
+                        console.print(f"[bold red]{translator.get('Failed to create .htpasswd file. You may need to create it manually.')}[/]")
+                else:
+                    console.print(f"[bold red]{translator.get('Error: Basic auth manager not available. Cannot generate .htpasswd file.')}[/]")
+                    console.print(f"[yellow]{translator.get('Please create the .htpasswd file manually at')} {htpasswd_file_path}[/]")
             else:
                 console.print(f"[bold cyan]{translator.get('Remember to place your .htpasswd file at')} {htpasswd_file_path}[/]")
             
@@ -548,97 +378,43 @@ def configure_security(nginx_config, translator, cert_manager, project_path):
                     default="TeddyCloudClient01",
                     style=custom_style
                 ).ask()
-                cert_manager.generate_client_certificate(client_name, project_path)
+                
+                # Generate certificate with the client_cert_manager and store the result
+                success, cert_info = client_cert_manager.generate_client_certificate(client_name)
+                
+                if success and cert_info:
+                    console.print(f"[bold green]{translator.get('Client certificate successfully created and saved to config.')}[/]")
+                else:
+                    console.print(f"[bold red]{translator.get('Failed to create client certificate. Please try again.')}[/]")
             
             break  # Break out of the outer while loop once configuration is complete
     
     # Ask about IP restrictions
-    configure_ip_restrictions(nginx_config, translator)
-
-def configure_ip_restrictions(nginx_config, translator):
-    """
-    Configure IP address restrictions for Nginx mode.
-    
-    Args:
-        nginx_config: The nginx configuration dictionary
-        translator: The translator instance for localization
-    """
-    use_ip_restriction = questionary.confirm(
-        translator.get("Would you like to restrict access by IP address?"),
-        default=bool(nginx_config["security"]["allowed_ips"]),
-        style=custom_style
-    ).ask()
-    
-    if use_ip_restriction:
-        ip_addresses = []
-        
-        console.print(f"[bold cyan]{translator.get('Enter the IP addresses to allow (empty line to finish):')}[/]")
-        console.print(f"[green]{translator.get('You can use individual IPs (e.g., 192.168.1.10) or CIDR notation (e.g., 192.168.1.0/24)')}[/]")
-        
-        # Show current IPs if any
-        if nginx_config["security"]["allowed_ips"]:
-            console.print(f"[bold cyan]{translator.get('Current allowed IPs')}:[/]")
-            for ip in nginx_config["security"]["allowed_ips"]:
-                console.print(f"[cyan]{ip}[/]")
-        
-        # Allow adding new IPs
-        while True:
-            ip = Prompt.ask(f"[bold cyan]{translator.get('IP address or CIDR')}[/]", default="")
-            
-            if not ip:
-                break
-            
-            if validate_ip_address(ip):
-                ip_addresses.append(ip)
-                console.print(f"[green]{translator.get('Added')}: {ip}[/]")
-            else:
-                console.print(f"[bold red]{translator.get('Invalid IP address or CIDR')}: {ip}[/]")
-        
-        nginx_config["security"]["allowed_ips"] = ip_addresses
-        console.print(f"[bold green]{translator.get('IP restrictions updated')}[/]")
+    if ip_restrictions_manager:
+        ip_restrictions_manager.configure_ip_restrictions(nginx_config)
     else:
-        nginx_config["security"]["allowed_ips"] = []
-        console.print(f"[bold green]{translator.get('IP restrictions removed')}[/]")
+        console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('IP restrictions manager not available')}[/]")
+    
+    return nginx_config
 
-def modify_domain_name(config, translator):
-    """
-    Modify domain name for nginx mode.
-    
-    Args:
-        config: The configuration dictionary
-        translator: The translator instance for localization
-    """
-    nginx_config = config["nginx"]
-    current_domain = nginx_config["domain"]
-    
-    console.print(f"[bold cyan]{translator.get('Current domain name')}: {current_domain}[/]")
-    
-    domain = questionary.text(
-        translator.get("Enter the domain name for your TeddyCloud instance:"),
-        default=current_domain,
-        validate=lambda d: validate_domain_name(d),
-        style=custom_style
-    ).ask()
-    
-    nginx_config["domain"] = domain
-    console.print(f"[bold green]{translator.get('Domain name updated to')} {domain}[/]")
-    
-    return config
-
-def modify_https_mode(config, translator, cert_manager):
+def modify_https_mode(config, translator, security_managers):
     """
     Modify HTTPS mode for nginx mode.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        security_managers: Dictionary containing the security module managers
     """
     # Import standard modules that might be needed during execution
     import time
     import subprocess
     import traceback
     from pathlib import Path
+    
+    # Extract security managers
+    lets_encrypt_manager = security_managers.get("lets_encrypt_manager")
+    ca_manager = security_managers.get("ca_manager")  # Add certificate authority manager
     
     nginx_config = config["nginx"]
     current_mode = nginx_config["https_mode"]
@@ -670,7 +446,7 @@ def modify_https_mode(config, translator, cert_manager):
             style=custom_style
         ).ask()
         
-        new_mode = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "self_signed" if https_mode.startswith(translator.get("Create self-signed")) else "custom"
+        new_mode = "letsencrypt" if https_mode.startswith(translator.get("Let's")) else "self_signed" if https_mode.startswith(translator.get("Create self-signed")) else "user_provided"
         
         if new_mode != current_mode:
             nginx_config["https_mode"] = new_mode
@@ -703,7 +479,7 @@ def modify_https_mode(config, translator, cert_manager):
                     ).ask()
                     
                     if test_cert:
-                        cert_manager.request_letsencrypt_certificate(nginx_config["domain"])
+                        lets_encrypt_manager.request_certificate(nginx_config["domain"])
                 else:
                     # Switch back to self-signed mode
                     nginx_config["https_mode"] = "self_signed"
@@ -711,180 +487,65 @@ def modify_https_mode(config, translator, cert_manager):
                     # Continue to self-signed certificate handling in the next iteration
                     current_mode = "self_signed"
                     continue
-        
-        # Handle self-signed certificate mode
-        if nginx_config["https_mode"] == "self_signed":
-            server_certs_path = os.path.join(project_path, "data", "server_certs")
-            server_crt_path = os.path.join(server_certs_path, "server.crt")
-            server_key_path = os.path.join(server_certs_path, "server.key")
             
-            console.print(Panel(
-                f"[bold cyan]{translator.get('Self-Signed Certificate Generation')}[/]\n\n"
-                f"{translator.get('A self-signed certificate will be generated for')} '{nginx_config['domain']}'.\n"
-                f"{translator.get('This certificate will not be trusted by browsers, but is suitable for testing and development.')}",
-                box=box.ROUNDED,
-                border_style="cyan"
-            ))
-            
-            # Generate self-signed certificate
-            success, message = generate_self_signed_certificate(server_certs_path, nginx_config["domain"], translator)
-            
-            if not success:
-                console.print(f"[bold red]{translator.get('Failed to generate self-signed certificate')}: {message}[/]")
+            # Generate self-signed certificates immediately when that option is selected
+            elif new_mode == "self_signed":
+                domain = nginx_config.get("domain", "")
+                if not domain:
+                    console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('No domain set. Using example.com as fallback.')}[/]")
+                    domain = "example.com"
+                    nginx_config["domain"] = domain
                 
-                # Ask user if they want to try again, use custom certificates, or quit
-                fallback_option = questionary.select(
-                    translator.get("What would you like to do?"),
-                    choices=[
-                        translator.get("Try generating the self-signed certificate again"),
-                        translator.get("Switch to custom certificate mode (provide your own certificates)"),
-                    ],
-                    style=custom_style
-                ).ask()
+                server_certs_path = os.path.join(project_path, "data", "server_certs")
+                server_crt_path = os.path.join(server_certs_path, "server.crt")
+                server_key_path = os.path.join(server_certs_path, "server.key")
                 
-                if fallback_option.startswith(translator.get("Try generating")):
-                    # Stay in self-signed mode and try again in the next loop iteration
+                console.print(Panel(
+                    f"[bold cyan]{translator.get('Self-Signed Certificate Generation')}[/]\n\n"
+                    f"{translator.get('A self-signed certificate will be generated for')} '{domain}'.\n"
+                    f"{translator.get('This certificate will not be trusted by browsers, but is suitable for testing and development.')}",
+                    box=box.ROUNDED,
+                    border_style="cyan"
+                ))
+                
+                # Check if OpenSSL is available
+                try:
+                    subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
+                except (subprocess.SubprocessError, FileNotFoundError):
+                    console.print(f"[bold red]{translator.get('OpenSSL is not available. Cannot generate self-signed certificate.')}[/]")
+                    console.print(f"[bold yellow]{translator.get('Proceeding with self-signed mode, but you will need to provide certificates manually.')}[/]")
                     continue
+                
+                # Generate self-signed certificate using the CertificateAuthority class
+                if ca_manager:
+                    success, message = ca_manager.generate_self_signed_certificate(server_certs_path, domain, translator)
+                    
+                    if success:
+                        console.print(f"[bold green]{translator.get('Self-signed certificate successfully generated for')} {domain}[/]")
+                    else:
+                        console.print(f"[bold red]{translator.get('Failed to generate self-signed certificate')}: {message}[/]")
+                        console.print(f"[yellow]{translator.get('You will need to manually provide certificates in')} {server_certs_path}[/]")
                 else:
-                    # Switch to custom certificates mode
-                    nginx_config["https_mode"] = "custom"
-                    console.print(f"[bold cyan]{translator.get('Switching to custom certificates mode')}...[/]")
-                    continue
-        
-        # Handle custom certificate mode
-        if nginx_config["https_mode"] == "custom":
-            server_certs_path = os.path.join(project_path, "data", "server_certs")
-            server_crt_path = os.path.join(server_certs_path, "server.crt")
-            server_key_path = os.path.join(server_certs_path, "server.key")
-            
-            console.print(Panel(
-                f"[bold cyan]{translator.get('Custom Certificate Instructions')}[/]\n\n"
-                f"{translator.get('You will need to provide your own SSL certificates.')}\n"
-                f"1. {translator.get('Create a directory')}: {server_certs_path}\n"
-                f"2. {translator.get('Place your certificate as')}: {server_crt_path}\n"
-                f"3. {translator.get('Place your private key as')}: {server_key_path}",
-                box=box.ROUNDED,
-                border_style="cyan"
-            ))
-            
-            # Create server_certs directory if it doesn't exist
-            Path(server_certs_path).mkdir(parents=True, exist_ok=True)
-            
-            # Check if certificates exist
-            server_cert_exists = Path(server_crt_path).exists()
-            server_key_exists = Path(server_key_path).exists()
-            
-            if not (server_cert_exists and server_key_exists):
-                console.print(f"[bold yellow]{translator.get('Certificates not found. You must add them to continue.')}[/]")
-                
-                console.print(f"[bold cyan]{translator.get('Waiting for certificates to be added...')}[/]")
-                console.print(f"[cyan]{translator.get('Please add the following files:')}\n"
-                              f"1. {server_crt_path}\n"
-                              f"2. {server_key_path}[/]")
-                
-                # Wait for the certificates to appear - user cannot proceed without them
-                import time
-                
-                attempt_count = 0
-                while True:
-                    attempt_count += 1
-                    # Sleep briefly to avoid high CPU usage and give time for file system operations
-                    time.sleep(1)
-                    
-                    # Force refresh the directory
-                    try:
-                        # Check if certificates exist now
-                        server_cert_exists = os.path.isfile(server_crt_path)
-                        server_key_exists = os.path.isfile(server_key_path)
-                        
-                        if server_cert_exists and server_key_exists:
-                            console.print(f"[bold green]{translator.get('Both certificate files found! Continuing...')}[/]")
-                            
-                            # Validate certificates for Nginx compatibility and matching
-                            console.print(f"[cyan]{translator.get('Validating certificates for Nginx compatibility...')}[/]")
-                            is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
-                            
-                            if not is_valid:
-                                console.print(f"[bold red]{translator.get('Certificate validation failed')}:[/]")
-                                console.print(f"[red]{error_msg}[/]")
-                                
-                                # Ask if user wants to try again with different certificates
-                                retry_cert = questionary.confirm(
-                                    translator.get("Do you want to replace the certificates with valid ones?"),
-                                    default=True,
-                                    style=custom_style
-                                ).ask()
-                                
-                                if retry_cert:
-                                    # Remove the invalid certificates
-                                    try:
-                                        if os.path.exists(server_crt_path):
-                                            os.remove(server_crt_path)
-                                        if os.path.exists(server_key_path):
-                                            os.remove(server_key_path)
-                                        console.print(f"[yellow]{translator.get('Invalid certificates removed. Please provide new ones.')}[/]")
-                                        # Continue the loop to wait for new certificates
-                                        continue
-                                    except Exception as e:
-                                        console.print(f"[bold red]{translator.get('Error removing invalid certificates')}: {str(e)}[/]")
-                                else:
-                                    # User wants to continue anyway
-                                    console.print(f"[bold yellow]{translator.get('Warning: Continuing with invalid certificates. Nginx may fail to start.')}[/]")
-                            else:
-                                console.print(f"[bold green]{translator.get('Certificates validated successfully!')}[/]")
-                                
-                            break
-                    except Exception as e:
-                        console.print(f"[bold red]Error checking files: {str(e)}[/]")
-                    
-                    # Give status update on which files are still missing
-                    missing_files = []
-                    if not server_cert_exists:
-                        missing_files.append(f"server.crt ({server_crt_path})")
-                    if not server_key_exists:
-                        missing_files.append(f"server.key ({server_key_path})")
-                    
-                    missing_str = ", ".join(missing_files)
-                    
-                    # Only show the waiting message every few seconds to avoid flooding the console
-                    if attempt_count % 3 == 0:
-                        console.print(f"[yellow]{translator.get('Still waiting for')}: {missing_str}[/]")
-                    
-                    # Ask if user wants to return to certificate selection every 15 seconds
-                    if attempt_count % 15 == 0:
-                        change_cert_method = questionary.confirm(
-                            translator.get("Do you want to return to the certificate selection menu?"),
-                            default=False,
-                            style=custom_style
-                        ).ask()
-                        
-                        if change_cert_method:
-                            # Return to the beginning of the function to show the certificate selection menu
-                            console.print(f"[bold cyan]{translator.get('Returning to certificate selection menu...')}[/]")
-                            # Break out of the file waiting loop and continue with the outer certificate selection loop
-                            break
-                
-                # Check if we should return to the certificate selection menu
-                if attempt_count % 15 == 0 and change_cert_method:
-                    # Continue the main loop to show certificate options again
-                    continue
-            else:
-                console.print(f"[bold green]{translator.get('Certificate files found and ready to use.')}[/]")
+                    console.print(f"[bold red]{translator.get('Certificate Authority manager not available. Cannot generate certificates.')}[/]")
         
         # Break out of the main loop when configuration is complete
         break
     
     return config
 
-def modify_security_settings(config, translator, cert_manager):
+def modify_security_settings(config, translator, security_managers):
     """
     Modify security settings for nginx mode.
     
     Args:
         config: The configuration dictionary
         translator: The translator instance for localization
-        cert_manager: The certificate manager instance
+        security_managers: Dictionary containing the security module managers
     """
+    # Extract security managers
+    client_cert_manager = security_managers.get("client_cert_manager")
+    basic_auth_manager = security_managers.get("basic_auth_manager")
+    
     nginx_config = config["nginx"]
     current_security_type = nginx_config["security"]["type"]
     current_ip_restrictions = nginx_config["security"]["allowed_ips"]
@@ -952,8 +613,17 @@ def modify_security_settings(config, translator, cert_manager):
             
             if htpasswd_option.startswith(translator.get("Generate")):
                 console.print(f"[bold cyan]{translator.get('Let\'s create a .htpasswd file with your users and passwords')}.[/]")
-                console.print(f"[yellow]{translator.get('You\'ll need to create the .htpasswd file manually at')} {htpasswd_file_path}[/]")
-                console.print(f"[yellow]{translator.get('Please use an online .htpasswd generator or the htpasswd utility')}[/]")
+                
+                # Use basic_auth_manager to generate htpasswd file
+                if basic_auth_manager:
+                    success = basic_auth_manager.generate_htpasswd_file(htpasswd_file_path)
+                    if success:
+                        console.print(f"[bold green]{translator.get('.htpasswd file successfully created at')} {htpasswd_file_path}[/]")
+                    else:
+                        console.print(f"[bold red]{translator.get('Failed to create .htpasswd file. You may need to create it manually.')}[/]")
+                else:
+                    console.print(f"[bold red]{translator.get('Error: Basic auth manager not available. Cannot generate .htpasswd file.')}[/]")
+                    console.print(f"[yellow]{translator.get('Please create the .htpasswd file manually at')} {htpasswd_file_path}[/]")
             else:
                 console.print(f"[bold cyan]{translator.get('Remember to place your .htpasswd file at')} {htpasswd_file_path}[/]")
             
@@ -1018,7 +688,13 @@ def modify_security_settings(config, translator, cert_manager):
                     default="TeddyCloudClient01",
                     style=custom_style
                 ).ask()
-                cert_manager.generate_client_certificate(client_name, project_path)
+                # Generate certificate with client_cert_manager
+                success, cert_info = client_cert_manager.generate_client_certificate(client_name)   
+                create_client_certificate(translator, security_managers["client_cert_manager"])             
+                if success and cert_info:
+                    console.print(f"[bold green]{translator.get('Client certificate successfully created and saved to config.')}[/]")
+                else:
+                    console.print(f"[bold red]{translator.get('Failed to create client certificate. Please try again.')}[/]")
     
     # Handle IP restrictions
     modify_ip = questionary.confirm(
@@ -1028,580 +704,64 @@ def modify_security_settings(config, translator, cert_manager):
     ).ask()
     
     if modify_ip:
-        configure_ip_restrictions(nginx_config, translator)
+        if security_managers.get("ip_restrictions_manager"):
+            security_managers["ip_restrictions_manager"].configure_ip_restrictions(nginx_config)
+        else:
+            console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('IP restrictions manager not available')}[/]")
     
     return config
 
-def generate_htpasswd_file(htpasswd_file_path, translator):
+def modify_domain_name(config, translator):
     """
-    Generates a .htpasswd file using Docker httpd Alpine image.
+    Modify domain name for nginx mode.
     
     Args:
-        htpasswd_file_path: Path where the .htpasswd file will be saved
-        translator: Translator instance for localization
-    
+        config: The configuration dictionary
+        translator: The translator instance for localization
+        
     Returns:
-        bool: True if successful, False otherwise
+        dict: The updated configuration dictionary
     """
-    # Function to check internet connectivity to Docker Hub
-    def check_internet_connection():
-        """
-        Check if we can connect to Docker Hub or other internet resources.
-        Uses multiple methods to be more reliable than a simple ping.
+    nginx_config = config["nginx"]
+    current_domain = nginx_config.get("domain", "")
+    
+    console.print(f"[bold cyan]{translator.get('Current domain name')}: {current_domain or translator.get('Not set')}[/]")
+    
+    domain = questionary.text(
+        translator.get("Enter the domain name for your TeddyCloud instance:"),
+        default=current_domain,
+        validate=lambda d: validate_domain_name(d),
+        style=custom_style
+    ).ask()
+    
+    if domain != current_domain:
+        nginx_config["domain"] = domain
+        console.print(f"[bold green]{translator.get('Domain name updated to')} {domain}[/]")
         
-        Returns:
-            bool: True if internet connectivity is detected, False otherwise
-        """
-        # Method 1: Try DNS resolution first (doesn't require admin privileges)
-        try:
-            import socket
-            socket.gethostbyname("registry-1.docker.io")
-            return True
-        except Exception:
-            pass
-        
-        # Method 2: Try a lightweight HTTP request if available
-        try:
-            import urllib.request
-            urllib.request.urlopen("https://registry-1.docker.io/", timeout=2)
-            return True
-        except Exception:
-            pass
-
-        # Method 3: Try with Python's socket directly
-        try:
-            import socket
-            socket_obj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            socket_obj.settimeout(2)
-            socket_obj.connect(("registry-1.docker.io", 443))
-            socket_obj.close()
-            return True
-        except Exception:
-            pass
+        # Check if domain is publicly resolvable
+        domain_resolvable = check_domain_resolvable(domain)
+        if not domain_resolvable:
+            console.print(Panel(
+                f"[bold yellow]{translator.get('Domain Not Resolvable')}[/]\n\n"
+                f"{translator.get('The domain')} '{domain}' {translator.get('could not be resolved using public DNS servers.')}\n"
+                f"{translator.get('If using Let\'s Encrypt, make sure the domain is publicly resolvable.')}",
+                box=box.ROUNDED,
+                border_style="yellow"
+            ))
             
-        # Method 4: Fall back to checking if Docker command works with a simple image
-        try:
-            # Try to see if a Docker registry communication works (this actually tests Docker's ability to talk to registry)
-            result = subprocess.run(
-                ["docker", "search", "--limit=1", "alpine"],
-                capture_output=True, text=True, timeout=5
-            )
-            return result.returncode == 0
-        except Exception:
-            pass
-        
-        # Method 5: Only use ping as a last resort
-        try:
-            # Try to connect to a reliable DNS first
-            subprocess.run(["ping", "1.1.1.1", "-n", "1" if os.name == 'nt' else "-c", "1"], 
-                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
-            return True
-        except Exception:
-            try:
-                # Try an alternate reliable host
-                subprocess.run(["ping", "8.8.8.8", "-n", "1" if os.name == 'nt' else "-c", "1"], 
-                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
-                return True
-            except Exception:
-                # All methods failed
-                return False
-
-    # Function to attempt .htpasswd generation, with retry handling
-    def attempt_htpasswd_generation(users):
-        while True:
-            try:
-                # Check if Docker is available
-                try:
-                    subprocess.run(["docker", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                except (subprocess.SubprocessError, FileNotFoundError):
-                    console.print(f"[bold red]{translator.get('Docker is not available. Cannot generate .htpasswd file.')}[/]")
-                    console.print(f"[yellow]{translator.get('You\'ll need to create the .htpasswd file manually.')}[/]")
-                    return False
-
-                # Check internet connection
-                if not check_internet_connection():
-                    console.print(f"[bold red]{translator.get('Error: No internet connection detected. Docker may not be able to pull the httpd image.')}[/]")
-                    retry = questionary.confirm(
-                        translator.get("Would you like to check your connection and retry?"),
-                        default=True,
-                        style=custom_style
-                    ).ask()
-                    
-                    if not retry:
-                        console.print(f"[yellow]{translator.get('Skipping .htpasswd generation. You will need to create it manually.')}[/]")
-                        return False
-                    
-                    console.print(f"[cyan]{translator.get('Retrying .htpasswd generation...')}[/]")
-                    continue
-                console.print(f"[cyan]{translator.get('Pulling httpd:alpine Docker image...')}[/]")
-                pull_result = subprocess.run(
-                    ["docker", "pull", "httpd:alpine"],
-                    capture_output=True,
-                    text=True
-                )
-                
-                if pull_result.returncode != 0:
-                    console.print(f"[bold red]{translator.get('Error pulling Docker image')}:[/]")
-                    console.print(f"[red]{pull_result.stderr}[/]")
-                    
-                    # Check if it's a network error
-                    if "network" in pull_result.stderr.lower() or "connection" in pull_result.stderr.lower() or "dial" in pull_result.stderr.lower() or "lookup" in pull_result.stderr.lower():
-                        console.print(f"[bold yellow]{translator.get('Network error detected. Please check your internet connection.')}[/]")
-                        
-                        retry = questionary.confirm(
-                            translator.get("Would you like to retry after checking your connection?"),
-                            default=True,
-                            style=custom_style
-                        ).ask()
-                        
-                        if retry:
-                            console.print(f"[cyan]{translator.get('Retrying .htpasswd generation...')}[/]")
-                            continue
-                        else:
-                            console.print(f"[yellow]{translator.get('Skipping .htpasswd generation. You will need to create it manually.')}[/]")
-                            return False
-                    else:
-                        # For other Docker errors
-                        console.print(f"[bold red]{translator.get('Docker error. Cannot generate .htpasswd file.')}[/]")
-                        return False
-                
-                # Create .htpasswd file using Docker
-                console.print(f"[bold cyan]{translator.get('Generating .htpasswd file...')}[/]")
-                
-                # Create the parent directory if it doesn't exist
-                security_path = os.path.dirname(htpasswd_file_path)
-                Path(security_path).mkdir(parents=True, exist_ok=True)
-                
-                # Windows specific: Fix the path format for Docker
-                if os.name == 'nt':
-                    docker_security_path = security_path.replace('\\', '/')
-                    if ':' in docker_security_path:
-                        docker_security_path = '/' + docker_security_path[0].lower() + docker_security_path[2:]
-                else:
-                    docker_security_path = security_path
-                
-                console.print(f"[dim]{translator.get('Using Docker volume path')}: {docker_security_path}[/]")
-                
-                # Define temp filename for Docker to create
-                temp_filename = "temp_htpasswd.txt"
-                temp_htpasswd = os.path.join(security_path, temp_filename)
-                
-                # Generate the initial file
-                first_user = users[0]
-                cmd = [
-                    "docker", "run", "--rm", 
-                    "-v", f"{security_path}:/htpasswd",
-                    "httpd:alpine", "sh", "-c", 
-                    f"htpasswd -cb /htpasswd/{temp_filename} {first_user['username']} {first_user['password']}"
-                ]
-                
-                # On Windows, use special Docker path format
-                if os.name == 'nt':
-                    cmd = [
-                        "docker", "run", "--rm", 
-                        "-v", f"{docker_security_path}:/htpasswd",
-                        "httpd:alpine", "sh", "-c", 
-                        f"htpasswd -cb /htpasswd/{temp_filename} {first_user['username']} {first_user['password']}"
-                    ]
-                
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True
-                )
-                
-                if result.returncode != 0:
-                    console.print(f"[bold red]{translator.get('Error creating .htpasswd file')}:[/]")
-                    console.print(f"[red]{result.stderr}[/]")
-                    raise Exception(f"Failed to create .htpasswd: {result.stderr}")
-                
-                # Add additional users
-                for user in users[1:]:
-                    # On Windows, use special Docker path format
-                    cmd = [
-                        "docker", "run", "--rm", 
-                        "-v", f"{security_path}:/htpasswd",
-                        "httpd:alpine", "sh", "-c", 
-                        f"htpasswd -b /htpasswd/{temp_filename} {user['username']} {user['password']}"
-                    ]
-                    
-                    if os.name == 'nt':
-                        cmd = [
-                            "docker", "run", "--rm", 
-                            "-v", f"{docker_security_path}:/htpasswd",
-                            "httpd:alpine", "sh", "-c", 
-                            f"htpasswd -b /htpasswd/{temp_filename} {user['username']} {user['password']}"
-                        ]
-                    
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True
-                    )
-                    
-                    if result.returncode != 0:
-                        raise Exception(f"Failed to add user {user['username']}: {result.stderr}")
-                
-                # Ensure directory exists for the target file
-                Path(os.path.dirname(htpasswd_file_path)).mkdir(parents=True, exist_ok=True)
-                
-                try:
-                    # Move the temp file to the final location
-                    if os.path.exists(temp_htpasswd):
-                        # Check if the destination exists and remove it if needed
-                        if os.path.exists(htpasswd_file_path):
-                            os.remove(htpasswd_file_path)
-                            
-                        # Copy instead of move to handle cross-device scenarios
-                        shutil.copy2(temp_htpasswd, htpasswd_file_path)
-                        
-                        # Only remove temp file after successful copy
-                        if os.path.exists(htpasswd_file_path) and os.path.getsize(htpasswd_file_path) > 0:
-                            try:
-                                os.remove(temp_htpasswd)
-                            except Exception as e:
-                                console.print(f"[dim]{translator.get('Note: Could not remove temporary file')} {temp_htpasswd}: {str(e)}[/]")
-                    else:
-                        raise FileNotFoundError(f"Temporary file {temp_htpasswd} not found")
-                except Exception as e:
-                    console.print(f"[bold red]{translator.get('Error moving .htpasswd file')}: {str(e)}[/]")
-                    
-                    # Try direct Docker write approach as fallback
-                    console.print(f"[cyan]{translator.get('Attempting alternative .htpasswd generation...')}[/]")
-                    try:
-                        # Write directly to final location
-                        first_user = users[0]
-                        cmd = [
-                            "docker", "run", "--rm", 
-                            "-v", f"{docker_security_path}:/htpasswd",
-                            "httpd:alpine", "sh", "-c", 
-                            f"htpasswd -cb /htpasswd/.htpasswd {first_user['username']} {first_user['password']}"
-                        ]
-                        
-                        result = subprocess.run(
-                            cmd,
-                            capture_output=True,
-                            text=True
-                        )
-                        
-                        if result.returncode != 0:
-                            raise Exception(f"Failed in fallback method: {result.stderr}")
-                        
-                        # Add additional users directly
-                        for user in users[1:]:
-                            cmd = [
-                                "docker", "run", "--rm", 
-                                "-v", f"{docker_security_path}:/htpasswd",
-                                "httpd:alpine", "sh", "-c", 
-                                f"htpasswd -b /htpasswd/.htpasswd {user['username']} {user['password']}"
-                            ]
-                            
-                            result = subprocess.run(
-                                cmd,
-                                capture_output=True,
-                                text=True
-                            )
-                            
-                            if result.returncode != 0:
-                                raise Exception(f"Failed to add user {user['username']}: {result.stderr}")
-                    except Exception as e:
-                        console.print(f"[bold red]{translator.get('Alternative method also failed')}: {str(e)}[/]")
-                        raise
-                
-                # Verify the file was created and has content
-                if os.path.exists(htpasswd_file_path) and os.path.getsize(htpasswd_file_path) > 0:
-                    console.print(f"[bold green]{translator.get('.htpasswd file generated successfully!')}[/]")
-                    console.print(f"[green]{translator.get('.htpasswd file location')}: {htpasswd_file_path}[/]")
-                    return True
-                else:
-                    console.print(f"[bold red]{translator.get('Failed to create .htpasswd file or file is empty')}[/]")
-                    retry = questionary.confirm(
-                        translator.get("Would you like to retry?"),
-                        default=True,
-                        style=custom_style
-                    ).ask()
-                    
-                    if not retry:
-                        return False
-                    
-                    # If retry, loop will continue
-                
-            except Exception as e:
-                console.print(f"[bold red]{translator.get('Error generating .htpasswd file')}: {str(e)}[/]")
-                
-                # Print detailed exception information for debugging
-                import traceback
-                console.print(f"[dim]{traceback.format_exc()}[/]")
-                
-                # Ask to retry
-                retry = questionary.confirm(
-                    translator.get("Would you like to retry .htpasswd generation?"),
+            # If using Let's Encrypt, offer to change HTTPS mode
+            if nginx_config.get("https_mode") == "letsencrypt":
+                console.print(f"[bold yellow]{translator.get('Warning')}: {translator.get('Let\'s Encrypt requires a publicly resolvable domain.')}[/]")
+                change_https_mode = questionary.confirm(
+                    translator.get("Would you like to switch from Let's Encrypt to self-signed certificates?"),
                     default=True,
                     style=custom_style
                 ).ask()
                 
-                if not retry:
-                    return False
+                if change_https_mode:
+                    nginx_config["https_mode"] = "self_signed"
+                    console.print(f"[bold green]{translator.get('HTTPS mode updated to self-signed certificates.')}[/]")
+    else:
+        console.print(f"[bold cyan]{translator.get('Domain name unchanged.')}[/]")
     
-    # Main function execution starts here
-    try:
-        # Create a table for collecting user credentials
-        table = Table(title=translator.get("User Authentication Setup"))
-        table.add_column(translator.get("Username"), justify="left", style="cyan")
-        table.add_column(translator.get("Password"), justify="left", style="green", no_wrap=True)
-        table.add_column(translator.get("Status"), justify="right", style="bold")
-        
-        # Collect user credentials
-        users = []
-        console.print(f"[bold cyan]{translator.get('Enter user credentials for basic authentication')}[/]")
-        console.print(f"[cyan]{translator.get('(Passwords will not be displayed as you type)')}\n[/]")
-        
-        while True:
-            username = Prompt.ask(f"[bold cyan]{translator.get('Username')} [/][dim]{translator.get('(leave empty to finish)')}[/]", 
-                                default="")
-            
-            if not username:
-                if not users:
-                    console.print(f"[bold yellow]{translator.get('No users added. At least one user is required.')}[/]")
-                    continue
-                break
-            
-            # Check for duplicate usernames
-            if any(u['username'] == username for u in users):
-                console.print(f"[bold red]{translator.get('Username already exists. Please choose another one.')}[/]")
-                continue
-                
-            # Use getpass for hidden password input
-            console.print(f"[bold cyan]{translator.get('Enter password for user')} {username}:[/]")
-            password = getpass.getpass("")
-            
-            if not password:
-                console.print(f"[bold red]{translator.get('Password cannot be empty')}[/]")
-                continue
-                
-            console.print(f"[bold cyan]{translator.get('Confirm password for user')} {username}:[/]")
-            confirm_password = getpass.getpass("")
-            
-            if password != confirm_password:
-                console.print(f"[bold red]{translator.get('Passwords do not match')}[/]")
-                continue
-                
-            # Add user to the list
-            users.append({
-                'username': username,
-                'password': password
-            })
-            
-            table.add_row(
-                username, 
-                "********", 
-                f"[bold green]{translator.get('Added')}[/]"
-            )
-        
-        # Display the table with all users
-        if users:
-            console.print("\n")
-            console.print(table)
-        
-        if not users:
-            console.print(f"[bold yellow]{translator.get('No users added. You\'ll need to create the .htpasswd file manually.')}[/]")
-            return False
-        
-        # Attempt to generate the htpasswd file with retry functionality
-        return attempt_htpasswd_generation(users)
-            
-    except Exception as e:
-        console.print(f"[bold red]{translator.get('Error generating .htpasswd file')}: {str(e)}[/]")
-        
-        # Print detailed exception information for debugging
-        import traceback
-        console.print(f"[dim]{traceback.format_exc()}[/]")
-        return False
-
-def validate_certificates(cert_path, key_path, translator):
-    """
-    Validate that the provided certificates are Nginx compatible and match each other.
-    
-    Args:
-        cert_path: Path to the SSL certificate file
-        key_path: Path to the SSL private key file
-        translator: The translator instance for localization
-    
-    Returns:
-        tuple: (bool, str) - (is_valid, error_message)
-    """
-    # Check if OpenSSL is available
-    try:
-        subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
-    except (subprocess.SubprocessError, FileNotFoundError):
-        console.print(f"[bold yellow]{translator.get('Warning: OpenSSL is not available. Certificate validation skipped.')}[/]")
-        return True, ""
-    
-    # Check if certificate is valid
-    try:
-        cert_result = subprocess.run(
-            ["openssl", "x509", "-in", cert_path, "-text", "-noout"],
-            check=False, capture_output=True, text=True
-        )
-        
-        if cert_result.returncode != 0:
-            return False, f"{translator.get('Invalid certificate')}: {cert_result.stderr}"
-            
-        # Check if certificate is compatible with Nginx (basic validation)
-        if "X509v3" not in cert_result.stdout:
-            return False, translator.get('Certificate is not an X509v3 certificate, which might not be compatible with Nginx')
-    except Exception as e:
-        return False, f"{translator.get('Error validating certificate')}: {str(e)}"
-    
-    # Check if private key is valid
-    try:
-        key_result = subprocess.run(
-            ["openssl", "rsa", "-in", key_path, "-check", "-noout"],
-            check=False, capture_output=True, text=True
-        )
-        
-        if key_result.returncode != 0:
-            return False, f"{translator.get('Invalid private key')}: {key_result.stderr}"
-    except Exception as e:
-        return False, f"{translator.get('Error validating private key')}: {str(e)}"
-    
-    # Check if key matches certificate
-    try:
-        # Get modulus from certificate
-        cert_modulus_result = subprocess.run(
-            ["openssl", "x509", "-in", cert_path, "-modulus", "-noout"],
-            check=False, capture_output=True, text=True
-        )
-        
-        # Get modulus from private key
-        key_modulus_result = subprocess.run(
-            ["openssl", "rsa", "-in", key_path, "-modulus", "-noout"],
-            check=False, capture_output=True, text=True
-        )
-        
-        # Compare moduli
-        if cert_modulus_result.stdout.strip() != key_modulus_result.stdout.strip():
-            return False, translator.get('Certificate and private key do not match')
-    except Exception as e:
-        return False, f"{translator.get('Error checking if certificate and key match')}: {str(e)}"
-    
-    return True, ""
-
-def generate_self_signed_certificate(server_certs_path, domain, translator):
-    """
-    Generate a self-signed SSL certificate for the given domain.
-    
-    Args:
-        server_certs_path: Path where certificate files will be saved
-        domain: Domain name for the certificate
-        translator: The translator instance for localization
-    
-    Returns:
-        tuple: (bool, str) - (is_success, message)
-    """
-    # Check if OpenSSL is available
-    try:
-        subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False, translator.get('OpenSSL is not available. Cannot generate self-signed certificate.')
-    
-    # Create directory if it doesn't exist
-    Path(server_certs_path).mkdir(parents=True, exist_ok=True)
-    
-    server_key_path = os.path.join(server_certs_path, "server.key")
-    server_crt_path = os.path.join(server_certs_path, "server.crt")
-    
-    # Remove existing files if they exist
-    for file_path in [server_key_path, server_crt_path]:
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                return False, f"{translator.get('Could not remove existing certificate file')}: {str(e)}"
-    
-    try:
-        # Generate a private key
-        console.print(f"[cyan]{translator.get('Generating private key...')}[/]")
-        key_result = subprocess.run(
-            ["openssl", "genrsa", "-out", server_key_path, "2048"],
-            check=False, capture_output=True, text=True
-        )
-        
-        if key_result.returncode != 0:
-            return False, f"{translator.get('Failed to generate private key')}: {key_result.stderr}"
-        
-        # Generate a certificate signing request (CSR)
-        console.print(f"[cyan]{translator.get('Generating certificate...')}[/]")
-        
-        # Create a temporary OpenSSL configuration file with proper X509v3 extensions
-        openssl_config = f"""[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_ca
-req_extensions = v3_req
-prompt = no
-
-[req_distinguished_name]
-C = US
-ST = State
-L = City
-O = TeddyCloud
-OU = TeddyCloudServer
-CN = {domain}
-
-[v3_ca]
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer:always
-basicConstraints = CA:true
-keyUsage = digitalSignature, keyEncipherment, keyCertSign
-
-[v3_req]
-keyUsage = digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = {domain}
-DNS.2 = localhost
-IP.1 = 127.0.0.1
-"""
-        
-        config_path = os.path.join(server_certs_path, "openssl_temp.cnf")
-        with open(config_path, 'w') as f:
-            f.write(openssl_config)
-        
-        # Generate self-signed certificate with explicit X509v3 extensions
-        cert_result = subprocess.run(
-            ["openssl", "req", "-x509", "-new", "-nodes",
-             "-days", "3650",  # 10 year validity
-             "-key", server_key_path,
-             "-out", server_crt_path,
-             "-config", config_path],
-            check=False, capture_output=True, text=True
-        )
-        
-        # Remove the temporary config file
-        if os.path.exists(config_path):
-            try:
-                os.remove(config_path)
-            except Exception:
-                pass  # Ignore errors when deleting temporary config
-        
-        if cert_result.returncode != 0:
-            return False, f"{translator.get('Failed to generate certificate')}: {cert_result.stderr}"
-        
-        # Verify the certificate was created and contains X509v3 extensions
-        if not os.path.exists(server_crt_path) or os.path.getsize(server_crt_path) == 0:
-            return False, translator.get('Certificate file was not created or is empty')
-        
-        # Validate the generated certificate
-        is_valid, error_msg = validate_certificates(server_crt_path, server_key_path, translator)
-        if not is_valid:
-            return False, error_msg
-        
-        console.print(f"[bold green]{translator.get('Self-signed certificate generated successfully!')}[/]")
-        return True, translator.get('Self-signed certificate generated successfully!')
-        
-    except Exception as e:
-        import traceback
-        console.print(f"[dim]{traceback.format_exc()}[/]")
-        return False, f"{translator.get('Error generating self-signed certificate')}: {str(e)}"
+    return config

@@ -62,7 +62,7 @@ def generate_docker_compose(config, translator, templates):
             })
             
             # Add paths for custom certificates if using custom HTTPS mode
-            if config["nginx"]["https_mode"] == "custom":
+            if config["nginx"]["https_mode"] == "user_provided":
                 # Check if server_certs directory exists
                 server_certs_path = os.path.join(data_dir, "server_certs")
                 if not os.path.exists(server_certs_path):
@@ -74,6 +74,10 @@ def generate_docker_compose(config, translator, templates):
                     "cert_path": "./server_certs:/etc/nginx/certificates"
                 })
             elif config["nginx"]["https_mode"] == "self_signed":
+                context.update({
+                    "cert_path": "./server_certs:/etc/nginx/certificates"
+                })
+            elif config["nginx"]["https_mode"] == "user_provided":
                 context.update({
                     "cert_path": "./server_certs:/etc/nginx/certificates"
                 })

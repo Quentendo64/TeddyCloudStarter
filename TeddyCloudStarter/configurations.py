@@ -54,6 +54,9 @@ services:
       {% if https_mode == "self_signed" %}
       - {{ cert_path }}
       {%- endif %}
+      {% if https_mode == "user_provided" %}
+      - {{ cert_path }}
+      {%- endif %}
       {%- if security_type == "client_cert" %}
       - ./client_certs/ca:/etc/nginx/ca:ro
       {% if crl_file %}

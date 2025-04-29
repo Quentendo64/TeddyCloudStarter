@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-Log viewer module for TeddyCloudStarter.
-
-This module provides functionality for viewing Docker container logs
-with interactive controls.
+Log viewing utilities for TeddyCloudStarter.
 """
 import os
 import time
@@ -17,6 +14,10 @@ from rich.live import Live
 from rich.text import Text
 from rich.layout import Layout
 from rich.panel import Panel
+
+# Global console instance for rich output
+console = Console()
+
 
 # Add platform-agnostic getch implementation
 def capture_keypress():
@@ -72,9 +73,6 @@ def capture_keypress():
                     # Restore terminal settings
                     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
             return None
-
-# Global console instance for rich output
-console = Console()
 
 
 def display_live_logs(docker_manager, service_name=None, project_path=None):
