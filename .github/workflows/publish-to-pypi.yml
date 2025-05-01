@@ -134,7 +134,8 @@ jobs:
         # Get short commit hash
         COMMIT_HASH=$(git rev-parse --short HEAD)
         # Create a development version string according to PEP 440
-        DEV_VERSION="${BASE_VERSION}.dev${DATE_TAG}+${COMMIT_HASH}"
+        # Use a dot instead of + for local versions as TestPyPI doesn't allow +
+        DEV_VERSION="${BASE_VERSION}.dev${DATE_TAG}.${COMMIT_HASH}"
         echo "version=$DEV_VERSION" >> $GITHUB_OUTPUT
         echo "Creating development build version: $DEV_VERSION"
     
