@@ -73,9 +73,21 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
             return False
         
         console.print(f"[bold green]{translator.get('Staging certificate request successful! Your domain is properly configured for Let\'s Encrypt.')}[/]")
+        
+        # Ask user if they want to proceed with production certificate request
+        proceed_with_production = questionary.confirm(
+            translator.get("Do you want to proceed with requesting production certificates?"),
+            default=True,
+            style=custom_style
+        ).ask()
+        
+        if not proceed_with_production:
+            console.print(f"[bold yellow]{translator.get('Production certificate request skipped. You can request production certificates later.')}[/]")
+            return True
+            
         console.print(f"[bold cyan]{translator.get('Requesting Let\'s Encrypt certificate (production) using standalone mode...')}[/]")
         
-        # If staging was successful, request production certificate
+        # If staging was successful and user confirmed, request production certificate
         production_result = lets_encrypt_manager.request_certificate(
             domain=domain,
             mode="standalone",

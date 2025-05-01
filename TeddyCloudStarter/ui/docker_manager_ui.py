@@ -26,6 +26,10 @@ def show_docker_management_menu(translator, docker_manager, config_manager=None)
     if config_manager and config_manager.config:
         project_path = config_manager.config.get("environment", {}).get("path")
     
+    # Initialize service lists as empty by default
+    running_services = []
+    stopped_services = []
+    
     # Get current status of services
     services = docker_manager.get_services_status(project_path=project_path)
     
