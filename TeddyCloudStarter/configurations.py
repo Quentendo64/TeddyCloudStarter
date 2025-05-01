@@ -251,7 +251,9 @@ events {
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    
+    sendfile        on;
+    tcp_nopush      on;
+    keepalive_timeout  65;
     # Log configuration
     log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
     access_log /var/log/nginx/access.log teddystarter_format;
@@ -274,6 +276,7 @@ http {
     
     server {
         listen 443 ssl;
+        server_tokens off;
         {%if https_mode == "letsencrypt" %}        
         ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem; 
         ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem; 
@@ -289,11 +292,16 @@ http {
         ssl_verify_client on;
         {%- endif %}
         ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_prefer_server_ciphers off;
+        ssl_prefer_server_ciphers on;
         ssl_ciphers "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256";
-
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 1d;
+        ssl_session_tickets off;
+        
+        
         # Forward all requests to TeddyCloud
         location / {
+            client_max_body_size 4096M;
             {% if security_type == "basic_auth" %}
             {% if auth_bypass_ips %}
             # Apply basic auth conditionally based on IP
@@ -305,12 +313,26 @@ http {
             auth_basic_user_file /etc/nginx/security/.htpasswd;
             {% endif %}
             {% endif %}
-            
-            proxy_pass http://teddycloud-app:80;  
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "no-referrer-when-downgrade" always;
+            #add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+            proxy_request_buffering off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $server_name;
+            proxy_set_header X-Forwarded-Proto $scheme;            
+            proxy_max_temp_file_size 4096M;
+            proxy_connect_timeout  60s;
+            proxy_read_timeout  10800s;
+            proxy_send_timeout  10800s;
+            send_timeout  10800s;
+            proxy_buffers 8 16k;
+            proxy_buffer_size 32k;            
+            proxy_busy_buffers_size 32k;
+            proxy_pass http://teddycloud-app:80;
         }
     }
 }

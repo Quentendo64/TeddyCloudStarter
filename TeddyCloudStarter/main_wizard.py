@@ -145,8 +145,7 @@ class TeddyCloudWizard(BaseWizard):
     def select_language(self):
         """Let the user select a language."""
         languages = {
-            "en": "English",
-            "de": "Deutsch",
+            "en": "English"
             # Add more languages as they become available
         }
         
@@ -334,6 +333,16 @@ class TeddyCloudWizard(BaseWizard):
                 console.print(f"[bold red]{self.translator.get('Failed to generate nginx configuration files')}[/]")
         
         console.print(f"[bold green]{self.translator.get('Configuration files generated successfully!')}[/]")
+        
+        # Ask if user wants to start services with the new configuration
+        if questionary.confirm(
+            self.translator.get("Want to start/restart services with the new configuration?"),
+            default=True,
+            style=custom_style
+        ).ask():
+            # Get the project path from config and pass it to the docker manager
+            project_path = self.config_manager.config.get("environment", {}).get("path")
+            self.docker_manager.start_services(project_path=project_path)
         
         # Show the main menu after wizard completes
         return self.show_pre_wizard_menu()
