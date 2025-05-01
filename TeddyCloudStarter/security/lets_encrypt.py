@@ -473,7 +473,7 @@ server {
                         "docker", "run", "--rm",
                         "--name", "certbot-temp",
                         "-p", "80:80",  # Required for standalone mode
-                        "-v", "certbot_conf:/etc/letsencrypt"
+                        "-v", "teddycloudstarter_certbot_conf:/etc/letsencrypt"
                     ]
                     
                     # Add certbot command
@@ -522,8 +522,8 @@ server {
                         cmd = [
                             "docker", "run", "--rm",
                             "--name", "certbot-temp",
-                            "-v", "certbot_conf:/etc/letsencrypt",
-                            "-v", "certbot_www:/var/www/certbot"
+                            "-v", "teddycloudstarter_certbot_conf:/etc/letsencrypt",
+                            "-v", "teddycloudstarter_certbot_www:/var/www/certbot"
                         ]
                         
                         # Add certbot command

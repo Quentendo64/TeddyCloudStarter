@@ -30,32 +30,60 @@ CREATE_NEW = "[Create new folder]"
 MANUAL_ENTRY = "[Enter path manually]"
 
 
-def get_project_path(config_manager=None):
+def get_project_path(config_manager=None, translator=None) -> Optional[str]:
     """
-    Get the project path from config or return None if not set.
+    Get the project path from config or prompt the user to set it if not set.
     
     Args:
         config_manager: The configuration manager instance
+        translator: Translator instance for internationalization
         
     Returns:
-        str: The project path, or None if not set
+        Optional[str]: The project path, or None if not set
     """
     try:
+        # Default translation function
+        _ = lambda text: text
+        if translator is not None:
+            _ = lambda text: translator.get(text) or text
+
+        # Check if the project path is already set in the config
         if config_manager and config_manager.config:
-            return config_manager.config.get("environment", {}).get("path")
-        return None
-    except Exception:
-        return None
+            project_path = config_manager.config.get("environment", {}).get("path")
+            if project_path and validate_path(project_path):
+                return project_path
+
+        # Prompt the user to set the project path using the wizard
+        console.print(f"[bold yellow]{_('No project path is set. Please select a project path.')}[/]")
+        project_path = browse_directory(title=_("Select Project Path"), translator=translator)
+
+        if project_path:
+            # Save the selected project path to the config
+            if config_manager:
+                config_manager.config.setdefault("environment", {})["path"] = project_path
+                config_manager.save_config()
+            return project_path
+
+        # Exit if no project path is set
+        console.print(f"[bold red]{_('A project path must be set. Exiting.')}[/]")
+        exit(1)
+
+    except Exception as e:
+        console.print(f"[bold red]{_('Error retrieving project path')}: {e}[/]")
+        exit(1)
 
 
-def ensure_project_directories(project_path=None):
+def ensure_project_directories(project_path):
     """
-    Create necessary directories in the project path if provided, otherwise in current working directory.
+    Create necessary directories in the project path.
     
     Args:
-        project_path: The path to the project directory
+        project_path: The path to the project directory (must not be None)
     """
-    base_path = Path(project_path) if project_path else Path.cwd()
+    if not project_path:
+        raise ValueError("project_path must not be None")
+    
+    base_path = Path(project_path)
     (base_path / "data").mkdir(exist_ok=True)
     (base_path / "data" / "configurations").mkdir(exist_ok=True)
     (base_path / "data" / "backup").mkdir(exist_ok=True)

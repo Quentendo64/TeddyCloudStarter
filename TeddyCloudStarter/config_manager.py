@@ -187,6 +187,17 @@ class ConfigManager:
         
         return new_value
 
+    def reset_config(self):
+        """Reset the configuration to default values."""
+        self.config = self._load_config()
+        
+        reset_msg = "Configuration reset to defaults"
+        if self.translator:
+            reset_msg = self.translator.get(reset_msg)
+        console.print(f"[bold yellow]{reset_msg}[/]")
+        
+        return True
+        
     def invalidate_client_certificate(self, cert_serial, client_cert_manager=None):
         """Invalidate a client certificate in the configuration.
         

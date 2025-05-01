@@ -3,13 +3,14 @@
 Support features UI for TeddyCloudStarter.
 """
 import os
+import sys
+import subprocess
 import questionary
 from pathlib import Path
 from rich.panel import Panel
 from rich import box
 
 from ..wizard.ui_helpers import console, custom_style
-from ..utilities.support_features import SupportPackageCreator
 from ..utilities.file_system import browse_directory
 
 def show_support_features_menu(config_manager, docker_manager, translator):
@@ -36,7 +37,8 @@ def show_support_features_menu(config_manager, docker_manager, translator):
     ).ask()
     
     if action == translator.get("Create support package"):
-        create_support_package(config_manager, docker_manager, translator)
+        project_path = config_manager.config.get("environment", {}).get("path") if config_manager else None
+        create_support_package(docker_manager, config_manager, translator, project_path)
         return False  # Stay in support menu
     
     elif action == translator.get("Back to main menu"):
@@ -44,78 +46,112 @@ def show_support_features_menu(config_manager, docker_manager, translator):
     
     return False  # Default case: stay in menu
 
-def create_support_package(config_manager, docker_manager, translator):
+def create_support_package(docker_manager, config_manager, translator, project_path=None):
     """
-    Create a support package with relevant information for troubleshooting.
+    Create a support package for troubleshooting.
     
     Args:
-        config_manager: The configuration manager instance
-        docker_manager: The docker manager instance
-        translator: The translator instance for localization
+        docker_manager: DockerManager instance
+        config_manager: ConfigManager instance
+        translator: Translator instance
+        project_path: Path to the project directory
     """
-    # Display information about what will be collected
+    console.print(f"[bold cyan]{translator.get('Creating support package')}...[/]")
+    
+    # Show information about what's included in the package
     console.print(Panel(
-        f"[bold cyan]{translator.get('Creating Support Package')}[/]\n\n"
-        f"{translator.get('This will collect the following information:')}\n"
-        f"• {translator.get('Log files from nginx-edge, nginx-auth, teddycloud-app')}\n"
-        f"• {translator.get('Config from teddycloud-app')}\n"
-        f"• {translator.get('Directory tree from ./data')}\n"
-        f"• {translator.get('config.json of TeddyCloudStarter')}\n\n"
-        f"{translator.get('The package will help diagnose issues with your TeddyCloud setup.')}",
-        box=box.ROUNDED,
-        border_style="blue"
+        f"[bold]{translator.get('Support Package Contents')}:[/]\n\n"
+        f"[cyan]• {translator.get('Log files')}[/]: Docker container logs (nginx-edge, nginx-auth, teddycloud-app)\n"
+        f"[cyan]• {translator.get('Configuration files')}[/]: config.json, config.ini, docker-compose.yml, nginx-configurations\n"
+        f"[cyan]• {translator.get('Directory structure')}[/]: Overview of the project directory layout\n\n"
+        f"[bold yellow]{translator.get('Note')}:[/] {translator.get('No private keys or credentials will be included in unencrypted form.')}",
+        title=f"[bold green]{translator.get('Information')}[/]",
+        border_style="blue",
+        expand=False
     ))
     
-    # Confirm before creating package
-    confirm = questionary.confirm(
-        translator.get("Do you want to create a support package?"),
+    # Ask user if they want to anonymize sensitive information
+    anonymize = questionary.confirm(
+        translator.get("Would you like to anonymize sensitive information in logs and configuration files?"),
         default=True,
         style=custom_style
     ).ask()
     
-    if not confirm:
-        console.print(f"[yellow]{translator.get('Operation cancelled')}.[/]")
-        return
-    
-    # Ask for output location
-    default_path = config_manager.config.get("environment", {}).get("path", os.getcwd())
-    
-    console.print(f"[cyan]{translator.get('Please select a location to save the support package:')}[/]")
-    output_path = browse_directory(default_path, translator, translator.get("Select Output Directory"))
-    
-    if not output_path:
-        console.print(f"[yellow]{translator.get('Operation cancelled')}.[/]")
-        return
-    
-    try:
-        # Create package
-        console.print(f"[cyan]{translator.get('Creating support package, please wait...')}[/]")
-        
-        # Get project path from config
-        project_path = config_manager.config.get("environment", {}).get("path")
-        
-        # Create package creator instance
-        package_creator = SupportPackageCreator(
-            project_path=project_path,
-            docker_manager=docker_manager,
-            config_manager=config_manager
-        )
-        
-        # Create the package
-        package_path = package_creator.create_support_package(output_path)
-        
-        console.print(f"[bold green]{translator.get('Support package created successfully!')}[/]")
-        console.print(f"[green]{translator.get('Package location')}: {package_path}[/]")
-        
-        # Show what's included in the package
+    if anonymize:
+        console.print(f"[cyan]{translator.get('Anonymization enabled. Sensitive information will be concealed.')}[/]")
+        # Show details about what gets anonymized
         console.print(Panel(
-            f"[bold green]{translator.get('Support Package Contents')}[/]\n\n"
-            f"• {translator.get('Logs')}: nginx-edge.log, nginx-auth.log, teddycloud-app.log\n"
-            f"• {translator.get('Configs')}: config.json, config.yaml, tonies.custom.json\n"
-            f"• {translator.get('Directory tree')}: directory_structure.txt",
-            box=box.ROUNDED,
-            border_style="green"
+            f"[bold]{translator.get('Anonymization Details')}:[/]\n\n"
+            f"[green]• {translator.get('In logs')}:[/] IP addresses, email addresses, domains, MAC addresses, UUIDs, serial numbers\n"
+            f"[green]• {translator.get('In config.ini')}:[/] MQTT settings (hostname, username, password), server IPs, URLs, domain names, certificates\n"
+            f"[green]• {translator.get('In config.json')}:[/] Domain names, user information, hostnames",
+            border_style="green",
+            expand=False
         ))
         
+        # Show disclaimer in a separate red styled box for better visibility
+        console.print(Panel(
+            f"[bold]{translator.get('Important')}:[/]\n\n"
+            f"{translator.get('Anonymization is pattern-based and may not catch all sensitive data.')}\n"
+            f"{translator.get('Patterns may change over time. Please review the package contents before sharing to ensure no personal information is leaked.')}",
+            border_style="red",
+            expand=False
+        ))
+    
+    # Create support package
+    from ..utilities.support_features import SupportPackageCreator
+    
+    creator = SupportPackageCreator(
+        project_path=project_path, 
+        docker_manager=docker_manager, 
+        config_manager=config_manager,
+        anonymize=anonymize
+    )
+    
+    try:
+        # Determine the default path (project_path + support subdirectory)
+        if project_path:
+            default_path = os.path.join(project_path, "support")
+            # Create the support directory if it doesn't exist
+            os.makedirs(default_path, exist_ok=True)
+        else:
+            # Fallback to user's Downloads folder if no project path is available
+            default_path = str(Path.home() / "Downloads")
+        
+        # Ask user where to save the package
+        output_dir = browse_directory(
+            start_path=default_path,
+            translator=translator,
+            title=translator.get("Select where to save the support package")
+        )
+        
+        if not output_dir:
+            console.print(f"[yellow]{translator.get('Operation cancelled.')}[/]")
+            return
+            
+        # Create the package
+        output_file = creator.create_support_package(output_dir)
+        
+        if output_file and os.path.exists(output_file):
+            console.print(f"[bold green]{translator.get('Support package created successfully')}:[/]")
+            console.print(f"[cyan]{output_file}[/]")
+            
+            # Open file explorer to show the file on supported platforms
+            try:
+                if sys.platform.startswith('win'):
+                    subprocess.Popen(f'explorer /select,"{output_file}"')
+                elif sys.platform.startswith('darwin'):  # macOS
+                    subprocess.Popen(['open', '-R', output_file])
+                elif sys.platform.startswith('linux'):
+                    # Try xdg-open for Linux
+                    try:
+                        subprocess.Popen(['xdg-open', os.path.dirname(output_file)])
+                    except FileNotFoundError:
+                        pass  # xdg-open not available, skip opening
+            except Exception:
+                # Ignore errors when trying to open file explorer
+                pass
+        else:
+            console.print(f"[bold red]{translator.get('Failed to create support package')}[/]")
     except Exception as e:
-        console.print(f"[bold red]{translator.get('Error creating support package')}: {str(e)}[/]")
+        console.print(f"[bold red]{translator.get('Error creating support package')}: {e}[/]")
