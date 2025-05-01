@@ -241,13 +241,15 @@ class TeddyCloudWizard(BaseWizard):
             return self.show_pre_wizard_menu()  # Show menu again
             
         elif action == self.translator.get("Docker management"):
-            # Pass config_manager to ensure project path is available for Docker operations
-            exit_menu = show_docker_management_menu(self.translator, self.docker_manager, self.config_manager)
-            if not exit_menu:
-                return self.show_pre_wizard_menu()  # Show menu again
-            else:
-                return True  # Return to main menu
-                
+            # Stay in Docker management menu until explicitly returning to main menu
+            while True:
+                # Pass config_manager to ensure project path is available for Docker operations
+                exit_menu = show_docker_management_menu(self.translator, self.docker_manager, self.config_manager)
+                if exit_menu:
+                    break  # Exit the Docker menu loop and return to main menu
+            
+            return self.show_pre_wizard_menu()  # Return to the main menu
+        
         elif action == self.translator.get("Application management"):
             return self.show_application_management_menu()
                 

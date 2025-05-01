@@ -103,11 +103,16 @@ def create_menu_choices(running_services, stopped_services, services, translator
     if len(running_services) == len(services) and running_services:
         choices.append(translator.get("Restart all services"))
     
-    # Only show stop all services if all services are running
-    if running_services and len(running_services) == len(services):
-        choices.append(translator.get("Stop all services"))
-    # Show stop specific service if any services are running
-    elif running_services:
+    # Show stop options if any services are running
+    if running_services:
+        # Only show stop all services if all services are running
+        if len(running_services) == len(services):
+            choices.append(translator.get("Stop all services"))
+        # Show stop all running services if not all services are running
+        else:
+            choices.append(translator.get("Stop all running services"))
+        
+        # Always show the stop specific service option when services are running
         choices.append(translator.get("Stop specific service"))
         
     # Show start specific service if any services are stopped
@@ -152,7 +157,7 @@ def handle_docker_action(action, translator, docker_manager, running_services, s
         time.sleep(2)  # Wait a moment for Docker to restart the services
         return False  # Show the menu again with refreshed status
     
-    elif action == translator.get("Stop all services"):
+    elif action == translator.get("Stop all services") or action == translator.get("Stop all running services"):
         docker_manager.stop_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)  # Wait a moment for Docker to stop the services
