@@ -32,9 +32,41 @@ class LetsEncryptManager:
             translator: Optional translator instance for localization
             base_dir: Optional base directory of the project
         """
+        # Store parameters for lazy initialization
+        self.base_dir_param = base_dir
         self.translator = translator
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         
+        # Will be initialized when needed
+        if base_dir is not None:
+            self.base_dir = Path(base_dir)
+        else:
+            self.base_dir = None
+    
+    def _ensure_base_dir(self):
+        """Lazily initialize the base directory if needed"""
+        if self.base_dir is not None:
+            # Already initialized
+            return
+            
+        # Try to get project path from config
+        from ..config_manager import ConfigManager
+        config_manager = ConfigManager()
+        project_path = None
+        try:
+            if config_manager and config_manager.config:
+                project_path = config_manager.config.get("environment", {}).get("path")
+        except Exception:
+            pass
+        
+        if project_path:
+            self.base_dir = Path(project_path)
+        else:
+            # Log an error if no project path is found
+            console.print(f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]")
+            self.base_dir = Path.cwd()
+            if self.translator:
+                console.print(f"[yellow]{self.translator.get('Please set a project path to ensure certificates are stored in the correct location.')}[/]")
+
     def _translate(self, text: str) -> str:
         """
         Helper method to translate text if translator is available.
@@ -98,6 +130,9 @@ class LetsEncryptManager:
         Returns:
             bool: True if the service was started successfully, False otherwise
         """
+        # Ensure base directory is initialized
+        self._ensure_base_dir()
+        
         if self._check_service_status(service_name):
             # Service is already running
             return True

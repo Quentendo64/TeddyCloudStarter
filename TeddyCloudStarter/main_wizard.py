@@ -21,6 +21,10 @@ from .ui.backup_manager_ui import show_backup_recovery_menu
 from .ui.configuration_manager_ui import show_configuration_management_menu
 from .ui.support_features_ui import show_support_features_menu
 from .utilities.file_system import browse_directory
+from .config_manager import ConfigManager
+from .security.certificate_authority import CertificateAuthority
+from .security.client_certificates import ClientCertificateManager
+from .security.lets_encrypt import LetsEncryptManager
 
 
 class TeddyCloudWizard(BaseWizard):
@@ -92,6 +96,32 @@ class TeddyCloudWizard(BaseWizard):
             console.print(f"[bold red]Error during configuration refresh: {e}[/]")
             console.print("[yellow]Your configuration files may be incomplete. Restore from backup if needed.[/]")
             console.print(f"[yellow]Backups can be found in: {backup_dir}[/]")
+    
+    def reload_configuration(self):
+        """Reload the configuration after a reset operation."""
+        # Re-initialize the configuration manager with the same translator
+        self.config_manager = ConfigManager(translator=self.translator)
+        
+        # Check if the language is set in the new config
+        if not self.config_manager.config.get("language"):
+            # Prompt user to select language
+            self.select_language()
+        
+        # Reset project path if it doesn't exist in config
+        if not self.config_manager.config.get("environment", {}).get("path"):
+            self.select_project_path()
+        else:
+            # Update the project path for the wizard
+            self.project_path = self.config_manager.config.get("environment", {}).get("path")
+            
+        # Re-initialize security managers with the new project path
+        if self.project_path:
+            self.ca_manager = CertificateAuthority(base_dir=self.project_path, translator=self.translator)
+            self.client_cert_manager = ClientCertificateManager(base_dir=self.project_path, translator=self.translator)
+            self.lets_encrypt_manager = LetsEncryptManager(base_dir=self.project_path, translator=self.translator)
+            
+        # Display confirmation
+        console.print(f"[green]{self.translator.get('Configuration reloaded successfully')}[/]")
     
     def show_application_management_menu(self):
         """Show application management submenu."""
@@ -311,7 +341,7 @@ class TeddyCloudWizard(BaseWizard):
     def select_project_path(self):
         """Let the user select a project path."""
         console.print(f"[bold cyan]{self.translator.get('Please select a directory for your TeddyCloud project')}[/]")
-        console.print(f"[cyan]{self.translator.get('This directory will store all Docker volumes, certificates, and configuration files.')}[/]")
+        console.print(f"[cyan]{self.translator.get('This directory will be used to store all TeddyCloudStarter related data like certificates, and configuration files.')}[/]")
         
         # Start with current directory as default
         current_dir = os.getcwd()
@@ -397,13 +427,16 @@ class TeddyCloudWizard(BaseWizard):
         Args:
             project_path: The path to the project directory
         """
-        # Update the base_dir for certificate operations
-        from .security.certificate_authority import CertificateAuthority
-        from .security.client_certificates import ClientCertificateManager
-        
         # Store the validated project path
         self.project_path = project_path
         
         # Create instances with the project path
         self.ca_manager = CertificateAuthority(base_dir=project_path, translator=self.translator)
-        self.cert_manager = ClientCertificateManager(base_dir=project_path, translator=self.translator)
+        self.client_cert_manager = ClientCertificateManager(base_dir=project_path, translator=self.translator)
+        self.lets_encrypt_manager = LetsEncryptManager(base_dir=project_path, translator=self.translator)
+        
+        # Update the project path in the config if needed
+        if "environment" not in self.config_manager.config:
+            self.config_manager.config["environment"] = {}
+        self.config_manager.config["environment"]["path"] = project_path
+        self.config_manager.save()

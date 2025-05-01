@@ -5,6 +5,7 @@ Reset operations module for TeddyCloudStarter configuration.
 import os
 import subprocess
 from ..wizard.ui_helpers import console
+from ..utilities.file_system import get_project_path
 
 def reset_config_file(config_manager, translator):
     """
@@ -187,6 +188,15 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
         bool: True if all operations were successful, False otherwise
     """
     success = True
+    
+    # Stop docker services if we're going to reset volumes or docker-compose.yml
+    if reset_options.get('docker_volumes') or reset_options.get('docker_all_volumes') or reset_options.get('project_folders'):
+        # Get project path from config
+        project_path = get_project_path(config_manager, translator)
+        
+        # Use DockerManager to properly shut down all services
+        if project_path:
+            wizard.docker_manager.down_services(project_path)
     
     # Process config file reset
     if reset_options.get('config_file'):

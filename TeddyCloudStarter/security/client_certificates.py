@@ -29,12 +29,36 @@ class ClientCertificateManager:
             base_dir: The base directory for certificate operations. If None, use project path from config.
             translator: The translator instance for localization
         """
-        # Create the certificate authority manager
-        self.ca_manager = CertificateAuthority(base_dir=base_dir, translator=translator)
+        # Store for later use
+        self.base_dir_param = base_dir
+        self.translator = translator
         
-        # Set up directories
-        if base_dir is None:
-            # Import here to avoid circular imports
+        # Don't try to resolve the actual base_dir yet, just store it for later
+        if base_dir is not None:
+            self.base_dir = Path(base_dir)
+        else:
+            # Will be resolved when needed
+            self.base_dir = None
+            
+        # Don't set up these directories yet - they'll be set up when needed
+        self.client_certs_dir = None
+        self.ca_dir = None
+        self.clients_dir = None
+        self.server_dir = None
+        self.crl_dir = None
+        
+        # Create the certificate authority manager with deferred initialization
+        self.ca_manager = CertificateAuthority(base_dir=base_dir, translator=translator)
+    
+    def _ensure_directories(self):
+        """Lazily initialize directories only when needed"""
+        if self.client_certs_dir is not None:
+            # Already initialized
+            return
+            
+        # Now get the base directory
+        if self.base_dir is None:
+            # Try to get project path from config
             from ..config_manager import ConfigManager
             config_manager = ConfigManager()
             project_path = None
@@ -43,16 +67,45 @@ class ClientCertificateManager:
                     project_path = config_manager.config.get("environment", {}).get("path")
             except Exception:
                 pass
-            self.base_dir = Path(project_path) if project_path else Path(".")
-        else:
-            self.base_dir = Path(base_dir)
             
+            if project_path:
+                self.base_dir = Path(project_path)
+            else:
+                # Log an error if no project path is found
+                console.print(f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]")
+                self.base_dir = Path.cwd()
+                if self.translator:
+                    console.print(f"[yellow]{self.translator.get('Please set a project path to ensure certificates are stored in the correct location.')}[/]")
+        
+        # Set up directory paths
         self.client_certs_dir = self.base_dir / "data" / "client_certs"
         self.ca_dir = self.client_certs_dir / "ca"
         self.clients_dir = self.client_certs_dir / "clients"
         self.server_dir = self.client_certs_dir / "server"
         self.crl_dir = self.client_certs_dir / "crl"
-        self.translator = translator
+        
+        # Create the directories if they don't exist
+        try:
+            self.client_certs_dir.mkdir(parents=True, exist_ok=True)
+            self.ca_dir.mkdir(parents=True, exist_ok=True)
+            self.clients_dir.mkdir(parents=True, exist_ok=True)
+            self.server_dir.mkdir(parents=True, exist_ok=True)
+            self.crl_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            console.print(f"[bold red]Error creating certificate directories: {e}[/]")
+            # In case of error, try with absolute paths
+            try:
+                Path(str(self.client_certs_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.ca_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.clients_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.server_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.crl_dir)).mkdir(parents=True, exist_ok=True)
+            except Exception as e2:
+                console.print(f"[bold red]Failed to create certificate directories: {e2}[/]")
+        
+        # Update the CA manager base_dir if it doesn't match
+        if self.ca_manager.base_dir != self.base_dir:
+            self.ca_manager.base_dir = self.base_dir
     
     def _translate(self, text):
         """Helper method to translate text if translator is available."""
@@ -77,8 +130,7 @@ class ClientCertificateManager:
             Tuple[bool, Optional[str], Optional[str]]: (success, certificate_path, key_path)
         """
         # Ensure directories exist
-        self.client_certs_dir.mkdir(parents=True, exist_ok=True)
-        self.server_dir.mkdir(exist_ok=True)
+        self._ensure_directories()
         
         # Check if OpenSSL is available
         if not self._check_openssl():
@@ -87,6 +139,9 @@ class ClientCertificateManager:
         # Check if server certificate already exists
         server_key_path = self.server_dir / "server.key"
         server_crt_path = self.server_dir / "server.crt"
+        
+        # Create parent directory if it doesn't exist
+        self.server_dir.mkdir(parents=True, exist_ok=True)
         
         if server_key_path.exists() and server_crt_path.exists():
             return True, str(server_crt_path), str(server_key_path)
@@ -153,25 +208,24 @@ class ClientCertificateManager:
         console.print(f"[bold cyan]{self._translate('Generating client certificate...')}[/]")
         
         try:
-            # Ensure directories exist
-            self.client_certs_dir.mkdir(parents=True, exist_ok=True)
-            self.clients_dir.mkdir(exist_ok=True)
+            # Ensure directories exist - this must be called before any file operations
+            self._ensure_directories()
             
             # Check if OpenSSL is available
             if not self._check_openssl():
                 return False, {}
-            
+                
             # Use default name if none provided
             if not client_name:
                 client_name = "TeddyCloudClient"
-            
+                
             # Store whether this is a default password for display purposes
             is_default_password = not passout
             
             # Use default password if none provided
             if not passout:
                 passout = "teddycloud"
-            
+                
             # Ensure client_name is valid as file name by removing special chars
             safe_name = re.sub(r'[^\w\-\.]', '_', client_name)
             
@@ -179,12 +233,15 @@ class ClientCertificateManager:
             ca_success, ca_crt_path, ca_key_path = self.ca_manager.create_ca_certificate()
             if not ca_success:
                 return False, {}
-            
+                
             # Generate client key and CSR with the provided name
             client_key = self.clients_dir / f"{safe_name}.key"
             client_csr = self.clients_dir / f"{safe_name}.csr"
             client_crt = self.clients_dir / f"{safe_name}.crt"
             client_p12 = self.clients_dir / f"{safe_name}.p12"
+            
+            # Create parent directories if they don't exist
+            client_key.parent.mkdir(parents=True, exist_ok=True)
             
             subprocess.run([
                 "openssl", "req", "-newkey", "rsa:4096", "-nodes",

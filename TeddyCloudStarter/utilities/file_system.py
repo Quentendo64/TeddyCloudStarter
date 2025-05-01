@@ -61,7 +61,7 @@ def get_project_path(config_manager=None, translator=None) -> Optional[str]:
             # Save the selected project path to the config
             if config_manager:
                 config_manager.config.setdefault("environment", {})["path"] = project_path
-                config_manager.save_config()
+                config_manager.save()
             return project_path
 
         # Exit if no project path is set

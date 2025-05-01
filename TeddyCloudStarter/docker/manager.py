@@ -46,6 +46,60 @@ class DockerManager:
         if self.translator:
             return self.translator.get(text)
         return text
+        
+    def down_services(self, project_path=None):
+        """
+        Completely stop and remove Docker containers, networks defined in docker-compose.yml.
+        This is more thorough than just stopping services as it removes the containers entirely.
+        
+        Args:
+            project_path: Path to the project directory (optional)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.docker_available:
+            console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
+            return False
+        
+        try:
+            console.print(f"[bold yellow]{self._translate('Stopping and removing all Docker services...')}[/]")
+            
+            # Store current directory
+            original_dir = os.getcwd()
+            
+            # Use project path if provided, otherwise use current directory
+            base_path = project_path if project_path else original_dir
+            
+            # Change to the data directory where docker-compose.yml is located
+            data_dir = os.path.join(base_path, "data")
+            docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
+            
+            if not os.path.exists(docker_compose_path):
+                console.print(f"[yellow]{self._translate('No docker-compose.yml found, skipping Docker service shutdown')}")
+                return False
+                
+            os.chdir(data_dir)
+            
+            try:
+                # Run docker-compose down to stop and remove containers
+                subprocess.run(self.compose_cmd + ["down"], check=True, capture_output=True, text=True)
+                console.print(f"[green]{self._translate('Docker services stopped and removed successfully')}[/]")
+                return True
+            finally:
+                # Ensure we return to the original directory
+                os.chdir(original_dir)
+                
+        except subprocess.SubprocessError as e:
+            error_msg = f"Error stopping Docker services: {e}"
+            console.print(f"[yellow]{self._translate(error_msg)}[/]")
+            console.print(f"[yellow]{self._translate('Continuing with operations...')}[/]")
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected error stopping Docker services: {e}"
+            console.print(f"[yellow]{self._translate(error_msg)}[/]")
+            console.print(f"[yellow]{self._translate('Continuing with operations...')}[/]")
+            return False
     
     def get_services_status(self, project_path=None) -> Dict[str, Dict]:
         """Get status of all services in docker-compose.yml."""

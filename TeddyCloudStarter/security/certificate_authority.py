@@ -27,8 +27,31 @@ class CertificateAuthority:
             base_dir: The base directory for certificate operations. If None, use project path from config.
             translator: The translator instance for localization
         """
-        # Use provided base_dir or try to get project path from config
-        if base_dir is None:
+        # Store for later use
+        self.base_dir_param = base_dir
+        self.translator = translator
+        
+        # Don't try to resolve the actual base_dir yet, just store it for later
+        if base_dir is not None:
+            self.base_dir = Path(base_dir)
+        else:
+            # Will be resolved when needed
+            self.base_dir = None
+            
+        # Don't set up these directories yet - they'll be set up when needed
+        self.client_certs_dir = None
+        self.ca_dir = None
+        self.crl_dir = None
+    
+    def _ensure_directories(self):
+        """Lazily initialize directories only when needed"""
+        if self.client_certs_dir is not None:
+            # Already initialized
+            return
+            
+        # Now get the base directory
+        if self.base_dir is None:
+            # Try to get project path from config
             from ..config_manager import ConfigManager
             config_manager = ConfigManager()
             project_path = None
@@ -37,14 +60,35 @@ class CertificateAuthority:
                     project_path = config_manager.config.get("environment", {}).get("path")
             except Exception:
                 pass
-            self.base_dir = Path(project_path)
-        else:
-            self.base_dir = Path(base_dir)
             
+            if project_path:
+                self.base_dir = Path(project_path)
+            else:
+                # Log an error if no project path is found
+                console.print(f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]")
+                self.base_dir = Path.cwd()
+                if self.translator:
+                    console.print(f"[yellow]{self.translator.get('Please set a project path to ensure certificates are stored in the correct location.')}[/]")
+        
+        # Set up directory paths
         self.client_certs_dir = self.base_dir / "data" / "client_certs"
         self.ca_dir = self.client_certs_dir / "ca"
         self.crl_dir = self.client_certs_dir / "crl"
-        self.translator = translator
+        
+        # Create the directories if they don't exist
+        try:
+            self.client_certs_dir.mkdir(parents=True, exist_ok=True)
+            self.ca_dir.mkdir(parents=True, exist_ok=True)
+            self.crl_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            console.print(f"[bold red]Error creating certificate directories: {e}[/]")
+            # In case of error, try with absolute paths
+            try:
+                Path(str(self.client_certs_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.ca_dir)).mkdir(parents=True, exist_ok=True)
+                Path(str(self.crl_dir)).mkdir(parents=True, exist_ok=True)
+            except Exception as e2:
+                console.print(f"[bold red]Failed to create certificate directories: {e2}[/]")
     
     def _translate(self, text):
         """Helper method to translate text if translator is available."""
@@ -83,6 +127,9 @@ class CertificateAuthority:
         Returns:
             bool: True if successful, False otherwise
         """
+        # Ensure directories are initialized
+        self._ensure_directories()
+        
         try:
             # Get OpenSSL version
             openssl_version = "Unknown"
@@ -138,9 +185,7 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
             Tuple[bool, str, str]: (success, certificate path, key path)
         """
         # Ensure directories exist
-        self.client_certs_dir.mkdir(parents=True, exist_ok=True)
-        self.ca_dir.mkdir(exist_ok=True)
-        self.crl_dir.mkdir(exist_ok=True)
+        self._ensure_directories()
         
         # Check if OpenSSL is available
         if not self._check_openssl():
@@ -272,6 +317,9 @@ authorityKeyIdentifier=keyid:always
         Returns:
             Tuple[bool, str]: (success, CRL path)
         """
+        # Ensure directories are initialized
+        self._ensure_directories()
+        
         try:
             # Check if CA exists
             ca_key_path = self.ca_dir / "ca.key"
@@ -326,6 +374,9 @@ authorityKeyIdentifier=keyid:always
         Returns:
             Tuple[bool, str, Optional[dict]]: (is_valid, error_message, certificate_info)
         """
+        # Ensure directories are initialized
+        self._ensure_directories()
+        
         try:
             if not Path(cert_path).exists():
                 return False, f"Certificate not found: {cert_path}", None
@@ -406,6 +457,9 @@ authorityKeyIdentifier=keyid:always
         Returns:
             Tuple[bool, str]: (success, message)
         """
+        # Ensure directories are initialized
+        self._ensure_directories()
+        
         # Use the provided translator or class translator
         trans = translator or self.translator
         

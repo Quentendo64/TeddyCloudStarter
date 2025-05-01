@@ -71,28 +71,28 @@ def main():
     # Check if config exists
     config_exists = os.path.exists(DEFAULT_CONFIG_PATH)
     
-    if config_exists:
-        # Check if language is set and not empty
-        if not wizard.config_manager.config.get("language"):
-            wizard.select_language()
-        else:
-            # Set the language from config without showing selection
-            wizard.translator.set_language(wizard.config_manager.config["language"])
-    else:
-        # If no config, select language
+    # First handle language selection
+    if not config_exists or not wizard.config_manager.config.get("language"):
+        # If no config or no language setting, select language
         wizard.select_language()
+    else:
+        # Set the language from config without showing selection
+        wizard.translator.set_language(wizard.config_manager.config["language"])
     
+    # Now display welcome messages
     wizard.display_welcome_message()
     wizard.display_development_message()
-    # Project path selection - always show this page if path is not set
+    
+    # After language is set, handle project path selection
     if not wizard.config_manager.config.get("environment", {}).get("path"):
+        # Select project path if not set
         wizard.select_project_path()
     
     # Get the project path from config and ensure directories exist
     project_path = get_project_path(wizard.config_manager)
     ensure_project_directories(project_path)
     
-    # Make sure all modules use this project_path as base_dir
+    # Properly set the project path in the wizard and reinitialize security managers
     wizard.set_project_path(project_path)
     
     if config_exists:
