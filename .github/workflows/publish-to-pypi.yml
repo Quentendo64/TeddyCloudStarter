@@ -131,11 +131,9 @@ jobs:
         BASE_VERSION=$(grep -oP "__version__ = '\K[^']+" TeddyCloudStarter/__init__.py)
         # Format the current date in YYYYMMDD format
         DATE_TAG=$(date +'%Y%m%d')
-        # Get short commit hash
-        COMMIT_HASH=$(git rev-parse --short HEAD)
-        # Create a development version string according to PEP 440
-        # Use a dot instead of + for local versions as TestPyPI doesn't allow +
-        DEV_VERSION="${BASE_VERSION}.dev${DATE_TAG}.${COMMIT_HASH}"
+        # Create a proper PEP 440 compliant development version string
+        # For dev releases, the format must be N.N.N.devN (no non-numeric parts after dev)
+        DEV_VERSION="${BASE_VERSION}.dev${DATE_TAG}"
         echo "version=$DEV_VERSION" >> $GITHUB_OUTPUT
         echo "Creating development build version: $DEV_VERSION"
     
