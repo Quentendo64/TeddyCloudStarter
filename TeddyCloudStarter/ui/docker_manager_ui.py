@@ -134,7 +134,7 @@ def create_menu_choices(running_services, stopped_services, services, translator
         
     return choices
 
-def handle_docker_action(action, translator, docker_manager, running_services, stopped_services, project_path=None):
+def handle_docker_action(action, translator, docker_manager, running_services=None, stopped_services=None, project_path=None):
     """
     Handle the selected Docker action.
     
@@ -142,13 +142,17 @@ def handle_docker_action(action, translator, docker_manager, running_services, s
         action: The selected action
         translator: The translator instance for localization
         docker_manager: The docker manager instance
-        running_services: List of running service names
-        stopped_services: List of stopped service names
+        running_services: List of running service names, defaults to empty list if None
+        stopped_services: List of stopped service names, defaults to empty list if None
         project_path: Optional project path for Docker operations
         
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    # Ensure we have lists, even if None was passed
+    running_services = running_services or []
+    stopped_services = stopped_services or []
+    
     if action == translator.get("Start all services") or action == translator.get("Start stopped services"):
         docker_manager.start_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
@@ -194,19 +198,22 @@ def handle_docker_action(action, translator, docker_manager, running_services, s
     # Default case if none of the above match
     return False
 
-def handle_start_specific_service(translator, docker_manager, stopped_services, project_path=None):
+def handle_start_specific_service(translator, docker_manager, stopped_services=None, project_path=None):
     """
     Handle starting a specific service.
     
     Args:
         translator: The translator instance for localization
         docker_manager: The docker manager instance
-        stopped_services: List of stopped service names
+        stopped_services: List of stopped service names, defaults to empty list if None
         project_path: Optional project path for Docker operations
         
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    # Ensure we have a list, even if None was passed
+    stopped_services = stopped_services or []
+    
     if not stopped_services:
         console.print(f"[bold yellow]{translator.get('No stopped services available to start')}.[/]")
         return False  # Show the menu again
@@ -226,19 +233,22 @@ def handle_start_specific_service(translator, docker_manager, stopped_services, 
     
     return False  # Show the menu again
 
-def handle_restart_specific_service(translator, docker_manager, running_services, project_path=None):
+def handle_restart_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
     Handle restarting a specific service.
     
     Args:
         translator: The translator instance for localization
         docker_manager: The docker manager instance
-        running_services: List of running service names
+        running_services: List of running service names, defaults to empty list if None
         project_path: Optional project path for Docker operations
         
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    # Ensure we have a list, even if None was passed
+    running_services = running_services or []
+    
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to restart')}.[/]")
         return False  # Show the menu again
@@ -258,19 +268,22 @@ def handle_restart_specific_service(translator, docker_manager, running_services
     
     return False  # Show the menu again
 
-def handle_stop_specific_service(translator, docker_manager, running_services, project_path=None):
+def handle_stop_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
     Handle stopping a specific service.
     
     Args:
         translator: The translator instance for localization
         docker_manager: The docker manager instance
-        running_services: List of running service names
+        running_services: List of running service names, defaults to empty list if None
         project_path: Optional project path for Docker operations
         
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    # Ensure we have a list, even if None was passed
+    running_services = running_services or []
+    
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to stop')}.[/]")
         return False  # Show the menu again
@@ -290,19 +303,22 @@ def handle_stop_specific_service(translator, docker_manager, running_services, p
     
     return False  # Show the menu again
 
-def handle_live_logs_specific_service(translator, docker_manager, running_services, project_path=None):
+def handle_live_logs_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
     Handle showing live logs for a specific service.
     
     Args:
         translator: The translator instance for localization
         docker_manager: The docker manager instance
-        running_services: List of running service names
+        running_services: List of running service names, defaults to empty list if None
         project_path: Optional project path for Docker operations
         
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    # Ensure we have a list, even if None was passed
+    running_services = running_services or []
+    
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to view logs')}.[/]")
         return False  # Show the menu again

@@ -103,14 +103,21 @@ class DockerManager:
                 elif os.name == 'posix':  # Linux/Mac
                     if os.path.exists('/etc/os-release'):
                         with open('/etc/os-release', 'r') as f:
-                            if 'ID=ubuntu' in f.read() or 'ID=debian' in f.read():
-                                error_message += "On Ubuntu/Debian, install with: sudo apt update && sudo apt install -y docker.io docker-compose"
-                            elif 'ID=fedora' in f.read() or 'ID=rhel' in f.read() or 'ID=centos' in f.read():
-                                error_message += "On Fedora/RHEL/CentOS, install with: sudo dnf install -y docker docker-compose"
+                            os_info = f.read()
+                            if 'ID=ubuntu' in os_info:
+                                error_message += "For Ubuntu, follow the official Docker installation guide: https://docs.docker.com/engine/install/ubuntu/"
+                            elif 'ID=debian' in os_info:
+                                error_message += "For Debian, follow the official Docker installation guide: https://docs.docker.com/engine/install/debian/"
+                            elif 'ID=fedora' in os_info:
+                                error_message += "For Fedora, follow the official Docker installation guide: https://docs.docker.com/engine/install/fedora/"
+                            elif 'ID=rhel' in os_info or 'ID=centos' in os_info:
+                                error_message += "For RHEL/CentOS, follow the official Docker installation guide: https://docs.docker.com/engine/install/rhel/"
+                            else:
+                                error_message += "Please follow the official Docker installation guide for your Linux distribution: https://docs.docker.com/engine/install/"
                     else:
-                        error_message += "Please install Docker and Docker Compose for your operating system."
+                        error_message += "Please follow the official Docker installation guide for your operating system: https://docs.docker.com/get-docker/"
                 else:
-                    error_message += "Please install Docker and Docker Compose for your operating system."
+                    error_message += "Please follow the official Docker installation guide for your operating system: https://docs.docker.com/get-docker/"
         
         return all_met, prerequisites, error_message
     

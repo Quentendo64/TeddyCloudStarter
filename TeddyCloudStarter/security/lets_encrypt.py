@@ -596,12 +596,44 @@ server {
                 # Print the command for debugging purposes
                 console.print(f"[dim]{self._translate('Running command:')} {' '.join(cmd)}[/]")
                     
-                # Run the command
-                process = subprocess.run(cmd, capture_output=True, text=True)
+                # Run the command and stream the output in real time
+                console.print(f"\n[bold cyan]{self._translate('Certificate request in progress...')}[/]")
+                console.print(f"[dim]{self._translate('This may take a minute or two, please wait...')}[/]\n")
                 
-                # Check result
-                if process.returncode == 0:
-                    console.print(f"[bold green]{self._translate('Certificate request was successful!')}[/]")
+                # Use Popen instead of run to capture and display output in real-time
+                with subprocess.Popen(
+                    cmd, 
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                ) as process:
+                    # Display stdout in real-time
+                    for line in process.stdout:
+                        line = line.strip()
+                        if line:
+                            # Format key log messages with appropriate colors
+                            if "challenge" in line.lower() or "verif" in line.lower():
+                                console.print(f"[cyan]{line}[/]")
+                            elif "error" in line.lower() or "critical" in line.lower():
+                                console.print(f"[bold red]{line}[/]")
+                            elif "warning" in line.lower():
+                                console.print(f"[yellow]{line}[/]")
+                            elif "success" in line.lower() or "congratulations" in line.lower():
+                                console.print(f"[bold green]{line}[/]")
+                            else:
+                                console.print(line)
+                    
+                    # Capture stderr
+                    stderr_output = process.stderr.read()
+                    
+                    # Wait for the process to complete
+                    return_code = process.wait()
+                
+                # Check result based on the return code
+                if return_code == 0:
+                    console.print(f"\n[bold green]{self._translate('Certificate request was successful!')}[/]")
                     
                     # For webroot mode, we should reload nginx to pick up the new certificates
                     if mode == "webroot" and not temp_nginx_created:
@@ -609,9 +641,13 @@ server {
                     
                     return True
                 else:
-                    error_msg = f"Certificate request failed with return code {process.returncode}"
-                    console.print(f"[bold red]{self._translate(error_msg)}[/]")
-                    self._display_error_details(process.stderr)
+                    error_msg = f"Certificate request failed with return code {return_code}"
+                    console.print(f"\n[bold red]{self._translate(error_msg)}[/]")
+                    
+                    # Display error details if we have them
+                    if stderr_output:
+                        self._display_error_details(stderr_output)
+                    
                     return False
             finally:
                 # Clean up temporary resources
