@@ -6,7 +6,7 @@ import os
 import subprocess
 import time
 from rich.console import Console
-from typing import List, Dict
+from typing import List, Dict, Tuple, Optional
 
 # Global console instance for rich output
 console = Console()
@@ -36,6 +36,83 @@ class DockerManager:
             self.docker_available = True
         except (subprocess.SubprocessError, FileNotFoundError):
             self.docker_available = False
+    
+    @staticmethod
+    def check_docker_prerequisites() -> Tuple[bool, Dict[str, bool], Optional[str]]:
+        """
+        OS-independent check for Docker and Docker Compose availability.
+        
+        Returns:
+            Tuple containing:
+                - bool: True if all prerequisites are met, False otherwise
+                - Dict: Dictionary with keys 'docker' and 'docker_compose' showing individual availability
+                - str: Error message if prerequisites are not met, None otherwise
+        """
+        prerequisites = {
+            'docker': False,
+            'docker_compose': False
+        }
+        
+        error_message = None
+        
+        # Check for Docker
+        try:
+            result = subprocess.run(
+                ["docker", "--version"],
+                check=True, capture_output=True, text=True
+            )
+            prerequisites['docker'] = True
+        except (subprocess.SubprocessError, FileNotFoundError):
+            prerequisites['docker'] = False
+            
+        # Check for Docker Compose
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "version"],
+                check=True, capture_output=True, text=True
+            )
+            prerequisites['docker_compose'] = True
+        except (subprocess.SubprocessError, FileNotFoundError):
+            # Try legacy docker-compose command (v1)
+            try:
+                result = subprocess.run(
+                    ["docker-compose", "--version"],
+                    check=True, capture_output=True, text=True
+                )
+                prerequisites['docker_compose'] = True
+            except (subprocess.SubprocessError, FileNotFoundError):
+                prerequisites['docker_compose'] = False
+        
+        # Determine if all prerequisites are met and create error message
+        all_met = all(prerequisites.values())
+        
+        if not all_met:
+            missing_components = []
+            
+            if not prerequisites['docker']:
+                missing_components.append("Docker")
+            if not prerequisites['docker_compose']:
+                missing_components.append("Docker Compose")
+                
+            if missing_components:
+                error_message = f"Missing required components: {', '.join(missing_components)}. "
+                
+                # Add OS-specific installation instructions
+                if os.name == 'nt':  # Windows
+                    error_message += "Please install Docker Desktop for Windows from https://www.docker.com/products/docker-desktop"
+                elif os.name == 'posix':  # Linux/Mac
+                    if os.path.exists('/etc/os-release'):
+                        with open('/etc/os-release', 'r') as f:
+                            if 'ID=ubuntu' in f.read() or 'ID=debian' in f.read():
+                                error_message += "On Ubuntu/Debian, install with: sudo apt update && sudo apt install -y docker.io docker-compose"
+                            elif 'ID=fedora' in f.read() or 'ID=rhel' in f.read() or 'ID=centos' in f.read():
+                                error_message += "On Fedora/RHEL/CentOS, install with: sudo dnf install -y docker docker-compose"
+                    else:
+                        error_message += "Please install Docker and Docker Compose for your operating system."
+                else:
+                    error_message += "Please install Docker and Docker Compose for your operating system."
+        
+        return all_met, prerequisites, error_message
     
     def is_available(self):
         """Return True if Docker is available."""

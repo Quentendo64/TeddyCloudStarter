@@ -53,6 +53,7 @@ from .wizard.ui_helpers import console
 from .config_manager import DEFAULT_CONFIG_PATH
 from .utilities.version import check_for_updates
 from .utilities.file_system import get_project_path, ensure_project_directories
+from .docker.manager import DockerManager
 
 # Determine if running as installed package or directly from source
 package_path = os.path.dirname(__file__)
@@ -60,11 +61,28 @@ package_path = os.path.dirname(__file__)
 # Set up paths for resources
 LOCALES_DIR = Path(package_path) / "locales"
 
+def check_docker_prerequisites():
+    """
+    Check if Docker and Docker Compose are installed and available.
+    Display an error message and exit if they are not.
+    """
+    all_met, prerequisites, error_message = DockerManager.check_docker_prerequisites()
+    
+    if not all_met:
+        console.print("[bold red]ERROR: Docker prerequisites not met![/]")
+        console.print(f"[bold yellow]{error_message}[/]")
+        console.print("[bold red]TeddyCloudStarter requires Docker and Docker Compose to function.[/]")
+        console.print("[bold red]Please install the missing components and try again.[/]")
+        sys.exit(1)
+    
+    return True
+
 def main():
     """Main entry point for the TeddyCloud Setup Wizard."""
-    # Check for updates first
+    # Check for updates
     check_for_updates()
-    
+    # Check for Docker prerequisites first
+    check_docker_prerequisites()
     # Create the wizard instance with the correct locales directory
     wizard = TeddyCloudWizard(LOCALES_DIR)
 
