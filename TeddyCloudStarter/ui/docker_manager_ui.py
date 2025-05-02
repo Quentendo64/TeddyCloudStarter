@@ -30,6 +30,7 @@ def show_docker_management_menu(translator, docker_manager, config_manager=None)
     
     services = docker_manager.get_services_status(project_path=project_path)
     
+    choices = []
     if services:
         display_services_status(services, translator)
         
@@ -39,18 +40,21 @@ def show_docker_management_menu(translator, docker_manager, config_manager=None)
         choices = create_menu_choices(running_services, stopped_services, services, translator)
     else:
         console.print(f"[yellow]{translator.get('No Docker services found or Docker is not available')}.[/]")
-        choices = []
-        
-    choices.append(translator.get("Refresh status"))
-    choices.append(translator.get("Back to main menu"))
-    
-    action = questionary.select(
+    choices.append({'id': 'refresh', 'text': translator.get("Refresh status")})
+    choices.append({'id': 'back', 'text': translator.get("Back to main menu")})
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Docker Management"),
-        choices=choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = None
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    return handle_docker_action(action, translator, docker_manager, running_services, stopped_services, project_path)
+    return handle_docker_action(selected_id, translator, docker_manager, running_services, stopped_services, project_path)
 
 def display_services_status(services, translator):
     """
@@ -84,45 +88,45 @@ def create_menu_choices(running_services, stopped_services, services, translator
         translator: The translator instance for localization
         
     Returns:
-        list: Menu choices
+        list: Menu choices with IDs and translated text
     """
     choices = []
     
     if stopped_services:
         if len(stopped_services) == len(services):
-            choices.append(translator.get("Start all services"))
+            choices.append({'id': 'start_all', 'text': translator.get("Start all services")})
         else:
-            choices.append(translator.get("Start stopped services"))
+            choices.append({'id': 'start_stopped', 'text': translator.get("Start stopped services")})
     
     if len(running_services) == len(services) and running_services:
-        choices.append(translator.get("Restart all services"))
+        choices.append({'id': 'restart_all', 'text': translator.get("Restart all services")})
     
     if running_services:
         if len(running_services) == len(services):
-            choices.append(translator.get("Stop all services"))
+            choices.append({'id': 'stop_all', 'text': translator.get("Stop all services")})
         else:
-            choices.append(translator.get("Stop all running services"))
+            choices.append({'id': 'stop_running', 'text': translator.get("Stop all running services")})
         
-        choices.append(translator.get("Stop specific service"))
+        choices.append({'id': 'stop_specific', 'text': translator.get("Stop specific service")})
         
     if stopped_services:
-        choices.append(translator.get("Start specific service"))
+        choices.append({'id': 'start_specific', 'text': translator.get("Start specific service")})
         
     if running_services:
-        choices.append(translator.get("Restart specific service"))
+        choices.append({'id': 'restart_specific', 'text': translator.get("Restart specific service")})
 
     if running_services:
-        choices.append(translator.get("Live logs from all services"))
-        choices.append(translator.get("Live logs from specific service"))
+        choices.append({'id': 'logs_all', 'text': translator.get("Live logs from all services")})
+        choices.append({'id': 'logs_specific', 'text': translator.get("Live logs from specific service")})
         
     return choices
 
-def handle_docker_action(action, translator, docker_manager, running_services=None, stopped_services=None, project_path=None):
+def handle_docker_action(action_id, translator, docker_manager, running_services=None, stopped_services=None, project_path=None):
     """
     Handle the selected Docker action.
     
     Args:
-        action: The selected action
+        action_id: The ID of the selected action
         translator: The translator instance for localization
         docker_manager: The docker manager instance
         running_services: List of running service names, defaults to empty list if None
@@ -135,45 +139,45 @@ def handle_docker_action(action, translator, docker_manager, running_services=No
     running_services = running_services or []
     stopped_services = stopped_services or []
     
-    if action == translator.get("Start all services") or action == translator.get("Start stopped services"):
+    if action_id in ['start_all', 'start_stopped']:
         docker_manager.start_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
         return False
         
-    elif action == translator.get("Restart all services"):
+    elif action_id == 'restart_all':
         docker_manager.restart_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
         return False
     
-    elif action == translator.get("Stop all services") or action == translator.get("Stop all running services"):
+    elif action_id in ['stop_all', 'stop_running']:
         docker_manager.stop_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
         return False
         
-    elif action == translator.get("Start specific service"):
+    elif action_id == 'start_specific':
         return handle_start_specific_service(translator, docker_manager, stopped_services, project_path)
         
-    elif action == translator.get("Restart specific service"):
+    elif action_id == 'restart_specific':
         return handle_restart_specific_service(translator, docker_manager, running_services, project_path)
         
-    elif action == translator.get("Stop specific service"):
+    elif action_id == 'stop_specific':
         return handle_stop_specific_service(translator, docker_manager, running_services, project_path)
 
-    elif action == translator.get("Live logs from all services"):
+    elif action_id == 'logs_all':
         display_live_logs(docker_manager, project_path=project_path)
         return False
         
-    elif action == translator.get("Live logs from specific service"):
+    elif action_id == 'logs_specific':
         return handle_live_logs_specific_service(translator, docker_manager, running_services, project_path)
         
-    elif action == translator.get("Refresh status"):
+    elif action_id == 'refresh':
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         return False
     
-    elif action == translator.get("Back to main menu"):
+    elif action_id == 'back':
         console.print(f"[bold cyan]{translator.get('Returning to main menu')}...[/]")
         return True
     
@@ -197,17 +201,24 @@ def handle_start_specific_service(translator, docker_manager, stopped_services=N
     if not stopped_services:
         console.print(f"[bold yellow]{translator.get('No stopped services available to start')}.[/]")
         return False
-    
-    service_choices = stopped_services + [translator.get("Back")]
-    
-    selected_service = questionary.select(
+    choices = []
+    for service in stopped_services:
+        choices.append({'id': service, 'text': service})
+    choices.append({'id': 'back', 'text': translator.get("Back")})
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Select a service to start:"),
-        choices=service_choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = 'back'
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    if selected_service and selected_service != translator.get("Back"):
-        docker_manager.start_service(selected_service, project_path=project_path)
+    if selected_id != 'back':
+        docker_manager.start_service(selected_id, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
     
@@ -231,17 +242,24 @@ def handle_restart_specific_service(translator, docker_manager, running_services
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to restart')}.[/]")
         return False
-    
-    service_choices = running_services + [translator.get("Back")]
-    
-    selected_service = questionary.select(
+    choices = []
+    for service in running_services:
+        choices.append({'id': service, 'text': service})
+    choices.append({'id': 'back', 'text': translator.get("Back")})
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Select a service to restart:"),
-        choices=service_choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = 'back'
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    if selected_service and selected_service != translator.get("Back"):
-        docker_manager.restart_service(selected_service, project_path=project_path)
+    if selected_id != 'back':
+        docker_manager.restart_service(selected_id, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
     
@@ -265,17 +283,24 @@ def handle_stop_specific_service(translator, docker_manager, running_services=No
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to stop')}.[/]")
         return False
-    
-    service_choices = running_services + [translator.get("Back")]
-    
-    selected_service = questionary.select(
+    choices = []
+    for service in running_services:
+        choices.append({'id': service, 'text': service})
+    choices.append({'id': 'back', 'text': translator.get("Back")})
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Select a service to stop:"),
-        choices=service_choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = 'back'
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    if selected_service and selected_service != translator.get("Back"):
-        docker_manager.stop_service(selected_service, project_path=project_path)
+    if selected_id != 'back':
+        docker_manager.stop_service(selected_id, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
         time.sleep(2)
     
@@ -299,16 +324,23 @@ def handle_live_logs_specific_service(translator, docker_manager, running_servic
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to view logs')}.[/]")
         return False
-    
-    service_choices = running_services + [translator.get("Back")]
-    
-    selected_service = questionary.select(
+    choices = []
+    for service in running_services:
+        choices.append({'id': service, 'text': service})
+    choices.append({'id': 'back', 'text': translator.get("Back")})
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Select a service to view logs:"),
-        choices=service_choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = 'back'
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    if selected_service and selected_service != translator.get("Back"):
-        display_live_logs(docker_manager, selected_service, project_path=project_path)
+    if selected_id != 'back':
+        display_live_logs(docker_manager, selected_id, project_path=project_path)
     
     return False

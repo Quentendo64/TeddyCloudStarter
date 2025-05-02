@@ -51,23 +51,19 @@ def configure_nginx_mode(config, translator, security_managers):
     if "nginx" not in config:
         config["nginx"] = {
             "domain": "",
-            "https_mode": "letsencrypt",
+            "https_mode": "",
             "security": {
-                "type": "none",
+                "type": "",
                 "allowed_ips": [],
                 "auth_bypass_ips": []
             }
         }
         
-    nginx_config = config["nginx"]
-    
-    if "security" in nginx_config and "auth_bypass_ips" not in nginx_config["security"]:
-        nginx_config["security"]["auth_bypass_ips"] = []
-    
+    nginx_config = config["nginx"]        
     project_path = config.get("environment", {}).get("path", "")
     if not project_path:
         console.print(f"[bold red]{translator.get('Warning')}: {translator.get('Project path not set. Using current directory.')}[/]")
-        project_path = os.getcwd()
+        exit
     
     port_80_available = check_port_available(80)
     port_443_available = check_port_available(443)

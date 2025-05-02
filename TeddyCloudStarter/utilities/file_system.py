@@ -178,7 +178,7 @@ def browse_directory(start_path: Optional[str] = None,
     """Browse directories and select one.
     
     Args:
-        start_path: Starting directory. If None, common roots will be shown.
+        start_path: Starting directory. Ignored as we always start from root directories.
         translator: Translator instance for internationalization
         title: Optional title to display above the browser
         
@@ -192,49 +192,44 @@ def browse_directory(start_path: Optional[str] = None,
     if translator is not None:
         _ = lambda text: translator.get(text) or text
     
-    if not start_path:
-        choices = get_common_roots()
-        choices.append(MANUAL_ENTRY)
+    # Always start from root directories using get_common_roots()
+    choices = get_common_roots()
+    choices.append(MANUAL_ENTRY)
+    
+    selection = questionary.select(
+        _(title),
+        choices=choices,
+        style=custom_style
+    ).ask()
+    
+    if selection == MANUAL_ENTRY:
+        path = questionary.text(
+            _("Enter a path:"),
+            style=custom_style,
+        ).ask()
         
-        selection = questionary.select(
-            _(title),
-            choices=choices,
+        if not path:
+            return None
+        
+        path = normalize_path(path)
+        if validate_path(path):
+            return path
+        
+        create_it = questionary.confirm(
+            _("Path doesn't exist. Create it?"),
+            default=True,
             style=custom_style
         ).ask()
         
-        if selection == MANUAL_ENTRY:
-            path = questionary.text(
-                _("Enter a path:"),
-                style=custom_style,
-            ).ask()
-            
-            if not path:
-                return None
-            
-            path = normalize_path(path)
-            if validate_path(path):
-                return path
-            
-            create_it = questionary.confirm(
-                _("Path doesn't exist. Create it?"),
-                default=True,
-                style=custom_style
-            ).ask()
-            
-            if create_it and create_directory(path):
-                return path
-            else:
-                return browse_directory(None, translator, title)
-        
-        elif not selection:
-            return None
-        
-        start_path = selection
-        if platform.system() == "Windows" and len(start_path) == 2 and start_path[1] == ':':
-            start_path = start_path + '\\'
+        if create_it and create_directory(path):
+            return path
+        else:
+            return browse_directory(None, translator, title)
     
-    current_path = normalize_path(start_path)
+    elif not selection:
+        return None
     
+    current_path = selection
     if platform.system() == "Windows" and len(current_path) == 2 and current_path[1] == ':':
         current_path = current_path + '\\'
         

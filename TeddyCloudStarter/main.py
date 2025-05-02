@@ -48,7 +48,8 @@ except ImportError:
         sys.exit(1)
 
 # Import our modules
-from .main_wizard import TeddyCloudWizard
+from .setup_wizard import SetupWizard
+from .main_menu import MainMenu
 from .wizard.ui_helpers import console
 from .config_manager import DEFAULT_CONFIG_PATH
 from .utilities.version import check_for_updates
@@ -83,47 +84,67 @@ def main():
     check_for_updates()
     # Check for Docker prerequisites first
     check_docker_prerequisites()
-    # Create the wizard instance with the correct locales directory
-    wizard = TeddyCloudWizard(LOCALES_DIR)
-
+    
     # Check if config exists
     config_exists = os.path.exists(DEFAULT_CONFIG_PATH)
     
-    # First handle language selection
-    if not config_exists or not wizard.config_manager.config.get("language"):
-        # If no config or no language setting, select language
-        wizard.select_language()
-    else:
-        # Set the language from config without showing selection
-        wizard.translator.set_language(wizard.config_manager.config["language"])
-    
-    # Now display welcome messages
-    wizard.display_welcome_message()
-    wizard.display_development_message()
-    
-    # After language is set, handle project path selection
-    if not wizard.config_manager.config.get("environment", {}).get("path"):
-        # Select project path if not set
-        wizard.select_project_path()
-    
-    # Get the project path from config and ensure directories exist
-    project_path = get_project_path(wizard.config_manager)
-    ensure_project_directories(project_path)
-    
-    # Properly set the project path in the wizard and reinitialize security managers
-    wizard.set_project_path(project_path)
-    
     if config_exists:
-        # If config exists, show pre-wizard menu in a loop until user exits
+        # If config exists, initialize the MainMenu and show it
+        menu = MainMenu(LOCALES_DIR)
+        
+        # Set the language from config without showing selection
+        if menu.config_manager.config.get("language"):
+            menu.translator.set_language(menu.config_manager.config["language"])
+        else:
+            # If no language setting, select language
+            menu.select_language()
+        
+        # Display welcome messages
+        menu.display_welcome_message()
+        menu.display_development_message()
+        
+        # Get the project path from config and ensure directories exist
+        project_path = get_project_path(menu.config_manager)
+        ensure_project_directories(project_path)
+        
+        # Properly set the project path and reinitialize security managers
+        menu.set_project_path(project_path)
+        
+        # Show the main menu in a loop until user exits
         show_menu = True
         while show_menu:
-            result = wizard.show_pre_wizard_menu()
+            result = menu.show_main_menu()
             # If the result is False, it means the user chose to exit
             if result == False:
                 show_menu = False
     else:
-        # If no config, run the wizard
-        wizard.execute_wizard()
+        # If no config, run the setup wizard
+        wizard = SetupWizard(LOCALES_DIR)
+        
+        # Select language first
+        wizard.select_language()
+        
+        # Display welcome messages
+        wizard.display_welcome_message()
+        wizard.display_development_message()
+        
+        # Run the wizard
+        wizard.run()
+        
+        # After wizard completes, show the main menu
+        menu = MainMenu(LOCALES_DIR)
+        # Set the project path from the wizard's config
+        if "environment" in wizard.config_manager.config and "path" in wizard.config_manager.config["environment"]:
+            project_path = wizard.config_manager.config["environment"]["path"]
+            menu.set_project_path(project_path)
+        
+        # Show the main menu in a loop until user exits
+        show_menu = True
+        while show_menu:
+            result = menu.show_main_menu()
+            # If the result is False, it means the user chose to exit
+            if result == False:
+                show_menu = False
     
     return 0
 

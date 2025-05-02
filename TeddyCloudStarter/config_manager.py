@@ -56,6 +56,7 @@ class ConfigManager:
             },
             "app_settings": {
                 "log_level": "info",
+                "log_path": "",
                 "auto_update": True
             },
             "metadata": {
@@ -89,6 +90,7 @@ class ConfigManager:
         if "app_settings" not in self.config:
             self.config["app_settings"] = {
                 "log_level": "info",
+                "log_path": "",
                 "auto_update": True
             }
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -164,6 +166,7 @@ class ConfigManager:
         if "app_settings" not in self.config:
             self.config["app_settings"] = {
                 "log_level": "info",
+                "log_path": "",
                 "auto_update": False
             }
         elif "auto_update" not in self.config["app_settings"]:

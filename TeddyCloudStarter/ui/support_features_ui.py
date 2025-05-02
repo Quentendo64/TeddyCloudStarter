@@ -26,22 +26,27 @@ def show_support_features_menu(config_manager, docker_manager, translator):
         bool: True if user wants to return to main menu, False otherwise
     """
     choices = [
-        translator.get("Create support package"),
-        translator.get("Back to main menu")
+        {'id': 'create_package', 'text': translator.get("Create support package")},
+        {'id': 'back', 'text': translator.get("Back to main menu")}
     ]
-    
-    action = questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Support Features"),
-        choices=choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    selected_id = 'back'
+    for choice in choices:
+        if choice['text'] == selected_text:
+            selected_id = choice['id']
+            break
     
-    if action == translator.get("Create support package"):
+    if selected_id == 'create_package':
         project_path = config_manager.config.get("environment", {}).get("path") if config_manager else None
         create_support_package(docker_manager, config_manager, translator, project_path)
         return False
     
-    elif action == translator.get("Back to main menu"):
+    elif selected_id == 'back':
         return True
     
     return False
