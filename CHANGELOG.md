@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logger Module for dynamic logs
 ### Changed
 - Switch the UI Logic from String-based comparison to id comparison
+- Rename Logviewer
 ### Fixed
 - Lost in Translation
 

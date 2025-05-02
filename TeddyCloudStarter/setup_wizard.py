@@ -13,7 +13,6 @@ from .configuration.generator import generate_docker_compose, generate_nginx_con
 from .configuration.direct_mode import configure_direct_mode
 from .configuration.nginx_mode import configure_nginx_mode
 from .utilities.file_system import browse_directory
-from .utilities.logger import get_logger, console
 
 
 class SetupWizard(BaseWizard):
@@ -23,7 +22,6 @@ class SetupWizard(BaseWizard):
         """Initialize the setup wizard with locales directory."""
         super().__init__(locales_dir)
         self.locales_dir = locales_dir
-        self.logger = get_logger("SetupWizard", self.config_manager)
     
     def select_language(self):
         """Let the user select a language."""
@@ -63,7 +61,7 @@ class SetupWizard(BaseWizard):
 
     def run(self):
         """Run the main configuration wizard to set up TeddyCloud."""
-        self.logger.print_info(f"{self.translator.get('Starting TeddyCloud setup wizard')}...")
+        console.print(f"[bold cyan]{self.translator.get('Starting TeddyCloud setup wizard')}...[/]")
 
         # Step 1: Select project path if not already set
         if not self.config_manager.config.get("environment", {}).get("path"):
@@ -81,25 +79,25 @@ class SetupWizard(BaseWizard):
         # Save the configuration
         self.config_manager.save()
         
-        self.logger.print_success(self.translator.get('Configuration completed successfully!'))
+        console.print(f"[bold green]{self.translator.get('Configuration completed successfully!')}[/]")
         
         # Generate configuration files automatically
-        self.logger.print_info(self.translator.get('Generating configuration files')+'...')
+        console.print(f"[bold cyan]{self.translator.get('Generating configuration files')}...[/]")
         
         # Generate docker-compose.yml file
         if generate_docker_compose(self.config_manager.config, self.translator, self.templates):
-            self.logger.print_success(self.translator.get('Successfully generated docker-compose.yml'))
+            console.print(f"[green]{self.translator.get('Successfully generated docker-compose.yml')}[/]")
         else:
-            self.logger.print_error(self.translator.get('Failed to generate docker-compose.yml'))
+            console.print(f"[bold red]{self.translator.get('Failed to generate docker-compose.yml')}[/]")
         
         # Generate nginx configuration files if in nginx mode
         if self.config_manager.config["mode"] == "nginx":
             if generate_nginx_configs(self.config_manager.config, self.translator, self.templates):
-                self.logger.print_success(self.translator.get('Successfully generated nginx configuration files'))
+                console.print(f"[green]{self.translator.get('Successfully generated nginx configuration files')}[/]")
             else:
-                self.logger.print_error(self.translator.get('Failed to generate nginx configuration files'))
+                console.print(f"[bold red]{self.translator.get('Failed to generate nginx configuration files')}[/]")
         
-        self.logger.print_success(self.translator.get('Configuration files generated successfully!'))
+        console.print(f"[bold green]{self.translator.get('Configuration files generated successfully!')}[/]")
         
         # Ask if user wants to start services with the new configuration
         if questionary.confirm(
@@ -115,9 +113,8 @@ class SetupWizard(BaseWizard):
         
     def select_project_path(self):
         """Let the user select a project path."""
-        self.logger.print_info(self.translator.get('Please select a directory for your TeddyCloud project'))
-        self.logger.print_info(self.translator.get('This directory will be used to store all TeddyCloudStarter related data like certificates, and configuration files.'))
-        
+        console.print(f"[bold cyan]{self.translator.get('Please select a directory for your TeddyCloud project')}[/]")
+        console.print(f"[cyan]{self.translator.get('This directory will be used to store all TeddyCloudStarter related data like certificates, and configuration files.')}[/]")
         current_dir = Path(self.config_manager.config_path).parent
         selected_path = browse_directory(
             start_path=current_dir,
@@ -131,7 +128,7 @@ class SetupWizard(BaseWizard):
                 self.config_manager.config["environment"] = {}
             
             self.config_manager.config["environment"]["path"] = selected_path
-            self.logger.print_success(f"{self.translator.get('Project path set to')}: {selected_path}")
+            console.print(f"[green]{self.translator.get('Project path set to')}: {selected_path}[/]")
             
             # Save configuration
             self.config_manager.save()
@@ -141,7 +138,7 @@ class SetupWizard(BaseWizard):
                 self.config_manager.config["environment"] = {}
                 
             self.config_manager.config["environment"]["path"] = current_dir
-            self.logger.print_warning(f"{self.translator.get('No path selected. Using current directory')}: {current_dir}")
+            console.print(f"[yellow]{self.translator.get('No path selected. Using current directory')}: {current_dir}[/]")
             
             # Save configuration
             self.config_manager.save()
@@ -177,7 +174,7 @@ class SetupWizard(BaseWizard):
         else:
             self.config_manager.config = configure_nginx_mode(self.config_manager.config, self.translator, security_managers)
             
-        self.logger.print_success(f"{self.translator.get('Deployment mode set to')}: {self.config_manager.config['mode']}")
+        console.print(f"[green]{self.translator.get('Deployment mode set to')}: {self.config_manager.config['mode']}[/]")
         self.config_manager.save()
     
     def configure_direct_mode(self):

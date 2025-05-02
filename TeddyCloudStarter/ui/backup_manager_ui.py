@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 from ..wizard.ui_helpers import console, custom_style
 from ..utilities.file_system import get_project_path
-from ..utilities.log import capture_keypress
+from ..utilities.log_viewer import capture_keypress
 
 def show_backup_recovery_menu(config_manager, docker_manager, translator):
     """

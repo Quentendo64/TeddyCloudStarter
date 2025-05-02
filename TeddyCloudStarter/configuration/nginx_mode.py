@@ -78,9 +78,12 @@ def configure_nginx_mode(config, translator, security_managers):
         if not confirm_continue_anyway(translator):
             return config
     
-    domain = prompt_for_domain("", translator)
-    
-    nginx_config["domain"] = domain
+    # Only prompt for domain if it's not already set in the configuration
+    if not nginx_config["domain"]:
+        domain = prompt_for_domain("", translator)
+        nginx_config["domain"] = domain
+    else:
+        domain = nginx_config["domain"]
     
     while True:
         domain_resolvable = check_domain_resolvable(domain)

@@ -7,7 +7,7 @@ import questionary
 from rich.table import Table
 from rich import box
 from ..wizard.ui_helpers import console, custom_style
-from ..utilities.log import display_live_logs
+from ..utilities.log_viewer import display_live_logs
 
 def show_docker_management_menu(translator, docker_manager, config_manager=None):
     """
