@@ -33,11 +33,9 @@ def compile_translations():
         mo_file = lc_messages_dir / "teddycloudstarter.mo"
         
         try:
-            # Try to use msgfmt if available (part of gettext tools)
             subprocess.run(["msgfmt", str(po_file), "-o", str(mo_file)], check=True)
             print(f"âœ“ Compiled {po_file} to {mo_file}")
         except (subprocess.SubprocessError, FileNotFoundError):
-            # If msgfmt is not available, use polib
             try:
                 import polib
                 po = polib.pofile(str(po_file))

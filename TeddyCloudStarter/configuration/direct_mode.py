@@ -28,7 +28,6 @@ def configure_direct_mode(config, translator):
     Returns:
         dict: The updated configuration dictionary
     """
-    # Initialize ports dictionary if it doesn't exist
     if "ports" not in config:
         config["ports"] = {
             "admin_http": None,
@@ -38,19 +37,15 @@ def configure_direct_mode(config, translator):
         
     ports = config["ports"]
     
-    # Configure HTTP port
     _configure_http_port(ports, translator)
     
-    # Configure HTTPS port
     _configure_https_port(ports, translator)
     
-    # Configure TeddyCloud backend port
     _configure_teddycloud_port(ports, translator)
     
-    # Warn about admin interface accessibility
     if not ports["admin_http"] and not ports["admin_https"]:
         if not confirm_no_admin_interface(translator):
-            return configure_direct_mode(config, translator)  # Start over
+            return configure_direct_mode(config, translator)
             
     return config
 
@@ -148,7 +143,6 @@ def modify_http_port(config, translator):
         default_port = str(current_port) if current_port else "80"
         http_port = prompt_for_http_port(default_port, translator)
         
-        # If the port changed, check if it's available
         new_port = int(http_port)
         if new_port != current_port and not check_port_available(new_port):
             if not confirm_port_usage_anyway(new_port, translator):
@@ -181,7 +175,6 @@ def modify_https_port(config, translator):
         default_port = str(current_port) if current_port else "8443"
         https_port = prompt_for_https_port(default_port, translator)
         
-        # If the port changed, check if it's available
         new_port = int(https_port)
         if new_port != current_port and not check_port_available(new_port):
             if not confirm_port_usage_anyway(new_port, translator):
@@ -193,10 +186,9 @@ def modify_https_port(config, translator):
         ports["admin_https"] = None
         console.print(f"[bold green]{translator.get('HTTPS interface disabled')}[/]")
     
-    # Warn about admin interface accessibility
     if not ports["admin_http"] and not ports["admin_https"]:
         if not confirm_no_admin_interface(translator):
-            return modify_https_port(config, translator)  # Try again
+            return modify_https_port(config, translator)
     
     return config
 
@@ -216,7 +208,6 @@ def modify_teddycloud_port(config, translator):
     default_port = str(current_port) if current_port else "443"
     tc_port = prompt_for_teddycloud_port(default_port, translator)
     
-    # If the port changed, check if it's available
     new_port = int(tc_port)
     if new_port != current_port and not check_port_available(new_port):
         if not confirm_port_usage_anyway(new_port, translator):

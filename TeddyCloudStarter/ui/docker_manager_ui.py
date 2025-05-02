@@ -21,33 +21,26 @@ def show_docker_management_menu(translator, docker_manager, config_manager=None)
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Get project path from config if available
     project_path = None
     if config_manager and config_manager.config:
         project_path = config_manager.config.get("environment", {}).get("path")
     
-    # Initialize service lists as empty by default
     running_services = []
     stopped_services = []
     
-    # Get current status of services
     services = docker_manager.get_services_status(project_path=project_path)
     
-    # Display service status if services exist
     if services:
         display_services_status(services, translator)
         
-        # Determine which services are running and stopped
         running_services = [svc for svc, info in services.items() if info["state"] == "Running"]
         stopped_services = [svc for svc, info in services.items() if info["state"] == "Stopped"]
         
-        # Determine menu options based on service status
         choices = create_menu_choices(running_services, stopped_services, services, translator)
     else:
         console.print(f"[yellow]{translator.get('No Docker services found or Docker is not available')}.[/]")
         choices = []
         
-    # Always include Refresh status and Back options
     choices.append(translator.get("Refresh status"))
     choices.append(translator.get("Back to main menu"))
     
@@ -57,7 +50,6 @@ def show_docker_management_menu(translator, docker_manager, config_manager=None)
         style=custom_style
     ).ask()
     
-    # Handle menu option selection
     return handle_docker_action(action, translator, docker_manager, running_services, stopped_services, project_path)
 
 def display_services_status(services, translator):
@@ -96,38 +88,29 @@ def create_menu_choices(running_services, stopped_services, services, translator
     """
     choices = []
     
-    # Only show start all services if there are stopped services
     if stopped_services:
         if len(stopped_services) == len(services):
             choices.append(translator.get("Start all services"))
         else:
             choices.append(translator.get("Start stopped services"))
     
-    # Only show restart all services if all services are running
     if len(running_services) == len(services) and running_services:
         choices.append(translator.get("Restart all services"))
     
-    # Show stop options if any services are running
     if running_services:
-        # Only show stop all services if all services are running
         if len(running_services) == len(services):
             choices.append(translator.get("Stop all services"))
-        # Show stop all running services if not all services are running
         else:
             choices.append(translator.get("Stop all running services"))
         
-        # Always show the stop specific service option when services are running
         choices.append(translator.get("Stop specific service"))
         
-    # Show start specific service if any services are stopped
     if stopped_services:
         choices.append(translator.get("Start specific service"))
         
-    # Show restart specific service if at least one service is running
     if running_services:
         choices.append(translator.get("Restart specific service"))
 
-    # Log options - show only if at least one service is running
     if running_services:
         choices.append(translator.get("Live logs from all services"))
         choices.append(translator.get("Live logs from specific service"))
@@ -149,27 +132,26 @@ def handle_docker_action(action, translator, docker_manager, running_services=No
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Ensure we have lists, even if None was passed
     running_services = running_services or []
     stopped_services = stopped_services or []
     
     if action == translator.get("Start all services") or action == translator.get("Start stopped services"):
         docker_manager.start_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to start the services
-        return False  # Show the menu again with refreshed status
+        time.sleep(2)
+        return False
         
     elif action == translator.get("Restart all services"):
         docker_manager.restart_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to restart the services
-        return False  # Show the menu again with refreshed status
+        time.sleep(2)
+        return False
     
     elif action == translator.get("Stop all services") or action == translator.get("Stop all running services"):
         docker_manager.stop_services(project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to stop the services
-        return False  # Show the menu again with refreshed status
+        time.sleep(2)
+        return False
         
     elif action == translator.get("Start specific service"):
         return handle_start_specific_service(translator, docker_manager, stopped_services, project_path)
@@ -182,20 +164,19 @@ def handle_docker_action(action, translator, docker_manager, running_services=No
 
     elif action == translator.get("Live logs from all services"):
         display_live_logs(docker_manager, project_path=project_path)
-        return False  # Show the menu again
+        return False
         
     elif action == translator.get("Live logs from specific service"):
         return handle_live_logs_specific_service(translator, docker_manager, running_services, project_path)
         
     elif action == translator.get("Refresh status"):
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        return False  # Show the menu again with refreshed status
+        return False
     
     elif action == translator.get("Back to main menu"):
         console.print(f"[bold cyan]{translator.get('Returning to main menu')}...[/]")
-        return True  # Return to main menu
+        return True
     
-    # Default case if none of the above match
     return False
 
 def handle_start_specific_service(translator, docker_manager, stopped_services=None, project_path=None):
@@ -211,12 +192,11 @@ def handle_start_specific_service(translator, docker_manager, stopped_services=N
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Ensure we have a list, even if None was passed
     stopped_services = stopped_services or []
     
     if not stopped_services:
         console.print(f"[bold yellow]{translator.get('No stopped services available to start')}.[/]")
-        return False  # Show the menu again
+        return False
     
     service_choices = stopped_services + [translator.get("Back")]
     
@@ -229,9 +209,9 @@ def handle_start_specific_service(translator, docker_manager, stopped_services=N
     if selected_service and selected_service != translator.get("Back"):
         docker_manager.start_service(selected_service, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to start the service
+        time.sleep(2)
     
-    return False  # Show the menu again
+    return False
 
 def handle_restart_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
@@ -246,12 +226,11 @@ def handle_restart_specific_service(translator, docker_manager, running_services
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Ensure we have a list, even if None was passed
     running_services = running_services or []
     
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to restart')}.[/]")
-        return False  # Show the menu again
+        return False
     
     service_choices = running_services + [translator.get("Back")]
     
@@ -264,9 +243,9 @@ def handle_restart_specific_service(translator, docker_manager, running_services
     if selected_service and selected_service != translator.get("Back"):
         docker_manager.restart_service(selected_service, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to restart the service
+        time.sleep(2)
     
-    return False  # Show the menu again
+    return False
 
 def handle_stop_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
@@ -281,12 +260,11 @@ def handle_stop_specific_service(translator, docker_manager, running_services=No
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Ensure we have a list, even if None was passed
     running_services = running_services or []
     
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to stop')}.[/]")
-        return False  # Show the menu again
+        return False
     
     service_choices = running_services + [translator.get("Back")]
     
@@ -299,9 +277,9 @@ def handle_stop_specific_service(translator, docker_manager, running_services=No
     if selected_service and selected_service != translator.get("Back"):
         docker_manager.stop_service(selected_service, project_path=project_path)
         console.print(f"[bold cyan]{translator.get('Refreshing service status')}...[/]")
-        time.sleep(2)  # Wait a moment for Docker to stop the service
+        time.sleep(2)
     
-    return False  # Show the menu again
+    return False
 
 def handle_live_logs_specific_service(translator, docker_manager, running_services=None, project_path=None):
     """
@@ -316,12 +294,11 @@ def handle_live_logs_specific_service(translator, docker_manager, running_servic
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    # Ensure we have a list, even if None was passed
     running_services = running_services or []
     
     if not running_services:
         console.print(f"[bold yellow]{translator.get('No running services available to view logs')}.[/]")
-        return False  # Show the menu again
+        return False
     
     service_choices = running_services + [translator.get("Back")]
     
@@ -334,4 +311,4 @@ def handle_live_logs_specific_service(translator, docker_manager, running_servic
     if selected_service and selected_service != translator.get("Back"):
         display_live_logs(docker_manager, selected_service, project_path=project_path)
     
-    return False  # Show the menu again
+    return False

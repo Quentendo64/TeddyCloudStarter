@@ -14,7 +14,6 @@ import getpass
 from rich.console import Console
 from rich.table import Table
 
-# Re-export console to ensure compatibility
 console = Console()
 
 class BasicAuthManager:
@@ -41,7 +40,7 @@ class BasicAuthManager:
             ('highlighted', 'fg:cyan bold'),
             ('selected', 'fg:cyan bold'),
             ('separator', 'fg:cyan'),
-            ('instruction', 'fg:gray'),  # Changed from 'brightblack' to 'gray'
+            ('instruction', 'fg:gray'),
             ('text', ''),
             ('disabled', 'fg:gray'),
         ])
@@ -68,14 +67,12 @@ class BasicAuthManager:
         Returns:
             bool: True if internet connectivity is detected, False otherwise
         """
-        # Method 1: Try DNS resolution first (doesn't require admin privileges)
         try:
             socket.gethostbyname("registry-1.docker.io")
             return True
         except Exception:
             pass
         
-        # Method 2: Try a lightweight HTTP request if available
         try:
             import urllib.request
             urllib.request.urlopen("https://registry-1.docker.io/", timeout=2)
@@ -83,7 +80,6 @@ class BasicAuthManager:
         except Exception:
             pass
 
-        # Method 3: Try with Python's socket directly
         try:
             socket_obj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             socket_obj.settimeout(2)
@@ -93,9 +89,7 @@ class BasicAuthManager:
         except Exception:
             pass
             
-        # Method 4: Fall back to checking if Docker command works with a simple image
         try:
-            # Try to see if a Docker registry communication works
             result = subprocess.run(
                 ["docker", "search", "--limit=1", "alpine"],
                 capture_output=True, text=True, timeout=5
@@ -104,20 +98,16 @@ class BasicAuthManager:
         except Exception:
             pass
         
-        # Method 5: Only use ping as a last resort
         try:
-            # Try to connect to a reliable DNS first
             subprocess.run(["ping", "1.1.1.1", "-n", "1" if os.name == 'nt' else "-c", "1"], 
                            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
             return True
         except Exception:
             try:
-                # Try an alternate reliable host
                 subprocess.run(["ping", "8.8.8.8", "-n", "1" if os.name == 'nt' else "-c", "1"], 
                                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
                 return True
             except Exception:
-                # All methods failed
                 return False
     
     def generate_htpasswd_file(self, htpasswd_file_path: str) -> bool:
@@ -131,13 +121,11 @@ class BasicAuthManager:
             bool: True if successful, False otherwise
         """
         try:
-            # Create a table for collecting user credentials
             table = Table(title=self._translate("User Authentication Setup"))
             table.add_column(self._translate("Username"), justify="left", style="cyan")
             table.add_column(self._translate("Password"), justify="left", style="green", no_wrap=True)
             table.add_column(self._translate("Status"), justify="right", style="bold")
             
-            # Collect user credentials
             users = []
             
             console.print(f"[bold cyan]{self._translate('Enter user credentials for basic authentication')}[/]")
@@ -155,27 +143,24 @@ class BasicAuthManager:
                         continue
                     break
                 
-                # Check for duplicate usernames
                 if any(u['username'] == username for u in users):
                     console.print(f"[bold red]{self._translate('Username already exists. Please choose another one.')}[/]")
                     continue
                     
-                # Use getpass for hidden password input
                 console.print(f"[bold cyan]{self._translate('Enter password for user')} {username}:[/]")
                 password = getpass.getpass("")
                 
                 if not password:
                     console.print(f"[bold red]{self._translate('Password cannot be empty')}[/]")
                     continue
-                    
+                
                 console.print(f"[bold cyan]{self._translate('Confirm password for user')} {username}:[/]")
                 confirm_password = getpass.getpass("")
                 
                 if password != confirm_password:
                     console.print(f"[bold red]{self._translate('Passwords do not match')}[/]")
                     continue
-                    
-                # Add user to the list
+                
                 users.append({
                     'username': username,
                     'password': password
@@ -187,7 +172,6 @@ class BasicAuthManager:
                     f"[bold green]{self._translate('Added')}[/]"
                 )
             
-            # Display the table with all users
             if users:
                 console.print("\n")
                 console.print(table)
@@ -196,13 +180,11 @@ class BasicAuthManager:
                 console.print(f"[bold yellow]{self._translate('No users added. You\'ll need to create the .htpasswd file manually.')}[/]")
                 return False
             
-            # Attempt to generate the htpasswd file with retry functionality
             return self._attempt_htpasswd_generation(users, htpasswd_file_path)
                 
         except Exception as e:
             console.print(f"[bold red]{self._translate('Error generating .htpasswd file')}: {str(e)}[/]")
             
-            # Print detailed exception information for debugging
             import traceback
             console.print(f"[dim]{traceback.format_exc()}[/]")
             return False
@@ -220,7 +202,6 @@ class BasicAuthManager:
         """
         while True:
             try:
-                # Check if Docker is available
                 try:
                     subprocess.run(["docker", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 except (subprocess.SubprocessError, FileNotFoundError):
@@ -228,7 +209,6 @@ class BasicAuthManager:
                     console.print(f"[yellow]{self._translate('You\'ll need to create the .htpasswd file manually.')}[/]")
                     return False
 
-                # Check internet connection
                 if not self.check_internet_connection():
                     console.print(f"[bold red]{self._translate('Error: No internet connection detected. Docker may not be able to pull the httpd image.')}[/]")
                     retry = questionary.confirm(
@@ -255,7 +235,6 @@ class BasicAuthManager:
                     console.print(f"[bold red]{self._translate('Error pulling Docker image')}:[/]")
                     console.print(f"[red]{pull_result.stderr}[/]")
                     
-                    # Check if it's a network error
                     if "network" in pull_result.stderr.lower() or "connection" in pull_result.stderr.lower() or "dial" in pull_result.stderr.lower() or "lookup" in pull_result.stderr.lower():
                         console.print(f"[bold yellow]{self._translate('Network error detected. Please check your internet connection.')}[/]")
                         
@@ -272,18 +251,14 @@ class BasicAuthManager:
                             console.print(f"[yellow]{self._translate('Skipping .htpasswd generation. You will need to create it manually.')}[/]")
                             return False
                     else:
-                        # For other Docker errors
                         console.print(f"[bold red]{self._translate('Docker error. Cannot generate .htpasswd file.')}[/]")
                         return False
 
-                # Create .htpasswd file using Docker
                 console.print(f"[bold cyan]{self._translate('Generating .htpasswd file...')}[/]")
                 
-                # Create the parent directory if it doesn't exist
                 security_path = os.path.dirname(htpasswd_file_path)
                 Path(security_path).mkdir(parents=True, exist_ok=True)
                 
-                # Windows specific: Fix the path format for Docker
                 if os.name == 'nt':
                     docker_security_path = security_path.replace('\\', '/')
                     if ':' in docker_security_path:
@@ -293,11 +268,9 @@ class BasicAuthManager:
                 
                 console.print(f"[dim]{self._translate('Using Docker volume path')}: {docker_security_path}[/]")
                 
-                # Define temp filename for Docker to create
                 temp_filename = "temp_htpasswd.txt"
                 temp_htpasswd = os.path.join(security_path, temp_filename)
                 
-                # Generate the initial file
                 first_user = users[0]
                 cmd = [
                     "docker", "run", "--rm", 
@@ -306,7 +279,6 @@ class BasicAuthManager:
                     f"htpasswd -cb /htpasswd/{temp_filename} {first_user['username']} {first_user['password']}"
                 ]
                 
-                # On Windows, use special Docker path format
                 if os.name == 'nt':
                     cmd = [
                         "docker", "run", "--rm", 
@@ -326,9 +298,7 @@ class BasicAuthManager:
                     console.print(f"[red]{result.stderr}[/]")
                     raise Exception(f"Failed to create .htpasswd: {result.stderr}")
                 
-                # Add additional users
                 for user in users[1:]:
-                    # On Windows, use special Docker path format
                     cmd = [
                         "docker", "run", "--rm", 
                         "-v", f"{security_path}:/htpasswd",
@@ -353,21 +323,16 @@ class BasicAuthManager:
                     if result.returncode != 0:
                         raise Exception(f"Failed to add user {user['username']}: {result.stderr}")
                 
-                # Ensure directory exists for the target file
                 Path(os.path.dirname(htpasswd_file_path)).mkdir(parents=True, exist_ok=True)
                 
                 try:
-                    # Move the temp file to the final location
                     if os.path.exists(temp_htpasswd):
-                        # Check if the destination exists and remove it if needed
                         if os.path.exists(htpasswd_file_path):
                             os.remove(htpasswd_file_path)
                             
-                        # Copy instead of move to handle cross-device scenarios
                         import shutil
                         shutil.copy2(temp_htpasswd, htpasswd_file_path)
                         
-                        # Only remove temp file after successful copy
                         if os.path.exists(htpasswd_file_path) and os.path.getsize(htpasswd_file_path) > 0:
                             try:
                                 os.remove(temp_htpasswd)
@@ -378,10 +343,8 @@ class BasicAuthManager:
                 except Exception as e:
                     console.print(f"[bold red]{self._translate('Error moving .htpasswd file')}: {str(e)}[/]")
                     
-                    # Try direct Docker write approach as fallback
                     console.print(f"[cyan]{self._translate('Attempting alternative .htpasswd generation...')}[/]")
                     try:
-                        # Write directly to final location
                         first_user = users[0]
                         cmd = [
                             "docker", "run", "--rm", 
@@ -399,7 +362,6 @@ class BasicAuthManager:
                         if result.returncode != 0:
                             raise Exception(f"Failed in fallback method: {result.stderr}")
                         
-                        # Add additional users directly
                         for user in users[1:]:
                             cmd = [
                                 "docker", "run", "--rm", 
@@ -420,7 +382,6 @@ class BasicAuthManager:
                         console.print(f"[bold red]{self._translate('Alternative method also failed')}: {str(e)}[/]")
                         raise
                 
-                # Verify the file was created and has content
                 if os.path.exists(htpasswd_file_path) and os.path.getsize(htpasswd_file_path) > 0:
                     console.print(f"[bold green]{self._translate('.htpasswd file generated successfully!')}[/]")
                     console.print(f"[green]{self._translate('.htpasswd file location')}: {htpasswd_file_path}[/]")
@@ -435,17 +396,13 @@ class BasicAuthManager:
                     
                     if not retry:
                         return False
-                    
-                    # If retry, loop will continue
                 
             except Exception as e:
                 console.print(f"[bold red]{self._translate('Error generating .htpasswd file')}: {str(e)}[/]")
                 
-                # Print detailed exception information for debugging
                 import traceback
                 console.print(f"[dim]{traceback.format_exc()}[/]")
                 
-                # Ask to retry
                 retry = questionary.confirm(
                     self._translate("Would you like to retry .htpasswd generation?"),
                     default=True,
@@ -465,22 +422,18 @@ class BasicAuthManager:
         Returns:
             bool: True if the file exists and has valid content, False otherwise
         """
-        # Check if file exists
         if not os.path.exists(htpasswd_file_path):
             console.print(f"[bold red]{self._translate('.htpasswd file not found at')} {htpasswd_file_path}[/]")
             return False
         
-        # Check if file has content
         if os.path.getsize(htpasswd_file_path) == 0:
             console.print(f"[bold red]{self._translate('.htpasswd file is empty at')} {htpasswd_file_path}[/]")
             return False
         
-        # Try to validate file format with Docker
         try:
             security_path = os.path.dirname(htpasswd_file_path)
             htpasswd_filename = os.path.basename(htpasswd_file_path)
             
-            # Windows specific: Fix the path format for Docker
             if os.name == 'nt':
                 docker_security_path = security_path.replace('\\', '/')
                 if ':' in docker_security_path:
@@ -488,7 +441,6 @@ class BasicAuthManager:
             else:
                 docker_security_path = security_path
             
-            # Validate file format using Docker httpd
             cmd = [
                 "docker", "run", "--rm", 
                 "-v", f"{docker_security_path}:/htpasswd",
@@ -499,25 +451,21 @@ class BasicAuthManager:
             
             if result.returncode != 0:
                 console.print(f"[bold yellow]{self._translate('Warning: Could not validate .htpasswd format')}[/]")
-                return True  # Assume it's valid if we can't check
+                return True
             
-            # Check if the output has at least one line with expected format
             lines = result.stdout.strip().split("\n")
             if not lines:
                 console.print(f"[bold red]{self._translate('.htpasswd file appears to be empty or invalid')}[/]")
                 return False
                 
-            # Check if lines have the user:hash format
             for line in lines:
                 if ":" not in line:
                     console.print(f"[bold red]{self._translate('.htpasswd file appears to have invalid format')}[/]")
                     return False
             
-            # File exists, has content, and appears to have valid format
             console.print(f"[bold green]{self._translate('.htpasswd file validated successfully')}[/]")
             return True
             
         except Exception as e:
-            # If we can't run Docker, just check if the file exists and has content
             console.print(f"[bold yellow]{self._translate('Warning: Could not fully validate .htpasswd file')}: {str(e)}[/]")
-            return True  # Assume it's valid if we can't check
+            return True

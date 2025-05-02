@@ -27,11 +27,8 @@ class Translator:
                 if lang_dir.is_dir() and (lang_dir / "LC_MESSAGES" / "teddycloudstarter.mo").exists():
                     self.available_languages.append(lang_dir.name)
         
-        # Try to get system language using modern methods
         try:
-            # Set locale to user's default
             locale.setlocale(locale.LC_ALL, '')
-            # Get the language code from current locale settings
             system_lang = locale.getlocale(locale.LC_MESSAGES)[0]
             if system_lang:
                 lang_code = system_lang.split('_')[0]
@@ -65,7 +62,6 @@ class Translator:
             str: The translated string or the default/key if not found
         """
         try:
-            # Create a new translation object each time to ensure we get fresh translations
             translation = gettext.translation('teddycloudstarter', 
                                              localedir=str(self.locales_dir), 
                                              languages=[self.current_language],

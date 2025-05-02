@@ -57,19 +57,29 @@ def prompt_for_https_mode(choices, default_choice, translator):
     Prompt user to select an HTTPS mode.
     
     Args:
-        choices: List of available HTTPS mode choices
-        default_choice: Default choice to select
+        choices: List of dictionaries with 'id' and 'text' keys
+        default_choice: Default choice ID to select
         translator: The translator instance for localization
         
     Returns:
-        str: The selected HTTPS mode option text
+        str: The selected HTTPS mode identifier (not the translated text)
     """
-    return questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    
+    default_text = next((choice['text'] for choice in choices if choice['id'] == default_choice), choice_texts[0])
+    
+    selected_text = questionary.select(
         translator.get("How would you like to handle HTTPS?"),
-        choices=choices,
-        default=default_choice,
+        choices=choice_texts,
+        default=default_text,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+            
+    return choices[0]['id']
 
 
 def display_letsencrypt_requirements(translator):
@@ -149,17 +159,26 @@ def prompt_security_type(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected security type option text
+        str: The selected security type identifier ('none', 'basic_auth', or 'client_cert')
     """
-    return questionary.select(
+    choices = [
+        {'id': 'none', 'text': translator.get("No additional security")},
+        {'id': 'basic_auth', 'text': translator.get("Basic Authentication (.htpasswd)")},
+        {'id': 'client_cert', 'text': translator.get("Client Certificates")},
+    ]
+    
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("How would you like to secure your TeddyCloud instance?"),
-        choices=[
-            translator.get("No additional security"),
-            translator.get("Basic Authentication (.htpasswd)"),
-            translator.get("Client Certificates"),
-        ],
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'none'
 
 
 def prompt_htpasswd_option(translator):
@@ -170,16 +189,25 @@ def prompt_htpasswd_option(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected option text
+        str: The selected option identifier ('generate' or 'provide')
     """
-    return questionary.select(
+    choices = [
+        {'id': 'generate', 'text': translator.get("Generate .htpasswd file with the wizard")},
+        {'id': 'provide', 'text': translator.get("I'll provide my own .htpasswd file")}
+    ]
+    
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("How would you like to handle the .htpasswd file?"),
-        choices=[
-            translator.get("Generate .htpasswd file with the wizard"),
-            translator.get("I'll provide my own .htpasswd file")
-        ],
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'generate'
 
 
 def prompt_client_cert_source(translator):
@@ -190,16 +218,25 @@ def prompt_client_cert_source(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected option text
+        str: The selected option identifier ('generate' or 'provide')
     """
-    return questionary.select(
+    choices = [
+        {'id': 'generate', 'text': translator.get("Generate certificates for me")},
+        {'id': 'provide', 'text': translator.get("I'll provide my own certificates")}
+    ]
+    
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("How would you like to handle client certificates?"),
-        choices=[
-            translator.get("I'll provide my own certificates"),
-            translator.get("Generate certificates for me")
-        ],
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'generate'
 
 
 def prompt_client_cert_name(translator):
@@ -322,37 +359,34 @@ def select_https_mode_for_modification(current_mode, translator):
     Prompt user to select HTTPS mode when modifying configuration.
     
     Args:
-        current_mode: Current HTTPS mode
+        current_mode: Current HTTPS mode identifier
         translator: The translator instance for localization
         
     Returns:
-        tuple: (selected option text, selected mode value)
+        str: The selected HTTPS mode identifier ('letsencrypt', 'self_signed', or 'user_provided')
     """
-    # Define the choices
     choices = [
-        translator.get("Let's Encrypt (automatic certificates)"),
-        translator.get("Create self-signed certificates"),
-        translator.get("Custom certificates (provide your own)")
+        {'id': 'letsencrypt', 'text': translator.get("Let's Encrypt (automatic certificates)")},
+        {'id': 'self_signed', 'text': translator.get("Create self-signed certificates")},
+        {'id': 'user_provided', 'text': translator.get("Custom certificates (provide your own)")}
     ]
     
-    # Determine the default choice based on current mode
-    default_choice = choices[0] if current_mode == "letsencrypt" else choices[1] if current_mode == "self_signed" else choices[2]
+    default_id = current_mode
+    default_text = next((choice['text'] for choice in choices if choice['id'] == default_id), choices[0]['text'])
     
-    https_mode = questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("How would you like to handle HTTPS?"),
-        choices=choices,
-        default=default_choice,
+        choices=choice_texts,
+        default=default_text,
         style=custom_style
     ).ask()
     
-    # Determine the new mode value based on selection
-    new_mode = "letsencrypt"
-    if https_mode.startswith(translator.get("Create self-signed")):
-        new_mode = "self_signed"
-    elif https_mode.startswith(translator.get("Custom")):
-        new_mode = "user_provided"
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
     
-    return https_mode, new_mode
+    return 'letsencrypt'
 
 
 def select_security_type_for_modification(current_security_type, translator):
@@ -360,41 +394,34 @@ def select_security_type_for_modification(current_security_type, translator):
     Prompt user to select security type when modifying configuration.
     
     Args:
-        current_security_type: Current security type
+        current_security_type: Current security type identifier
         translator: The translator instance for localization
         
     Returns:
-        tuple: (selected option text, new security type value)
+        str: The selected security type identifier ('none', 'basic_auth', or 'client_cert')
     """
-    # Set up security options
-    security_options = [
-        translator.get("No additional security"),
-        translator.get("Basic Authentication (.htpasswd)"),
-        translator.get("Client Certificates"),
+    choices = [
+        {'id': 'none', 'text': translator.get("No additional security")},
+        {'id': 'basic_auth', 'text': translator.get("Basic Authentication (.htpasswd)")},
+        {'id': 'client_cert', 'text': translator.get("Client Certificates")},
     ]
     
-    # Determine default selection based on current setting
-    default_idx = 0
-    if current_security_type == "basic_auth":
-        default_idx = 1
-    elif current_security_type == "client_cert":
-        default_idx = 2
+    default_id = current_security_type
+    default_text = next((choice['text'] for choice in choices if choice['id'] == default_id), choices[0]['text'])
     
-    security_type = questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("How would you like to secure your TeddyCloud instance?"),
-        choices=security_options,
-        default=security_options[default_idx],
+        choices=choice_texts,
+        default=default_text,
         style=custom_style
     ).ask()
     
-    # Determine new security type value based on selection
-    new_security_type = "none"
-    if security_type.startswith(translator.get("Basic")):
-        new_security_type = "basic_auth"
-    elif security_type.startswith(translator.get("Client")):
-        new_security_type = "client_cert"
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
     
-    return security_type, new_security_type
+    return 'none'
 
 
 def prompt_for_fallback_option(translator):
@@ -405,13 +432,22 @@ def prompt_for_fallback_option(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected option text
+        str: The selected option identifier ('try_again' or 'switch_to_custom')
     """
-    return questionary.select(
+    choices = [
+        {'id': 'try_again', 'text': translator.get("Try generating the self-signed certificate again")},
+        {'id': 'switch_to_custom', 'text': translator.get("Switch to custom certificate mode (provide your own certificates)")}
+    ]
+    
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("What would you like to do?"),
-        choices=[
-            translator.get("Try generating the self-signed certificate again"),
-            translator.get("Switch to custom certificate mode (provide your own certificates)"),
-        ],
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'try_again'

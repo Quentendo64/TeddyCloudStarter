@@ -19,15 +19,12 @@ def reset_config_file(config_manager, translator):
         bool: True if successful, False otherwise
     """
     try:
-        # Get the config file path
         config_file_path = config_manager.config_path
         
-        # Remove the file if it exists
         if os.path.exists(config_file_path):
             os.remove(config_file_path)
             console.print(f"[green]{translator.get('Removed configuration file')}: {config_file_path}[/]")
         
-        # Reset the configuration in memory
         config_manager.reset_config()
         return True
     except Exception as e:
@@ -47,7 +44,6 @@ def reset_project_path_data(config_manager, translator, folders=None):
         bool: True if successful, False otherwise
     """
     try:
-        # Get current project path
         project_path = config_manager.config.get("project_path")
         
         if not project_path:
@@ -57,24 +53,20 @@ def reset_project_path_data(config_manager, translator, folders=None):
         if not os.path.exists(project_path):
             console.print(f"[yellow]{translator.get('Project path does not exist')}: {project_path}")
             
-            # Clear project path in configuration if we're resetting the path itself
             if folders is None:
                 if "project_path" in config_manager.config:
                     config_manager.config["project_path"] = ""
                     config_manager.save()
             return True
         
-        # If no specific folders were requested, reset the entire project path
         if folders is None:
             console.print(f"[green]{translator.get('Project path data reset')}")
             
-            # Clear project path in configuration
             if "project_path" in config_manager.config:
                 config_manager.config["project_path"] = ""
                 config_manager.save()
             return True
         
-        # Process each requested folder
         for folder in folders:
             folder_path = os.path.join(project_path, folder)
             if os.path.exists(folder_path):
@@ -104,20 +96,17 @@ def get_docker_volumes(translator, filter_prefix="teddycloudstarter_"):
         dict: Dictionary mapping volume names to their labels
     """
     try:
-        # Get list of Docker volumes with formatted output
         result = subprocess.run(
             ["docker", "volume", "ls", "--filter", f"name={filter_prefix}", "--format", "{{.Name}}"],
             capture_output=True, text=True, check=True
         )
         volumes = result.stdout.strip().split('\n')
-        volumes = [v for v in volumes if v]  # Remove empty entries
+        volumes = [v for v in volumes if v]
         
         volume_info = {}
         
-        # Get detailed info for each volume
         for volume in volumes:
             try:
-                # Get labels for the volume
                 inspect_result = subprocess.run(
                     ["docker", "volume", "inspect", volume],
                     capture_output=True, text=True, check=True
@@ -151,12 +140,10 @@ def reset_docker_volumes(translator, volumes=None):
         console.print(f"[bold yellow]{translator.get('Removing Docker volumes')}...[/]")
         
         if volumes is None:
-            # Get all teddycloudstarter volumes
             volume_info = get_docker_volumes(translator)
             volumes = list(volume_info.keys())
         
         if volumes:
-            # Remove each specified volume
             for volume in volumes:
                 try:
                     subprocess.run(["docker", "volume", "rm", volume], check=True)
@@ -189,37 +176,29 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
     """
     success = True
     
-    # Stop docker services if we're going to reset volumes or docker-compose.yml
     if reset_options.get('docker_volumes') or reset_options.get('docker_all_volumes') or reset_options.get('project_folders'):
-        # Get project path from config
         project_path = get_project_path(config_manager, translator)
         
-        # Use DockerManager to properly shut down all services
         if project_path:
             wizard.docker_manager.down_services(project_path)
     
-    # Process config file reset
     if reset_options.get('config_file'):
         if not reset_config_file(config_manager, translator):
             success = False
     
-    # Process project path folders reset
     project_folders = reset_options.get('project_folders', [])
     if project_folders:
         if not reset_project_path_data(config_manager, translator, project_folders):
             success = False
     elif reset_options.get('project_path'):
-        # Reset the entire project path if selected
         if not reset_project_path_data(config_manager, translator):
             success = False
     
-    # Process Docker volumes reset
     docker_volumes = reset_options.get('docker_volumes', [])
     if docker_volumes:
         if not reset_docker_volumes(translator, docker_volumes):
             success = False
     elif reset_options.get('docker_all_volumes'):
-        # Reset all Docker volumes if selected
         if not reset_docker_volumes(translator):
             success = False
     
@@ -228,7 +207,6 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
     else:
         console.print(f"[bold yellow]{translator.get('Reset completed with some errors')}[/]")
     
-    # Reload configuration if needed
     if reset_options.get('config_file') or reset_options.get('project_path'):
         console.print(f"[yellow]{translator.get('Reloading configuration')}...[/]")
         wizard.reload_configuration()

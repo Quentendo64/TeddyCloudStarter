@@ -39,12 +39,12 @@ def show_support_features_menu(config_manager, docker_manager, translator):
     if action == translator.get("Create support package"):
         project_path = config_manager.config.get("environment", {}).get("path") if config_manager else None
         create_support_package(docker_manager, config_manager, translator, project_path)
-        return False  # Stay in support menu
+        return False
     
     elif action == translator.get("Back to main menu"):
-        return True  # Return to main menu
+        return True
     
-    return False  # Default case: stay in menu
+    return False
 
 def create_support_package(docker_manager, config_manager, translator, project_path=None):
     """
@@ -58,7 +58,6 @@ def create_support_package(docker_manager, config_manager, translator, project_p
     """
     console.print(f"[bold cyan]{translator.get('Creating support package')}...[/]")
     
-    # Show information about what's included in the package
     console.print(Panel(
         f"[bold]{translator.get('Support Package Contents')}:[/]\n\n"
         f"[cyan]• {translator.get('Log files')}[/]: Docker container logs (nginx-edge, nginx-auth, teddycloud-app)\n"
@@ -70,7 +69,6 @@ def create_support_package(docker_manager, config_manager, translator, project_p
         expand=False
     ))
     
-    # Ask user if they want to anonymize sensitive information
     anonymize = questionary.confirm(
         translator.get("Would you like to anonymize sensitive information in logs and configuration files?"),
         default=True,
@@ -79,7 +77,6 @@ def create_support_package(docker_manager, config_manager, translator, project_p
     
     if anonymize:
         console.print(f"[cyan]{translator.get('Anonymization enabled. Sensitive information will be concealed.')}[/]")
-        # Show details about what gets anonymized
         console.print(Panel(
             f"[bold]{translator.get('Anonymization Details')}:[/]\n\n"
             f"[green]• {translator.get('In logs')}:[/] IP addresses, email addresses, domains, MAC addresses, UUIDs, serial numbers\n"
@@ -89,7 +86,6 @@ def create_support_package(docker_manager, config_manager, translator, project_p
             expand=False
         ))
         
-        # Show disclaimer in a separate red styled box for better visibility
         console.print(Panel(
             f"[bold]{translator.get('Important')}:[/]\n\n"
             f"{translator.get('Anonymization is pattern-based and may not catch all sensitive data.')}\n"
@@ -98,7 +94,6 @@ def create_support_package(docker_manager, config_manager, translator, project_p
             expand=False
         ))
     
-    # Create support package
     from ..utilities.support_features import SupportPackageCreator
     
     creator = SupportPackageCreator(
@@ -109,16 +104,12 @@ def create_support_package(docker_manager, config_manager, translator, project_p
     )
     
     try:
-        # Determine the default path (project_path + support subdirectory)
         if project_path:
             default_path = os.path.join(project_path, "support")
-            # Create the support directory if it doesn't exist
             os.makedirs(default_path, exist_ok=True)
         else:
-            # Fallback to user's Downloads folder if no project path is available
             default_path = str(Path.home() / "Downloads")
         
-        # Ask user where to save the package
         output_dir = browse_directory(
             start_path=default_path,
             translator=translator,
@@ -129,27 +120,23 @@ def create_support_package(docker_manager, config_manager, translator, project_p
             console.print(f"[yellow]{translator.get('Operation cancelled.')}[/]")
             return
             
-        # Create the package
         output_file = creator.create_support_package(output_dir)
         
         if output_file and os.path.exists(output_file):
             console.print(f"[bold green]{translator.get('Support package created successfully')}:[/]")
             console.print(f"[cyan]{output_file}[/]")
             
-            # Open file explorer to show the file on supported platforms
             try:
                 if sys.platform.startswith('win'):
                     subprocess.Popen(f'explorer /select,"{output_file}"')
-                elif sys.platform.startswith('darwin'):  # macOS
+                elif sys.platform.startswith('darwin'):
                     subprocess.Popen(['open', '-R', output_file])
                 elif sys.platform.startswith('linux'):
-                    # Try xdg-open for Linux
                     try:
                         subprocess.Popen(['xdg-open', os.path.dirname(output_file)])
                     except FileNotFoundError:
-                        pass  # xdg-open not available, skip opening
+                        pass
             except Exception:
-                # Ignore errors when trying to open file explorer
                 pass
         else:
             console.print(f"[bold red]{translator.get('Failed to create support package')}[/]")

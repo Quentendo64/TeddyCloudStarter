@@ -9,19 +9,17 @@ from rich import box
 import questionary
 from ..utilities.validation import validate_config
 
-# Global console instance for rich output
 console = Console()
 
-# Custom style for questionary
 custom_style = questionary.Style([
-    ('qmark', 'fg:#673ab7 bold'),       # Purple question mark
-    ('question', 'bold'),               # Bold question text
-    ('answer', 'fg:#4caf50 bold'),      # Green answer text
-    ('pointer', 'fg:#673ab7 bold'),     # Purple pointer
-    ('highlighted', 'fg:#673ab7 bold'), # Purple highlighted option
-    ('selected', 'fg:#4caf50'),         # Green selected option
-    ('separator', 'fg:#673ab7'),        # Purple separator
-    ('instruction', 'fg:#f44336'),      # Red instruction text
+    ('qmark', 'fg:#673ab7 bold'),
+    ('question', 'bold'),
+    ('answer', 'fg:#4caf50 bold'),
+    ('pointer', 'fg:#673ab7 bold'),
+    ('highlighted', 'fg:#673ab7 bold'),
+    ('selected', 'fg:#4caf50'),
+    ('separator', 'fg:#673ab7'),
+    ('instruction', 'fg:#f44336'),
 ])
 
 def show_welcome_message(translator):
@@ -113,10 +111,9 @@ def _display_direct_mode_config(table, config, translator):
         config: Configuration dictionary
         translator: The translator instance to use for localization
     """
-    # Check if ports exist in config
     if "ports" in config:
         for port_name, port_value in config["ports"].items():
-            if port_value:  # Only show ports that are set
+            if port_value:
                 table.add_row(f"{translator.get('Port')}: {port_name}", str(port_value))
 
 def _display_nginx_mode_config(table, config, translator):
@@ -128,7 +125,6 @@ def _display_nginx_mode_config(table, config, translator):
         config: Configuration dictionary
         translator: The translator instance to use for localization
     """
-    # Only access nginx data if the key exists
     nginx_config = config["nginx"]
     if "domain" in nginx_config:
         table.add_row(translator.get("Domain"), nginx_config["domain"])
@@ -138,7 +134,6 @@ def _display_nginx_mode_config(table, config, translator):
         table.add_row(translator.get("Security Type"), nginx_config["security"]["type"])
         if "allowed_ips" in nginx_config["security"] and nginx_config["security"]["allowed_ips"]:
             table.add_row(translator.get("Allowed IPs"), ", ".join(nginx_config["security"]["allowed_ips"]))
-        # Display auth bypass IPs if they exist and security type is basic_auth
         if (nginx_config["security"]["type"] == "basic_auth" and 
             "auth_bypass_ips" in nginx_config["security"] and 
             nginx_config["security"]["auth_bypass_ips"]):
@@ -159,16 +154,13 @@ def display_configuration_table(config, translator):
     table.add_column(translator.get("Setting"), style="cyan")
     table.add_column(translator.get("Value"), style="green")
     
-    # Use the centralized validation system
     is_valid, errors = validate_config(config, translator)
     
     if not is_valid:
         return _show_validation_errors(table, translator, errors)
     
-    # Display available configuration data
     table.add_row(translator.get("Mode"), config["mode"])
 
-    # Display mode-specific configuration
     if config["mode"] == "direct":
         _display_direct_mode_config(table, config, translator)
     elif config["mode"] == "nginx" and "nginx" in config:

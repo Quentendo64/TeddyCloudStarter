@@ -36,314 +36,242 @@ from ..utilities.validation import validate_ip_address
 console = Console()
 
 class IPRestrictionsManager:
-    """
-    Manages IP address restrictions for TeddyCloudStarter.
-    Provides functionality to configure and validate IP restrictions.
-    """
+    """Manage IP address restrictions for TeddyCloud."""
     
-    def __init__(self, translator=None, base_dir=None):
+    def __init__(self, translator=None):
         """
         Initialize the IP restrictions manager.
         
         Args:
-            translator: Optional translator instance for localization
-            base_dir: Optional base directory of the project
+            translator: The translator instance for localization
         """
         self.translator = translator
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
     
-    def _translate(self, text: str) -> str:
+    def configure_ip_restrictions(self, nginx_config):
         """
-        Helper method to translate text if translator is available.
+        Configure IP address restrictions for Nginx.
         
         Args:
-            text: The text to translate
-            
-        Returns:
-            str: Translated text if translator is available, otherwise original text
+            nginx_config: The nginx configuration dictionary
         """
-        if self.translator:
-            return self.translator.get(text)
-        return text
-    
-    def configure_ip_restrictions(self, config: Dict) -> Dict:
-        """
-        Configure IP restrictions for service access.
-        
-        Args:
-            config: Configuration dictionary containing security settings
+        # Initialize allowed_ips if it doesn't exist
+        if "allowed_ips" not in nginx_config["security"]:
+            nginx_config["security"]["allowed_ips"] = []
             
-        Returns:
-            Dict: Updated configuration dictionary with IP restrictions
-        """
-        # Initialize allowed IPs list if it doesn't exist
-        if "security" not in config:
-            config["security"] = {}
-        
-        if "allowed_ips" not in config["security"]:
-            config["security"]["allowed_ips"] = []
-        
-        # Get current allowed IPs
-        current_ips = config["security"]["allowed_ips"]
-        
-        # Ask if user wants to restrict access by IP
-        restrict_by_ip = confirm_restrict_by_ip(bool(current_ips), self.translator)
-        
-        if not restrict_by_ip:
-            # Clear any existing IP restrictions
-            config["security"]["allowed_ips"] = []
-            display_ip_restrictions_status(0, self.translator, False)
-            return config
-            
-        # Create a working copy of IPs
-        working_ips = current_ips.copy()
+        current_restrictions = nginx_config["security"]["allowed_ips"]
         
         # Display current IP restrictions
-        display_current_ip_restrictions(working_ips, self.translator)
+        display_current_ip_restrictions(current_restrictions, self.translator)
         
-        # Enter IP management menu loop
-        while True:
-            action = prompt_ip_management_action(self.translator)
-            
-            if action == self._translate("Show current IP restrictions"):
-                display_current_ip_restrictions(working_ips, self.translator)
-                
-            elif action == self._translate("Add IP address"):
-                self._add_ip_address(working_ips)
-                
-            elif action == self._translate("Remove IP address"):
-                self._remove_ip_address(working_ips)
-                
-            elif action == self._translate("Clear all IP restrictions"):
-                if confirm_clear_ip_restrictions(self.translator):
-                    working_ips = []
-                    console.print(f"[bold yellow]{self._translate('All IP restrictions cleared')}[/]")
-                
-            elif action == self._translate("Save and return"):
-                # Update the config with our working copy
-                config["security"]["allowed_ips"] = working_ips
-                
-                # Check if user didn't specify any IPs, warn that this will allow all
-                if not working_ips and not confirm_no_ips_continue(self.translator):
-                    # User chose not to continue, restart the loop
-                    continue
-                
-                display_ip_restrictions_status(len(working_ips), self.translator, bool(working_ips))
-                break
+        # Ask if user wants IP restrictions
+        enable_restrictions = confirm_restrict_by_ip(bool(current_restrictions), self.translator)
         
-        return config
+        if enable_restrictions:
+            # Use menu-based approach for IP management
+            self._manage_ip_restrictions(nginx_config)
+        else:
+            # Clear any existing restrictions
+            nginx_config["security"]["allowed_ips"] = []
+            display_ip_restrictions_status(0, self.translator, enabled=False)
     
-    def _add_ip_address(self, ip_list: List[str]) -> None:
+    def _manage_ip_restrictions(self, nginx_config):
         """
-        Add an IP address to the list.
+        Manage IP restrictions with a menu-based interface.
         
         Args:
-            ip_list: List of allowed IPs to modify
+            nginx_config: The nginx configuration dictionary
+        """
+        while True:
+            # Get selected action using the identifier-based approach
+            action = prompt_ip_management_action(self.translator)
+            
+            # Process action based on the returned identifier
+            if action == 'show':
+                display_current_ip_restrictions(nginx_config["security"]["allowed_ips"], self.translator)
+            
+            elif action == 'add':
+                self._add_ip_address(nginx_config)
+                
+            elif action == 'remove':
+                self._remove_ip_address(nginx_config)
+                
+            elif action == 'clear':
+                self._clear_ip_restrictions(nginx_config)
+                
+            elif action == 'save':
+                # Save is handled implicitly as we're modifying the dict directly
+                display_ip_restrictions_status(len(nginx_config["security"]["allowed_ips"]), 
+                                              self.translator, 
+                                              enabled=bool(nginx_config["security"]["allowed_ips"]))
+                break
+                
+    def _add_ip_address(self, nginx_config):
+        """
+        Add IP addresses to the restriction list.
+        
+        Args:
+            nginx_config: The nginx configuration dictionary
         """
         display_ip_input_instructions(self.translator)
         
-        while True:
-            ip_address = prompt_for_ip_address(self.translator)
+        # Loop to add multiple IP addresses
+        adding_ips = True
+        while adding_ips:
+            ip = prompt_for_ip_address(self.translator)
             
-            if not ip_address:
-                break
+            if not ip:
+                adding_ips = False
                 
-            # Validate the IP address
-            if not validate_ip_address(ip_address):
-                display_invalid_ip_error(ip_address, self.translator)
-                continue
-            
-            # Add the IP if not already in the list
-            if ip_address not in ip_list:
-                ip_list.append(ip_address)
-                display_ip_added(ip_address, self.translator)
+                # If no IPs have been added, confirm
+                if not nginx_config["security"]["allowed_ips"] and not confirm_no_ips_continue(self.translator):
+                    continue
             else:
-                display_ip_already_exists(ip_address, self.translator)
+                # Check if IP is already in the list
+                if ip in nginx_config["security"]["allowed_ips"]:
+                    display_ip_already_exists(ip, self.translator)
+                else:
+                    nginx_config["security"]["allowed_ips"].append(ip)
+                    display_ip_added(ip, self.translator)
     
-    def _remove_ip_address(self, ip_list: List[str]) -> None:
+    def _remove_ip_address(self, nginx_config):
         """
-        Remove an IP address from the list.
+        Remove IP addresses from the restriction list.
         
         Args:
-            ip_list: List of allowed IPs to modify
+            nginx_config: The nginx configuration dictionary
         """
-        selected_ip = select_ip_to_remove(ip_list, self.translator)
+        ip = select_ip_to_remove(nginx_config["security"]["allowed_ips"], self.translator)
         
-        if selected_ip:
-            ip_list.remove(selected_ip)
-            console.print(f"[yellow]{self._translate('Removed IP')} {selected_ip}[/]")
+        if ip:
+            nginx_config["security"]["allowed_ips"].remove(ip)
+            console.print(f"[yellow]{self.translator.get('Removed IP')} {ip}[/]")
     
-    def validate_ip_restrictions(self, config: Dict) -> bool:
+    def _clear_ip_restrictions(self, nginx_config):
         """
-        Validate that IP restrictions in the config are properly formatted.
+        Clear all IP restrictions.
         
         Args:
-            config: Configuration dictionary containing security settings
-            
-        Returns:
-            bool: True if restrictions are valid, False otherwise
+            nginx_config: The nginx configuration dictionary
         """
-        # Check if IP restrictions exist
-        if "security" not in config or "allowed_ips" not in config["security"]:
-            return True  # No restrictions to validate
-            
-        ip_list = config["security"]["allowed_ips"]
-        if not ip_list:
-            return True  # Empty list is valid (no restrictions)
-            
-        # Validate each IP address
-        for ip in ip_list:
-            if not validate_ip_address(ip):
-                display_invalid_ip_error(ip, self.translator)
-                return False
-                
-        return True
+        if confirm_clear_ip_restrictions(self.translator):
+            nginx_config["security"]["allowed_ips"] = []
+            console.print(f"[bold yellow]{self.translator.get('All IP restrictions cleared.')}[/]")
+
 
 class AuthBypassIPManager:
-    """
-    Manages authentication bypass IP addresses for TeddyCloudStarter.
-    Provides functionality to configure which IPs can bypass basic authentication.
-    """
+    """Manage IP addresses that can bypass basic auth."""
     
-    def __init__(self, translator=None, base_dir=None):
+    def __init__(self, translator=None):
         """
         Initialize the auth bypass IP manager.
         
         Args:
-            translator: Optional translator instance for localization
-            base_dir: Optional base directory of the project
+            translator: The translator instance for localization
         """
         self.translator = translator
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        # Import here to avoid circular imports
-        from ..wizard.ui_helpers import custom_style
-        self.custom_style = custom_style
     
-    def _translate(self, text: str) -> str:
+    def configure_auth_bypass_ips(self, nginx_config):
         """
-        Helper method to translate text if translator is available.
+        Configure authentication bypass IP addresses.
         
         Args:
-            text: The text to translate
+            nginx_config: The nginx configuration dictionary
+        """
+        # Initialize auth_bypass_ips if it doesn't exist
+        if "auth_bypass_ips" not in nginx_config["security"]:
+            nginx_config["security"]["auth_bypass_ips"] = []
             
-        Returns:
-            str: Translated text if translator is available, otherwise original text
-        """
-        if self.translator:
-            return self.translator.get(text)
-        return text
-    
-    def configure_auth_bypass_ips(self, config: Dict) -> Dict:
-        """
-        Configure IP addresses that can bypass basic authentication.
+        current_bypass_ips = nginx_config["security"]["auth_bypass_ips"]
         
-        Args:
-            config: Configuration dictionary containing security settings
-            
-        Returns:
-            Dict: Updated configuration dictionary with auth bypass IPs
-        """
-        # Initialize auth bypass IPs list if it doesn't exist
-        if "security" not in config:
-            config["security"] = {}
+        # Display current auth bypass IPs
+        display_current_auth_bypass_ips(current_bypass_ips, self.translator)
         
-        if "auth_bypass_ips" not in config["security"]:
-            config["security"]["auth_bypass_ips"] = []
+        # Ask if user wants to enable IP-based auth bypass
+        enable_bypass = confirm_enable_auth_bypass(bool(current_bypass_ips), self.translator)
         
-        # Get current bypass IPs
-        current_ips = config["security"]["auth_bypass_ips"]
-        
-        # Ask if user wants to enable auth bypass by IP
-        enable_bypass = confirm_enable_auth_bypass(bool(current_ips), self.translator)
-        
-        if not enable_bypass:
+        if enable_bypass:
+            # Use menu-based approach for IP management
+            self._manage_auth_bypass_ips(nginx_config)
+        else:
             # Clear any existing bypass IPs
-            config["security"]["auth_bypass_ips"] = []
-            display_auth_bypass_status(0, self.translator, False)
-            return config
-            
-        # Create a working copy of IPs
-        working_ips = current_ips.copy()
+            nginx_config["security"]["auth_bypass_ips"] = []
+            display_auth_bypass_status(0, self.translator, enabled=False)
+    
+    def _manage_auth_bypass_ips(self, nginx_config):
+        """
+        Manage auth bypass IPs with a menu-based interface.
         
-        # Display current bypass IPs
-        display_current_auth_bypass_ips(working_ips, self.translator)
-        
-        # Enter IP management menu loop
+        Args:
+            nginx_config: The nginx configuration dictionary
+        """
         while True:
+            # Get selected action using the identifier-based approach
             action = prompt_auth_bypass_management_action(self.translator)
             
-            if action == self._translate("Show current bypass IPs"):
-                display_current_auth_bypass_ips(working_ips, self.translator)
+            # Process action based on the returned identifier
+            if action == 'show':
+                display_current_auth_bypass_ips(nginx_config["security"]["auth_bypass_ips"], self.translator)
+            
+            elif action == 'add':
+                self._add_auth_bypass_ip(nginx_config)
                 
-            elif action == self._translate("Add bypass IP address"):
-                self._add_bypass_ip(working_ips)
+            elif action == 'remove':
+                self._remove_auth_bypass_ip(nginx_config)
                 
-            elif action == self._translate("Remove bypass IP address"):
-                self._remove_bypass_ip(working_ips)
+            elif action == 'clear':
+                self._clear_auth_bypass_ips(nginx_config)
                 
-            elif action == self._translate("Clear all bypass IPs"):
-                if confirm_clear_auth_bypass_ips(self.translator):
-                    working_ips = []
-                    console.print(f"[bold yellow]{self._translate('All authentication bypass IPs cleared')}[/]")
-                
-            elif action == self._translate("Save and return"):
-                # Update the config with our working copy
-                config["security"]["auth_bypass_ips"] = working_ips
-                
-                display_auth_bypass_status(len(working_ips), self.translator, bool(working_ips))
+            elif action == 'save':
+                # Save is handled implicitly as we're modifying the dict directly
+                display_auth_bypass_status(len(nginx_config["security"]["auth_bypass_ips"]), 
+                                          self.translator, 
+                                          enabled=bool(nginx_config["security"]["auth_bypass_ips"]))
                 break
-        
-        return config
-    
-    def _add_bypass_ip(self, ip_list: List[str]) -> None:
+                
+    def _add_auth_bypass_ip(self, nginx_config):
         """
-        Add an IP address to the bypass list.
+        Add IP addresses to the auth bypass list.
         
         Args:
-            ip_list: List of bypass IPs to modify
+            nginx_config: The nginx configuration dictionary
         """
         display_auth_bypass_input_instructions(self.translator)
         
-        while True:
-            ip_address = prompt_for_auth_bypass_ip(self.translator)
+        # Loop to add multiple IP addresses
+        adding_ips = True
+        while adding_ips:
+            ip = prompt_for_auth_bypass_ip(self.translator)
             
-            if not ip_address:
-                break
-                
-            # Validate the IP address
-            if not validate_ip_address(ip_address):
-                display_invalid_ip_error(ip_address, self.translator)
-                continue
-            
-            # Add the IP if not already in the list
-            if ip_address not in ip_list:
-                ip_list.append(ip_address)
-                console.print(f"[green]{self._translate('Added bypass IP')} {ip_address}[/]")
+            if not ip:
+                adding_ips = False
             else:
-                console.print(f"[yellow]{self._translate('IP already in bypass list, skipping')} {ip_address}[/]")
+                # Check if IP is already in the list
+                if ip in nginx_config["security"]["auth_bypass_ips"]:
+                    display_ip_already_exists(ip, self.translator)
+                else:
+                    nginx_config["security"]["auth_bypass_ips"].append(ip)
+                    display_ip_added(ip, self.translator)
     
-    def _remove_bypass_ip(self, ip_list: List[str]) -> None:
+    def _remove_auth_bypass_ip(self, nginx_config):
         """
-        Remove an IP address from the bypass list.
+        Remove IP addresses from the auth bypass list.
         
         Args:
-            ip_list: List of bypass IPs to modify
+            nginx_config: The nginx configuration dictionary
         """
-        if not ip_list:
-            console.print(f"[yellow]{self._translate('No bypass IPs to remove')}[/]")
-            return None
-            
-        choices = ip_list + [self._translate("Cancel")]
+        ip = select_ip_to_remove(nginx_config["security"]["auth_bypass_ips"], self.translator)
         
-        selected = questionary.select(
-            self._translate("Select IP address to remove from bypass list"),
-            choices=choices,
-            style=self.custom_style
-        ).ask()
+        if ip:
+            nginx_config["security"]["auth_bypass_ips"].remove(ip)
+            console.print(f"[yellow]{self.translator.get('Removed IP')} {ip}[/]")
+    
+    def _clear_auth_bypass_ips(self, nginx_config):
+        """
+        Clear all auth bypass IP addresses.
         
-        if selected == self._translate("Cancel"):
-            return
-            
-        if selected:
-            ip_list.remove(selected)
-            console.print(f"[yellow]{self._translate('Removed bypass IP')} {selected}[/]")
+        Args:
+            nginx_config: The nginx configuration dictionary
+        """
+        if confirm_clear_auth_bypass_ips(self.translator):
+            nginx_config["security"]["auth_bypass_ips"] = []
+            console.print(f"[bold yellow]{self.translator.get('All authentication bypass IPs cleared.')}[/]")

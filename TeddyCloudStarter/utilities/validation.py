@@ -48,7 +48,6 @@ class ConfigValidator:
         """
         errors = []
         
-        # Check for required keys
         required_keys = ["mode"]
         missing_keys = [key for key in required_keys if key not in config]
         
@@ -56,7 +55,6 @@ class ConfigValidator:
             errors.append(self.translate("Missing required configuration keys: {keys}").format(keys=", ".join(missing_keys)))
             return False, errors
             
-        # Check for valid mode values
         valid_modes = ["direct", "nginx"]
         if config["mode"] not in valid_modes:
             errors.append(self.translate("Invalid mode: {mode}. Must be one of: {valid_modes}").format(
@@ -64,7 +62,6 @@ class ConfigValidator:
                 valid_modes=", ".join(valid_modes)
             ))
         
-        # Validate mode-specific configuration
         if config["mode"] == "direct":
             valid, mode_errors = self.validate_direct_mode(config)
             if not valid:
@@ -89,12 +86,10 @@ class ConfigValidator:
         """
         errors = []
         
-        # Check for required ports configuration
         if "ports" not in config:
             errors.append(self.translate("Direct mode requires ports configuration"))
             return False, errors
         
-        # Validate port values
         if not isinstance(config["ports"], dict):
             errors.append(self.translate("Ports configuration must be a dictionary"))
         else:
@@ -116,26 +111,22 @@ class ConfigValidator:
         """
         errors = []
         
-        # Check for nginx configuration
         if "nginx" not in config:
             errors.append(self.translate("Nginx mode requires nginx configuration"))
             return False, errors
             
         nginx_config = config["nginx"]
         
-        # Validate domain
         if "domain" not in nginx_config:
             errors.append(self.translate("Nginx configuration requires a domain"))
         elif not validate_domain_name(nginx_config["domain"]):
             errors.append(self.translate("Invalid domain name: {domain}").format(domain=nginx_config["domain"]))
             
-        # Validate HTTPS mode
         if "https_mode" not in nginx_config:
             errors.append(self.translate("Nginx configuration requires an HTTPS mode"))
         elif nginx_config["https_mode"] not in ["letsencrypt", "self_signed", "user_provided", "none"]:
             errors.append(self.translate("Invalid HTTPS mode: {mode}").format(mode=nginx_config["https_mode"]))
             
-        # Validate security configuration
         if "security" not in nginx_config:
             errors.append(self.translate("Nginx configuration requires security settings"))
         else:
@@ -145,7 +136,6 @@ class ConfigValidator:
             elif security_config["type"] not in ["none", "basic_auth", "client_cert", "ip_restriction"]:
                 errors.append(self.translate("Invalid security type: {type}").format(type=security_config["type"]))
                 
-            # Check IP restrictions if that's the security type
             if security_config.get("type") == "ip_restriction":
                 if "allowed_ips" not in security_config or not security_config["allowed_ips"]:
                     errors.append(self.translate("IP restriction requires at least one IP address"))
@@ -167,21 +157,17 @@ class ConfigValidator:
         Returns:
             Tuple[bool, str]: (is_valid, error_message)
         """
-        # Check if files exist
         if not os.path.exists(cert_path):
             return False, self.translate("Certificate file does not exist: {path}").format(path=cert_path)
             
         if not os.path.exists(key_path):
             return False, self.translate("Private key file does not exist: {path}").format(path=key_path)
             
-        # Check file permissions and content via external validation
-        # Check if OpenSSL is available
         try:
             subprocess.run(["openssl", "version"], check=True, capture_output=True, text=True)
         except (subprocess.SubprocessError, FileNotFoundError):
             return True, self.translate("Warning: OpenSSL is not available. Certificate validation skipped.")
         
-        # Check if certificate is valid
         try:
             cert_result = subprocess.run(
                 ["openssl", "x509", "-in", cert_path, "-text", "-noout"],
@@ -191,13 +177,11 @@ class ConfigValidator:
             if cert_result.returncode != 0:
                 return False, self.translate("Invalid certificate: {error}").format(error=cert_result.stderr)
                 
-            # Check if certificate is compatible with Nginx (basic validation)
             if "X509v3" not in cert_result.stdout:
                 return False, self.translate("Certificate is not an X509v3 certificate, which might not be compatible with Nginx")
         except Exception as e:
             return False, self.translate("Error validating certificate: {error}").format(error=str(e))
         
-        # Check if private key is valid
         try:
             key_result = subprocess.run(
                 ["openssl", "rsa", "-in", key_path, "-check", "-noout"],
@@ -209,21 +193,17 @@ class ConfigValidator:
         except Exception as e:
             return False, self.translate("Error validating private key: {error}").format(error=str(e))
         
-        # Check if key matches certificate
         try:
-            # Get modulus from certificate
             cert_modulus_result = subprocess.run(
                 ["openssl", "x509", "-in", cert_path, "-modulus", "-noout"],
                 check=False, capture_output=True, text=True
             )
             
-            # Get modulus from private key
             key_modulus_result = subprocess.run(
                 ["openssl", "rsa", "-in", key_path, "-modulus", "-noout"],
                 check=False, capture_output=True, text=True
             )
             
-            # Compare moduli
             if cert_modulus_result.stdout.strip() != key_modulus_result.stdout.strip():
                 return False, self.translate("Certificate and private key do not match")
         except Exception as e:

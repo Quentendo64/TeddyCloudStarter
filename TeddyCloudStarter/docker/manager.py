@@ -8,7 +8,6 @@ import time
 from rich.console import Console
 from typing import List, Dict, Tuple, Optional
 
-# Global console instance for rich output
 console = Console()
 
 
@@ -27,11 +26,9 @@ class DockerManager:
             subprocess.run(["docker", "--version"], 
                           check=True, capture_output=True, text=True)
             
-            # Check for Docker Compose v2
             subprocess.run(["docker", "compose", "version"], 
                          check=True, capture_output=True, text=True)
             
-            # Use Docker Compose v2
             self.compose_cmd = ["docker", "compose"]
             self.docker_available = True
         except (subprocess.SubprocessError, FileNotFoundError):
@@ -55,7 +52,6 @@ class DockerManager:
         
         error_message = None
         
-        # Check for Docker
         try:
             result = subprocess.run(
                 ["docker", "--version"],
@@ -65,7 +61,6 @@ class DockerManager:
         except (subprocess.SubprocessError, FileNotFoundError):
             prerequisites['docker'] = False
             
-        # Check for Docker Compose
         try:
             result = subprocess.run(
                 ["docker", "compose", "version"],
@@ -73,7 +68,6 @@ class DockerManager:
             )
             prerequisites['docker_compose'] = True
         except (subprocess.SubprocessError, FileNotFoundError):
-            # Try legacy docker-compose command (v1)
             try:
                 result = subprocess.run(
                     ["docker-compose", "--version"],
@@ -83,7 +77,6 @@ class DockerManager:
             except (subprocess.SubprocessError, FileNotFoundError):
                 prerequisites['docker_compose'] = False
         
-        # Determine if all prerequisites are met and create error message
         all_met = all(prerequisites.values())
         
         if not all_met:
@@ -97,10 +90,9 @@ class DockerManager:
             if missing_components:
                 error_message = f"Missing required components: {', '.join(missing_components)}. "
                 
-                # Add OS-specific installation instructions
-                if os.name == 'nt':  # Windows
+                if os.name == 'nt':
                     error_message += "Please install Docker Desktop for Windows from https://www.docker.com/products/docker-desktop"
-                elif os.name == 'posix':  # Linux/Mac
+                elif os.name == 'posix':
                     if os.path.exists('/etc/os-release'):
                         with open('/etc/os-release', 'r') as f:
                             os_info = f.read()
@@ -149,13 +141,10 @@ class DockerManager:
         try:
             console.print(f"[bold yellow]{self._translate('Stopping and removing all Docker services...')}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
             
@@ -166,12 +155,10 @@ class DockerManager:
             os.chdir(data_dir)
             
             try:
-                # Run docker-compose down to stop and remove containers
                 subprocess.run(self.compose_cmd + ["down"], check=True, capture_output=True, text=True)
                 console.print(f"[green]{self._translate('Docker services stopped and removed successfully')}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -194,11 +181,9 @@ class DockerManager:
         services = {}
         
         try:
-            # Store current directory
             original_dir = os.getcwd()
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
             
@@ -210,35 +195,29 @@ class DockerManager:
             os.chdir(data_dir)
             
             try:
-                # First get list of all services from docker-compose.yml
                 service_list_result = subprocess.run(
                     self.compose_cmd + ["config", "--services"],
                     check=True, capture_output=True, text=True
                 )
                 service_list = [s.strip() for s in service_list_result.stdout.strip().split('\n') if s.strip()]
                 
-                # Initialize all services as stopped
                 for service in service_list:
                     services[service] = {
                         "state": self._translate("Stopped"),
                         "running_for": "",
                     }
                 
-                # Get services status in JSON format
                 ps_result = subprocess.run(
                     self.compose_cmd + ["ps", "--all", "--format", "json"],
                     check=True, capture_output=True, text=True
                 )
                 
-                # Parse the JSON output
                 import json
                 try:
-                    # The output might be one JSON object per line
                     json_lines = [line.strip() for line in ps_result.stdout.strip().split('\n') if line.strip()]
                     
                     for line in json_lines:
                         container = json.loads(line)
-                        # Extract service name directly from the Service field
                         service = container.get("Service", "")
                         state = container.get("State", "")
                         running_for = container.get("RunningFor", "")
@@ -256,14 +235,12 @@ class DockerManager:
                 return services
                 
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
             error_msg = f"Error getting services status: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             
-            # Try to get at least the list of services
             try:
                 os.chdir(data_dir)
                 result = subprocess.run(
@@ -297,13 +274,10 @@ class DockerManager:
         try:
             console.print(f"[bold cyan]{self._translate('Restarting Docker services...')}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -313,7 +287,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate('Services restarted successfully.')}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -335,13 +308,10 @@ class DockerManager:
             msg = f"Restarting service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -351,7 +321,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate(success_msg)}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -372,13 +341,10 @@ class DockerManager:
         try:
             console.print(f"[bold cyan]{self._translate('Starting Docker services...')}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -387,7 +353,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate('Services started successfully.')}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -409,13 +374,10 @@ class DockerManager:
             msg = f"Starting service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -425,7 +387,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate(success_msg)}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -446,13 +407,10 @@ class DockerManager:
         try:
             console.print(f"[bold cyan]{self._translate('Stopping all Docker services...')}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -461,7 +419,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate('All services stopped successfully.')}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -483,13 +440,10 @@ class DockerManager:
             msg = f"Stopping service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
             
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
@@ -499,7 +453,6 @@ class DockerManager:
                 console.print(f"[bold green]{self._translate(success_msg)}[/]")
                 return True
             finally:
-                # Ensure we return to the original directory
                 os.chdir(original_dir)
                 
         except subprocess.SubprocessError as e:
@@ -528,28 +481,22 @@ class DockerManager:
             return None
         
         try:
-            # Store current directory
             original_dir = os.getcwd()
             
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else original_dir
             
-            # Change to the data directory where docker-compose.yml is located
             data_dir = os.path.join(base_path, "data")
             os.chdir(data_dir)
             
             try:
                 cmd = self.compose_cmd + ["logs", "-f"]
                 
-                # Add line limit if specified
                 if lines > 0:
                     cmd.extend(["-n", str(lines)])
                 
-                # Add specific service if provided
                 if service_name:
                     cmd.append(service_name)
                 
-                # Use Popen to be able to control the process later
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -559,14 +506,11 @@ class DockerManager:
                     universal_newlines=True
                 )
                 
-                # Return to the original directory
                 os.chdir(original_dir)
                 
-                # Return the process for controlling it later
                 return process
                 
             except Exception as e:
-                # Make sure we get back to the original directory
                 os.chdir(original_dir)
                 error_msg = f"Error starting logs process: {e}"
                 console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -612,30 +556,24 @@ class DockerManager:
             return None
         
         try:
-            # Use project path if provided, otherwise use current directory
             base_path = project_path if project_path else "."
             
-            # Create backup directory if it doesn't exist
             backup_dir = os.path.join(base_path, "data", "backup")
             os.makedirs(backup_dir, exist_ok=True)
             
-            # Generate backup filename with date
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             backup_name = volume_name.replace('teddycloudstarter_', 'teddycloud-')
             backup_file = f"{backup_name}-backup-{timestamp}.tar.gz"
             backup_path = os.path.join(backup_dir, backup_file)
             
-            # Volume path inside the container
             volume_path = "/" + volume_name.replace('teddycloudstarter_', '')
             
-            # Run backup command using Docker
             msg = f"Backing up volume {volume_name} to {backup_path}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
             
-            # Get absolute path to the backup directory
             abs_backup_dir = os.path.abspath(backup_dir)
             
-            if os.name == 'nt':  # Windows
+            if os.name == 'nt':
                 backup_mount = abs_backup_dir.replace('\\', '/')
                 cmd = [
                     "docker", "run", "--rm", 
@@ -643,7 +581,7 @@ class DockerManager:
                     "-v", f"{backup_mount}:/backup", 
                     "alpine", "tar", "czf", f"/backup/{backup_file}", volume_path
                 ]
-            else:  # Linux/Mac
+            else:
                 cmd = [
                     "docker", "run", "--rm", 
                     "-v", f"{volume_name}:{volume_path}", 
@@ -676,7 +614,6 @@ class DockerManager:
         Returns:
             dict: Dictionary mapping volume names to lists of backup files
         """
-        # Use project path if provided, otherwise use current directory
         base_path = project_path if project_path else "."
         
         backup_dir = os.path.join(base_path, "data", "backup")
@@ -690,14 +627,12 @@ class DockerManager:
             if not file.startswith('teddycloud-') or not file.endswith('.tar.gz'):
                 continue
                 
-            # Extract volume name from backup filename
             try:
-                # Format: teddycloud-{volume}-backup-{timestamp}.tar.gz
                 parts = file.split('-backup-')
                 if len(parts) != 2:
                     continue
                     
-                vol_name = parts[0]  # e.g., teddycloud-certs
+                vol_name = parts[0]
                 full_vol_name = 'teddycloudstarter_' + vol_name.replace('teddycloud-', '')
                 
                 if volume_name is None or volume_name == full_vol_name:
@@ -707,7 +642,6 @@ class DockerManager:
             except:
                 continue
         
-        # Sort backup files by timestamp (newest first)
         for vol_name in backups:
             backups[vol_name].sort(reverse=True)
             
@@ -724,7 +658,6 @@ class DockerManager:
         Returns:
             bool: True if successful, False otherwise
         """
-        # Use project path if provided, otherwise use current directory
         base_path = project_path if project_path else "."
         backup_path = os.path.join(base_path, "data", "backup", backup_file)
         
@@ -734,7 +667,6 @@ class DockerManager:
             return False
             
         try:
-            # Use Docker to list the contents of the tar file
             cmd = [
                 "docker", "run", "--rm", 
                 "-v", f"{os.path.abspath(os.path.join(base_path, 'data', 'backup'))}:/backup:ro", 
@@ -769,7 +701,6 @@ class DockerManager:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
             return False
         
-        # Use project path if provided, otherwise use current directory
         base_path = project_path if project_path else "."
         backup_path = os.path.join(base_path, "data", "backup", backup_file)
         
@@ -779,30 +710,25 @@ class DockerManager:
             return False
             
         try:
-            # Check if the volume exists
             volumes = self.get_volumes()
             if volume_name not in volumes:
                 error_msg = f"Volume {volume_name} does not exist."
                 console.print(f"[bold red]{self._translate(error_msg)}[/]")
                 return False
                 
-            # Volume path inside the container
             volume_path = "/" + volume_name.replace('teddycloudstarter_', '')
             
-            # Ask for confirmation
             warning_msg = f"Warning: This will overwrite the current contents of volume {volume_name}."
             console.print(f"[bold yellow]{self._translate(warning_msg)}[/]")
             warning_msg2 = "Make sure all Docker containers using this volume are stopped."
             console.print(f"[bold yellow]{self._translate(warning_msg2)}[/]")
             
-            # Get absolute path to the backup directory
             abs_backup_dir = os.path.abspath(os.path.join(base_path, "data", "backup"))
             
-            # Run restore command using Docker
             msg = f"Restoring volume {volume_name} from {backup_file}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
             
-            if os.name == 'nt':  # Windows
+            if os.name == 'nt':
                 backup_mount = abs_backup_dir.replace('\\', '/')
                 cmd = [
                     "docker", "run", "--rm", 
@@ -811,7 +737,7 @@ class DockerManager:
                     "alpine", "sh", "-c", 
                     f"rm -rf {volume_path}/* && tar -xzf /backup/{backup_file} -C / --strip-components=1"
                 ]
-            else:  # Linux/Mac
+            else:
                 cmd = [
                     "docker", "run", "--rm", 
                     "-v", f"{volume_name}:{volume_path}", 

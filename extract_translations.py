@@ -14,7 +14,6 @@ import re
 import glob
 from pathlib import Path
 
-# Constants
 PACKAGE_DIR = Path("TeddyCloudStarter")
 LOCALES_DIR = PACKAGE_DIR / "locales"
 POT_FILE = LOCALES_DIR / "teddycloudstarter.pot"
@@ -23,10 +22,8 @@ def extract_strings_with_xgettext():
     """Extract strings using xgettext."""
     print("Extracting strings with xgettext...")
     
-    # Create locales directory if it doesn't exist
     os.makedirs(LOCALES_DIR, exist_ok=True)
     
-    # Get all Python files in the package
     python_files = []
     for root, _, files in os.walk(PACKAGE_DIR):
         for file in files:
@@ -38,7 +35,6 @@ def extract_strings_with_xgettext():
         return False
     
     try:
-        # Extract strings using xgettext
         cmd = [
             "xgettext", 
             "--language=Python", 
@@ -65,16 +61,15 @@ def extract_strings_basic():
     print("Performing basic string extraction...")
     
     patterns = [
-        r'_\([\'"](.+?)[\'"]\)',                       # _("string")
-        r'_translate\([\'"](.+?)[\'"]\)',              # _translate("string")
-        r'self\._translate\([\'"](.+?)[\'"]\)',        # self._translate("string")
-        r'translator\.get\([\'"](.+?)[\'"]\)',         # translator.get("string")
-        r'self\.translator\.get\([\'"](.+?)[\'"]\)',   # self.translator.get("string")
+        r'_\([\'"](.+?)[\'"]\)',                       
+        r'_translate\([\'"](.+?)[\'"]\)',              
+        r'self\._translate\([\'"](.+?)[\'"]\)',        
+        r'translator\.get\([\'"](.+?)[\'"]\)',        
+        r'self\.translator\.get\([\'"](.+?)[\'"]\)',   
     ]
     
     strings = set()
     
-    # Extract strings from all Python files
     for root, _, files in os.walk(PACKAGE_DIR):
         for file in files:
             if file.endswith(".py"):
@@ -88,7 +83,6 @@ def extract_strings_basic():
                 except Exception as e:
                     print(f"Error reading {file_path}: {e}")
     
-    # Create POT file
     os.makedirs(os.path.dirname(POT_FILE), exist_ok=True)
     with open(POT_FILE, 'w', encoding='utf-8') as f:
         f.write('# TeddyCloudStarter Translation Template\n')
@@ -105,7 +99,6 @@ def extract_strings_basic():
         f.write('"Content-Transfer-Encoding: 8bit\\n"\n')
         f.write('\n')
         
-        # Write all strings
         for string in sorted(strings):
             f.write(f'msgid "{string}"\n')
             f.write('msgstr ""\n\n')
@@ -133,7 +126,6 @@ def update_po_files():
         if os.path.exists(po_file):
             print(f"Updating {po_file}...")
             try:
-                # Update existing PO file using msgmerge
                 subprocess.run([
                     "msgmerge", 
                     "--update", 
@@ -144,14 +136,12 @@ def update_po_files():
                 print(f"Updated {po_file}")
             except (subprocess.SubprocessError, FileNotFoundError):
                 print("msgmerge not available, creating backup and copying POT...")
-                # Backup existing PO file
                 backup_file = po_file + ".bak"
                 try:
                     with open(po_file, 'r', encoding='utf-8') as src:
                         with open(backup_file, 'w', encoding='utf-8') as dest:
                             dest.write(src.read())
                     
-                    # Replace content with POT but preserve header
                     with open(backup_file, 'r', encoding='utf-8') as backup:
                         header = ""
                         in_header = True
@@ -159,13 +149,12 @@ def update_po_files():
                             if in_header:
                                 header += line
                                 if line.strip() == "":
-                                    in_header = False  # End of header
+                                    in_header = False
                             else:
-                                break  # Stop after header
+                                break
                     
                     with open(POT_FILE, 'r', encoding='utf-8') as pot:
                         pot_content = pot.read()
-                        # Skip POT header
                         pot_content = pot_content.split('\n\n', 1)[1] if '\n\n' in pot_content else pot_content
                     
                     with open(po_file, 'w', encoding='utf-8') as out:
@@ -177,7 +166,6 @@ def update_po_files():
                     print(f"Error updating {po_file}: {e}")
         else:
             print(f"Creating new PO file {po_file}...")
-            # For new languages, copy the POT file
             os.makedirs(os.path.dirname(po_file), exist_ok=True)
             try:
                 with open(POT_FILE, 'r', encoding='utf-8') as src:
@@ -207,10 +195,8 @@ def create_new_language(lang_code):
     po_file = lc_messages_dir / "teddycloudstarter.po"
     
     try:
-        # Copy POT to new PO file
         with open(POT_FILE, 'r', encoding='utf-8') as src:
             content = src.read()
-            # Update header for the specific language
             content = content.replace('Language-Team: LANGUAGE <LL@li.org>\\n"', f'Language-Team: {lang_code}\\n"')
             content = content.replace('Language: \\n"', f'Language: {lang_code}\\n"')
             
@@ -225,12 +211,9 @@ def create_new_language(lang_code):
 
 def main():
     """Main function."""
-    # Extract strings
     if extract_strings_with_xgettext():
-        # Update existing PO files
         update_po_files()
         
-        # After updating, compile the translations
         try:
             import compile_translations as compile_translations
             print("Compiling updated translations...")

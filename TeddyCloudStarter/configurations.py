@@ -14,7 +14,6 @@ DOCKER_COMPOSE = """
 name: teddycloudstarter
 services:
   {%- if mode == "nginx" %}
-  # Edge Nginx - Handles SNI routing and SSL termination
   nginx-edge:
     container_name: nginx-edge
     tty: true
@@ -39,7 +38,6 @@ services:
       start_period: 10s
 
   
-  # Backend Nginx - Handles authentication
   nginx-auth:
     container_name: nginx-auth
     tty: true
@@ -79,7 +77,6 @@ services:
       start_period: 10s
   {%- endif %}
 
-  # TeddyCloud - Main application server
   teddycloud:
     container_name: teddycloud-app
     tty: true
@@ -91,7 +88,7 @@ services:
       - content:/teddycloud/data/content  
       - library:/teddycloud/data/library  
       - custom_img:/teddycloud/data/www/custom_img
-      - custom_img:/teddycloud/data/library/custom_img  # WORKAROUND: allows uploads to custom_img // Used by TonieToolbox
+      - custom_img:/teddycloud/data/library/custom_img
       - firmware:/teddycloud/data/firmware
       - cache:/teddycloud/data/cache
     {%- if mode == "direct" %}
@@ -115,22 +112,20 @@ services:
     {%- endif %}
 
   {%- if mode == "nginx" and https_mode == "letsencrypt" %}
-  # Certbot - Automatic SSL certificate management
   certbot:
     container_name: teddycloud-certbot
     image: certbot/certbot:latest
-    # Renews certificates every 12 hours if needed
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     volumes:
       - certbot_conf:/etc/letsencrypt
       - certbot_www:/var/www/certbot
+      - certbot_logs:/var/log/letsencrypt
     restart: unless-stopped
     depends_on:
       - nginx-edge
 
   {%- endif %}
 
-# Persistent storage volumes
 volumes:
   certs:
   config:
@@ -141,8 +136,9 @@ volumes:
   cache:
   {%- if mode == "nginx" %}
   {%- if https_mode == "letsencrypt" %}
-  certbot_conf: # Certbot certificates and configuration
-  certbot_www:  # Certbot ACME challenge files
+  certbot_conf:
+  certbot_www:
+  certbot_logs:
   {%- endif %}
   {%- endif %}
 """
@@ -153,7 +149,6 @@ NGINX_EDGE = """################################################################
 #       ANY MANUAL CHANGES WILL BE OVERWRITTEN ON NEXT GENERATION.             #
 ################################################################################
 
-# TeddyCloud Edge Nginx Configuration
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log warn;
@@ -163,33 +158,27 @@ events {
     worker_connections 1024;
 }
 
-# HTTP server for redirects and ACME challenges
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
     
-    # Log configuration
     log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
     access_log /var/log/nginx/access.log teddystarter_format;
 
     
-    # Define upstream servers for HTTP
     upstream teddycloud_http {
         server teddycloud-app:80;
     }
     
-    # HTTP server
     server {
         listen 80;
         server_name {{ domain }};
         
-        # Redirect all HTTP traffic to HTTPS
         location / {
             return 301 https://$host$request_uri;
         }
         
         {%- if https_mode == "letsencrypt" %}
-        # Let's Encrypt challenge location
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
         }
@@ -197,25 +186,20 @@ http {
     }
 }
 
-# HTTPS server with SNI detection
 stream {  
-    # Define the map for SNI detection
     map $ssl_preread_server_name $upstream {
         {{ domain }} teddycloud_admin;
         default teddycloud_box;
     }
     
-    # Define upstream servers for HTTPS
     upstream teddycloud_admin {
                 server nginx-auth:443;
             }
     
     upstream teddycloud_box {
-        # Teddycloud API endpoint for boxes
         server teddycloud-app:443;
     }
     
-    # SSL forwarding server
     server {
         {%- if allowed_ips %}
         {% for ip in allowed_ips %}
@@ -237,7 +221,6 @@ NGINX_AUTH = """################################################################
 #       ANY MANUAL CHANGES WILL BE OVERWRITTEN ON NEXT GENERATION.             #
 ################################################################################
 
-# TeddyCloud Auth Nginx Configuration
 user nginx;
 worker_processes auto;
 
@@ -254,11 +237,9 @@ http {
     sendfile        on;
     tcp_nopush      on;
     keepalive_timeout  65;
-    # Log configuration
     log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
     access_log /var/log/nginx/access.log teddystarter_format;
     
-    # Set up geo map for IP-based authentication bypass when using basic auth
     {% if security_type == "basic_auth" and auth_bypass_ips %}
     geo $auth_bypass {
         default 0;
@@ -267,7 +248,6 @@ http {
         {% endfor %}
     }
     
-    # Map variable to conditionally set auth requirements
     map $auth_bypass $auth_basic_realm {
         0 "TeddyCloud Admin Area";
         1 "off";
@@ -299,16 +279,13 @@ http {
         ssl_session_tickets off;
         
         
-        # Forward all requests to TeddyCloud
         location / {
             client_max_body_size 4096M;
             {% if security_type == "basic_auth" %}
             {% if auth_bypass_ips %}
-            # Apply basic auth conditionally based on IP
             auth_basic $auth_basic_realm;
             auth_basic_user_file /etc/nginx/security/.htpasswd;
             {% else %}
-            # Always require authentication
             auth_basic "TeddyCloud Admin Area";
             auth_basic_user_file /etc/nginx/security/.htpasswd;
             {% endif %}
@@ -317,7 +294,6 @@ http {
             add_header X-Content-Type-Options "nosniff" always;
             add_header X-XSS-Protection "1; mode=block" always;
             add_header Referrer-Policy "no-referrer-when-downgrade" always;
-            #add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
             proxy_request_buffering off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

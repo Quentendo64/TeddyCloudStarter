@@ -48,21 +48,16 @@ def check_domain_resolvable(domain: str) -> bool:
         bool: True if resolvable, False otherwise
     """
     try:
-        # Configure resolver to use Quad9 DNS servers
         resolver = dns.resolver.Resolver(configure=False)
-        resolver.nameservers = ['9.9.9.9', '149.112.112.112']  # Quad9 DNS servers
+        resolver.nameservers = ['9.9.9.9', '149.112.112.112']
         
-        # Attempt to resolve the domain
         answers = resolver.resolve(domain, 'A')
         
-        # If we get here, the domain is resolvable
         return True
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, 
             dns.resolver.NoNameservers, dns.exception.Timeout):
-        # Domain doesn't exist or cannot be resolved
         return False
     except Exception:
-        # Fallback to standard socket resolution in case of other errors
         try:
             socket.gethostbyname(domain)
             return True

@@ -130,21 +130,28 @@ def prompt_ip_management_action(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected action
+        str: The selected action identifier ('show', 'add', 'remove', 'clear', or 'save')
     """
     choices = [
-        translator.get("Show current IP restrictions"),
-        translator.get("Add IP address"),
-        translator.get("Remove IP address"),
-        translator.get("Clear all IP restrictions"),
-        translator.get("Save and return")
+        {'id': 'show', 'text': translator.get("Show current IP restrictions")},
+        {'id': 'add', 'text': translator.get("Add IP address")},
+        {'id': 'remove', 'text': translator.get("Remove IP address")},
+        {'id': 'clear', 'text': translator.get("Clear all IP restrictions")},
+        {'id': 'save', 'text': translator.get("Save and return")}
     ]
     
-    return questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("IP Address Filtering Management"),
-        choices=choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'show'
 
 def select_ip_to_remove(ip_list, translator):
     """
@@ -190,7 +197,6 @@ def confirm_clear_ip_restrictions(translator):
         style=custom_style
     ).ask()
 
-# Auth bypass specific UI functions
 def display_current_auth_bypass_ips(ip_list, translator):
     """
     Display current IPs that bypass basic authentication.
@@ -285,18 +291,25 @@ def prompt_auth_bypass_management_action(translator):
         translator: The translator instance for localization
         
     Returns:
-        str: The selected action
+        str: The selected action identifier ('show', 'add', 'remove', 'clear', or 'save')
     """
     choices = [
-        translator.get("Show current bypass IPs"),
-        translator.get("Add bypass IP address"),
-        translator.get("Remove bypass IP address"),
-        translator.get("Clear all bypass IPs"),
-        translator.get("Save and return")
+        {'id': 'show', 'text': translator.get("Show current bypass IPs")},
+        {'id': 'add', 'text': translator.get("Add bypass IP address")},
+        {'id': 'remove', 'text': translator.get("Remove bypass IP address")},
+        {'id': 'clear', 'text': translator.get("Clear all bypass IPs")},
+        {'id': 'save', 'text': translator.get("Save and return")}
     ]
     
-    return questionary.select(
+    choice_texts = [choice['text'] for choice in choices]
+    selected_text = questionary.select(
         translator.get("Authentication Bypass IP Management"),
-        choices=choices,
+        choices=choice_texts,
         style=custom_style
     ).ask()
+    
+    for choice in choices:
+        if choice['text'] == selected_text:
+            return choice['id']
+    
+    return 'show'

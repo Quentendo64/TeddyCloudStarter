@@ -24,10 +24,8 @@ class BaseWizard:
         self.config_manager = ConfigManager(translator=self.translator)
         self.docker_manager = DockerManager(translator=self.translator)
         
-        # Initialize project path as None first - will be set after language selection
         self.project_path = None
         
-        # Initialize security modules with project path as None initially
         self.ca_manager = CertificateAuthority(base_dir=self.project_path, translator=self.translator)
         self.client_cert_manager = ClientCertificateManager(base_dir=self.project_path, translator=self.translator)
         self.lets_encrypt_manager = LetsEncryptManager(base_dir=self.project_path, translator=self.translator)

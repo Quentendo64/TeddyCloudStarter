@@ -15,7 +15,6 @@ from rich.prompt import Confirm
 import subprocess
 from .. import __version__
 
-# Global console instance for rich output
 console = Console()
 
 
@@ -27,7 +26,6 @@ def get_pypi_version():
         tuple: (latest_version, None) on success, (current_version, error_message) on failure
     """
     try:
-        # Fetch from PyPI
         with request.urlopen("https://pypi.org/pypi/TeddyCloudStarter/json", timeout=2) as response:
             pypi_data = json.loads(response.read().decode("utf-8"))
             latest_version = pypi_data["info"]["version"]
@@ -65,7 +63,6 @@ def compare_versions(v1, v2):
         
         return 0
     except Exception:
-        # On error, assume versions are equal
         return 0
 
 
@@ -92,14 +89,13 @@ def check_for_updates(quiet=False):
         return True, current_version, error, update_confirmed
         
     compare_result = compare_versions(current_version, latest_version)
-    is_latest = compare_result >= 0  # current >= latest
+    is_latest = compare_result >= 0
     
     if is_latest:
         message = f"You are using the latest version of TeddyCloudStarter ({current_version})"
     else:
         message = f"Update available! Current version: {current_version}, Latest version: {latest_version}"
         if not quiet:
-            # Check if auto_update is enabled in config
             try:
                 from ..config_manager import ConfigManager
                 auto_update = ConfigManager.get_auto_update_setting()

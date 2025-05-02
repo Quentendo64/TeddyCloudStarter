@@ -188,33 +188,41 @@ class TeddyCloudWizard(BaseWizard):
         # If configuration is corrupt, offer only limited options
         if not config_valid:
             choices = [
-                self.translator.get("Reset configuration and start over"),
-                self.translator.get("Exit")
+                {'id': 'reset', 'text': self.translator.get("Reset configuration and start over")},
+                {'id': 'exit', 'text': self.translator.get("Exit")}
             ]
             
-            action = questionary.select(
+            choice_texts = [choice['text'] for choice in choices]
+            selected_text = questionary.select(
                 self.translator.get("Configuration is corrupt. What would you like to do?"),
-                choices=choices,
+                choices=choice_texts,
                 style=custom_style
             ).ask()
             
-            if action == self.translator.get("Reset configuration and start over"):
+            # Find the selected ID
+            selected_id = 'exit'  # Default
+            for choice in choices:
+                if choice['text'] == selected_text:
+                    selected_id = choice['id']
+                    break
+            
+            if selected_id == 'reset':
                 self.config_manager.delete()
                 return self.execute_wizard()
                 
             return False  # Exit
 
-        # Build menu choices
+        # Build menu choices with IDs
         choices = []
-
-        # Add standard menu options
+        
+        # Define menu options with identifiers
         menu_options = [
-            self.translator.get("Application management"),
-            self.translator.get("Backup / Recovery management"),
-            self.translator.get("Configuration management"),
-            self.translator.get("Docker management"),
-            self.translator.get("Support features"),
-            self.translator.get("Exit")
+            {'id': 'app_management', 'text': self.translator.get("Application management")},
+            {'id': 'backup_recovery', 'text': self.translator.get("Backup / Recovery management")},
+            {'id': 'config_management', 'text': self.translator.get("Configuration management")},
+            {'id': 'docker_management', 'text': self.translator.get("Docker management")},
+            {'id': 'support_features', 'text': self.translator.get("Support features")},
+            {'id': 'exit', 'text': self.translator.get("Exit")}
         ]
         
         # Add Certificate management option conditionally
@@ -224,24 +232,33 @@ class TeddyCloudWizard(BaseWizard):
              ("security" in current_config["nginx"] and 
               current_config["nginx"]["security"].get("type") == "client_cert"))
         ):
-            menu_options.insert(0, self.translator.get("Certificate management"))
+            menu_options.insert(0, {'id': 'cert_management', 'text': self.translator.get("Certificate management")})
 
-        # Sort menu options alphabetically (except "Exit" which should always be last)
-        exit_option = self.translator.get("Exit")
+        # Sort menu options alphabetically by text (except "Exit" which should always be last)
+        exit_option = next(opt for opt in menu_options if opt['id'] == 'exit')
         menu_options.remove(exit_option)
-        menu_options.sort()  # Sort alphabetically
+        menu_options.sort(key=lambda x: x['text'])  # Sort alphabetically by display text
         menu_options.append(exit_option)  # Add Exit as the last option
         
         choices.extend(menu_options)
 
         # Show pre-wizard menu
-        action = questionary.select(
+        choice_texts = [choice['text'] for choice in choices]
+        selected_text = questionary.select(
             self.translator.get("What would you like to do?"),
-            choices=choices,
+            choices=choice_texts,
             style=custom_style
         ).ask()
+        
+        # Find the selected ID
+        selected_id = 'exit'  # Default to exit
+        for choice in choices:
+            if choice['text'] == selected_text:
+                selected_id = choice['id']
+                break
 
-        if action == self.translator.get("Certificate management"):
+        # Handle the selection based on the ID
+        if selected_id == 'cert_management':
             # Create a dictionary of security managers to pass to the certificate management menu
             security_managers = {
                 "ca_manager": self.ca_manager,
@@ -255,7 +272,7 @@ class TeddyCloudWizard(BaseWizard):
             else:
                 return self.show_pre_wizard_menu()  # Return to the main menu when "Back to main menu" was selected
             
-        elif action == self.translator.get("Configuration management"):
+        elif selected_id == 'config_management':
             # Create a dictionary of security managers to pass to the configuration management menu
             security_managers = {
                 "ca_manager": self.ca_manager,
@@ -269,7 +286,7 @@ class TeddyCloudWizard(BaseWizard):
                 return True
             return self.show_pre_wizard_menu()  # Show menu again
             
-        elif action == self.translator.get("Docker management"):
+        elif selected_id == 'docker_management':
             # Stay in Docker management menu until explicitly returning to main menu
             while True:
                 # Pass config_manager to ensure project path is available for Docker operations
@@ -279,20 +296,20 @@ class TeddyCloudWizard(BaseWizard):
             
             return self.show_pre_wizard_menu()  # Return to the main menu
         
-        elif action == self.translator.get("Application management"):
+        elif selected_id == 'app_management':
             return self.show_application_management_menu()
                 
-        elif action == self.translator.get("Backup / Recovery management"):
+        elif selected_id == 'backup_recovery':
             exit_menu = show_backup_recovery_menu(self.config_manager, self.docker_manager, self.translator)
             if not exit_menu:
                 return self.show_pre_wizard_menu()  # Show menu again
             else:
                 return self.show_pre_wizard_menu()  # Return to the main menu when "Back to main menu" was selected
         
-        elif action == self.translator.get("Support features"):
+        elif selected_id == 'support_features':
             return self.show_support_features_menu()
 
-        return False  # Exit
+        return False  # Exit (default for 'exit' action)
 
     def execute_wizard(self):
         """Run the main configuration wizard to set up TeddyCloud."""
@@ -386,20 +403,37 @@ class TeddyCloudWizard(BaseWizard):
     def select_deployment_mode(self):
         """Let the user select a deployment mode."""
         choices = [
-            self.translator.get("Direct mode (Simplest, all services on one machine)"),
-            self.translator.get("Nginx mode (Advanced, uses nginx for routing)")
+            {'id': 'direct', 'text': self.translator.get("Direct mode (Simplest, all services on one machine)")},
+            {'id': 'nginx', 'text': self.translator.get("Nginx mode (Advanced, uses nginx for routing)")}
         ]
         
-        mode_choice = questionary.select(
+        # Present choices to user
+        choice_texts = [choice['text'] for choice in choices]
+        selected_text = questionary.select(
             self.translator.get("Select a deployment mode:"),
-            choices=choices,
+            choices=choice_texts,
             style=custom_style
         ).ask()
         
-        if mode_choice.startswith(self.translator.get("Direct mode")):
-            self.config_manager.config["mode"] = "direct"
-        else:
-            self.config_manager.config["mode"] = "nginx"
+        # Convert selected text back to ID
+        selected_id = None
+        for choice in choices:
+            if choice['text'] == selected_text:
+                selected_id = choice['id']
+                break
+    
+        # Set the selected mode in the configuration
+        self.config_manager.config["mode"] = selected_id
+        
+        # Configure selected mode
+        if selected_id == 'direct':
+            # Configure direct mode settings
+            from .configuration.direct_mode import configure_direct_mode
+            self.config_manager.config = configure_direct_mode(self.config_manager.config, self.translator)
+        else:  # nginx mode
+            # Configure nginx mode settings
+            from .configuration.nginx_mode import configure_nginx_mode
+            self.config_manager.config = configure_nginx_mode(self.config_manager.config, self.translator, self.security_managers)
             
         console.print(f"[green]{self.translator.get('Deployment mode set to')}: {self.config_manager.config['mode']}[/]")
         

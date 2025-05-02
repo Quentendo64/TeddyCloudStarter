@@ -30,20 +30,17 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
     """
     domain = nginx_config["domain"]
     
-    # Check if domain is publicly resolvable
     domain_resolvable = check_domain_resolvable(domain)
     
     if not domain_resolvable:
         display_letsencrypt_not_available_warning(domain, translator)
         return False
         
-    # Warn about Let's Encrypt requirements
     display_letsencrypt_requirements(translator)
     
     if not confirm_letsencrypt_requirements(translator):
         return False
     
-    # Check if port 80 is available (necessary for standalone mode)
     port_available = check_port_available(80)
     if not port_available:
         console.print(f"[bold yellow]{translator.get('Warning: Port 80 appears to be in use')}")
@@ -58,9 +55,7 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
         if not use_anyway:
             return False
     
-    # Test if domain is properly set up
     if confirm_test_certificate(translator):
-        # First test with staging certificate
         console.print(f"[bold cyan]{translator.get('Requesting Let\'s Encrypt certificate (staging) using standalone mode...')}[/]")
         staging_result = lets_encrypt_manager.request_certificate(
             domain=domain,
@@ -74,7 +69,6 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
         
         console.print(f"[bold green]{translator.get('Staging certificate request successful! Your domain is properly configured for Let\'s Encrypt.')}[/]")
         
-        # Ask user if they want to proceed with production certificate request
         proceed_with_production = questionary.confirm(
             translator.get("Do you want to proceed with requesting production certificates?"),
             default=True,
@@ -87,7 +81,6 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
             
         console.print(f"[bold cyan]{translator.get('Requesting Let\'s Encrypt certificate (production) using standalone mode...')}[/]")
         
-        # If staging was successful and user confirmed, request production certificate
         production_result = lets_encrypt_manager.request_certificate(
             domain=domain,
             mode="standalone",
@@ -96,13 +89,12 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
         
         if not production_result:
             console.print(f"[bold red]{translator.get('Production certificate request failed. You may need to try again later.')}[/]")
-            # Still return True as staging worked, so the setup is likely correct
             return True
             
         console.print(f"[bold green]{translator.get('Production certificate request successful! Your Let\'s Encrypt certificate is ready to use.')}[/]")
         return True
     
-    return True  # User chose not to test, but we'll continue with Let's Encrypt
+    return True
 
 def check_domain_suitable_for_letsencrypt(domain, translator, current_https_mode=None):
     """
@@ -116,13 +108,11 @@ def check_domain_suitable_for_letsencrypt(domain, translator, current_https_mode
     Returns:
         bool: True if domain is suitable for Let's Encrypt
     """
-    # Check if domain is publicly resolvable
     domain_resolvable = check_domain_resolvable(domain)
     
     if not domain_resolvable:
         display_domain_not_resolvable_warning(domain, translator)
         
-        # If using Let's Encrypt, offer to change HTTPS mode
         if current_https_mode == "letsencrypt":
             return confirm_switch_to_self_signed(translator)
     
@@ -140,7 +130,6 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
     Returns:
         bool: True if switch was successful, False otherwise
     """
-    # Check if nginx-edge is running
     is_running = False
     try:
         result = subprocess.run(
@@ -151,11 +140,9 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
     except Exception:
         is_running = False
     
-    # Update config with Let's Encrypt as HTTPS mode
     try:
         config["nginx"]["https_mode"] = "letsencrypt"
         
-        # Regenerate nginx configuration and docker-compose
         from ..configuration.generator import generate_nginx_configs, generate_docker_compose
         from ..configurations import TEMPLATES
         
@@ -171,7 +158,6 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
             console.print(f"[bold red]{translator.get('Failed to regenerate docker-compose configuration')}[/]")
             return False
         
-        # Stop temporary certbot if used
         try:
             subprocess.run(
                 ["docker", "rm", "-f", "certbot-temp"],
@@ -180,12 +166,11 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
         except Exception:
             pass
         
-        # If nginx-edge was running, restart it to apply new config
         if is_running:
             console.print(f"[bold cyan]{translator.get('Restarting nginx-edge to apply new configuration...')}[/]")
             try:
                 subprocess.run(["docker", "restart", "nginx-edge"], check=True)
-                time.sleep(3)  # Give it time to start
+                time.sleep(3)
             except Exception as e:
                 console.print(f"[bold yellow]{translator.get('Warning: Failed to restart nginx-edge:')} {e}[/]")
         
