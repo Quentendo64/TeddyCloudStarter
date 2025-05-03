@@ -116,6 +116,7 @@ class SetupWizard(BaseWizard):
         console.print(f"[bold cyan]{self.translator.get('Please select a directory for your TeddyCloud project')}[/]")
         console.print(f"[cyan]{self.translator.get('This directory will be used to store all TeddyCloudStarter related data like certificates, and configuration files.')}[/]")
         current_dir = Path(self.config_manager.config_path).parent
+        old_project_path = self.config_manager.config.get("environment", {}).get("path")
         selected_path = browse_directory(
             start_path=current_dir,
             title=self.translator.get("Select TeddyCloud Project Directory"),
@@ -123,23 +124,63 @@ class SetupWizard(BaseWizard):
         )
         
         if selected_path:
+            # If changing project path, handle data migration
+            if old_project_path and os.path.abspath(selected_path) != os.path.abspath(old_project_path):
+                old_data = os.path.join(old_project_path, "data")
+                new_data = os.path.join(selected_path, "data")
+                if os.path.exists(old_data):
+                    move_data = questionary.confirm(
+                        self.translator.get("Move existing /data folder to the new project path?"),
+                        default=True,
+                        style=custom_style
+                    ).ask()
+                    if move_data:
+                        # Stop Docker services before moving
+                        self.docker_manager.stop_services(project_path=old_project_path)
+                        import shutil
+                        try:
+                            shutil.move(old_data, new_data)
+                            console.print(f"[green]{self.translator.get('Moved /data folder to new project path.')}[/]")
+                        except Exception as e:
+                            console.print(f"[bold red]{self.translator.get('Failed to move /data folder')}: {e}[/]")
+                        # Update config and restart services in new location
+                        if "environment" not in self.config_manager.config:
+                            self.config_manager.config["environment"] = {}
+                        self.config_manager.config["environment"]["path"] = selected_path
+                        self.config_manager.save()
+                        self.docker_manager.start_services(project_path=selected_path)
+                        return
+                    else:
+                        delete_old = questionary.confirm(
+                            self.translator.get("Delete old project path after switching?"),
+                            default=False,
+                            style=custom_style
+                        ).ask()
+                        if delete_old:
+                            self.docker_manager.stop_services(project_path=old_project_path)
+                            import shutil
+                            try:
+                                shutil.rmtree(old_project_path)
+                                console.print(f"[green]{self.translator.get('Old project path deleted.')}[/]")
+                                # Restart the setup wizard since there are no project files anymore
+                                console.print(f"[bold yellow]{self.translator.get('No project files found. Restarting setup wizard...')}[/]")
+                                self.run()
+                                return
+                            except Exception as e:
+                                console.print(f"[bold red]{self.translator.get('Failed to delete old project path')}: {e}[/]")
             # Update config with selected path
             if "environment" not in self.config_manager.config:
                 self.config_manager.config["environment"] = {}
-            
             self.config_manager.config["environment"]["path"] = selected_path
             console.print(f"[green]{self.translator.get('Project path set to')}: {selected_path}[/]")
-            
             # Save configuration
             self.config_manager.save()
         else:
             # Use current directory as fallback
             if "environment" not in self.config_manager.config:
                 self.config_manager.config["environment"] = {}
-                
             self.config_manager.config["environment"]["path"] = current_dir
             console.print(f"[yellow]{self.translator.get('No path selected. Using current directory')}: {current_dir}[/]")
-            
             # Save configuration
             self.config_manager.save()
     
