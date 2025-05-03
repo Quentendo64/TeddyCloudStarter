@@ -603,13 +603,19 @@ def modify_domain_name(config, translator):
     Returns:
         dict: The updated configuration dictionary
     """
+    # Import here to avoid circular import
+    from .generator import generate_nginx_configs
+    from ..configurations import TEMPLATES
+    from ..docker.manager import DockerManager
+    import questionary
+
     nginx_config = config["nginx"]
     current_domain = nginx_config.get("domain", "")
-    
+
     console.print(f"[bold cyan]{translator.get('Current domain name')}: {current_domain or translator.get('Not set')}[/]")
-    
+
     domain = prompt_for_domain(current_domain, translator)
-    
+
     if domain != current_domain:
         nginx_config["domain"] = domain
         console.print(f"[bold green]{translator.get('Domain name updated to')} {domain}[/]")
@@ -624,6 +630,22 @@ def modify_domain_name(config, translator):
             if needs_switch:
                 nginx_config["https_mode"] = "self_signed"
                 console.print(f"[bold green]{translator.get('HTTPS mode updated to self-signed certificates.')}[/]")
+        # Regenerate nginx configs
+        success = generate_nginx_configs(config, translator, TEMPLATES)
+        if success:
+            console.print(f"[bold green]{translator.get('Nginx configuration regenerated successfully.')}[/]")
+            # Ask if user wants to restart Docker services
+            restart = questionary.confirm(
+                translator.get('Would you like to restart Docker services to apply the new domain?'),
+                default=True
+            ).ask()
+            if restart:
+                # Get project_path if available
+                project_path = config.get('environment', {}).get('path', None)
+                docker_manager = DockerManager(translator=translator)
+                docker_manager.restart_services(project_path=project_path)
+        else:
+            console.print(f"[bold red]{translator.get('Failed to regenerate nginx configuration.')}[/]")
     else:
         console.print(f"[bold cyan]{translator.get('Domain name unchanged.')}[/]")
     

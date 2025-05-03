@@ -5,6 +5,8 @@ Reset operations module for TeddyCloudStarter configuration.
 import os
 import subprocess
 from ..wizard.ui_helpers import console
+from rich.panel import Panel
+from rich import box
 from ..utilities.file_system import get_project_path
 
 def reset_config_file(config_manager, translator):
@@ -60,6 +62,15 @@ def reset_project_path_data(config_manager, translator, folders=None):
             return True
         
         if folders is None:
+            # Remove the data folder inside the project path if it exists
+            data_folder = os.path.join(project_path, "data")
+            if os.path.exists(data_folder):
+                import shutil
+                try:
+                    shutil.rmtree(data_folder)
+                    console.print(f"[green]{translator.get('Removed project data folder')}: {data_folder}[/]")
+                except Exception as e:
+                    console.print(f"[red]{translator.get('Error removing project data folder')}: {str(e)}[/]")
             console.print(f"[green]{translator.get('Project path data reset')}")
             
             if "project_path" in config_manager.config:
@@ -84,54 +95,14 @@ def reset_project_path_data(config_manager, translator, folders=None):
         console.print(f"[red]{translator.get('Error resetting project path')}: {str(e)}")
         return False
 
-def get_docker_volumes(translator, filter_prefix="teddycloudstarter_"):
-    """
-    Get a list of Docker volumes with the specified prefix.
-    
-    Args:
-        translator: TranslationManager instance
-        filter_prefix: Prefix to filter volumes by
-        
-    Returns:
-        dict: Dictionary mapping volume names to their labels
-    """
-    try:
-        result = subprocess.run(
-            ["docker", "volume", "ls", "--filter", f"name={filter_prefix}", "--format", "{{.Name}}"],
-            capture_output=True, text=True, check=True
-        )
-        volumes = result.stdout.strip().split('\n')
-        volumes = [v for v in volumes if v]
-        
-        volume_info = {}
-        
-        for volume in volumes:
-            try:
-                inspect_result = subprocess.run(
-                    ["docker", "volume", "inspect", volume],
-                    capture_output=True, text=True, check=True
-                )
-                import json
-                inspect_data = json.loads(inspect_result.stdout)
-                if inspect_data and len(inspect_data) > 0:
-                    labels = inspect_data[0].get("Labels", {}) or {}
-                    volume_info[volume] = labels
-            except (subprocess.SubprocessError, json.JSONDecodeError) as e:
-                console.print(f"[yellow]{translator.get('Error inspecting volume')} {volume}: {str(e)}")
-                volume_info[volume] = {}
-                
-        return volume_info
-    except subprocess.SubprocessError as e:
-        console.print(f"[yellow]{translator.get('Error listing Docker volumes')}: {str(e)}")
-        return {}
-
-def reset_docker_volumes(translator, volumes=None):
+def reset_docker_volumes(translator, volumes=None, docker_manager=None):
     """
     Reset Docker volumes by removing specified volumes or all with teddycloudstarter prefix.
     
     Args:
         translator: TranslationManager instance
         volumes: List of volume names to remove, or None to remove all with teddycloudstarter prefix
+        docker_manager: DockerManager instance (required for dynamic volume listing)
         
     Returns:
         bool: True if successful, False otherwise
@@ -140,8 +111,11 @@ def reset_docker_volumes(translator, volumes=None):
         console.print(f"[bold yellow]{translator.get('Removing Docker volumes')}...[/]")
         
         if volumes is None:
-            volume_info = get_docker_volumes(translator)
-            volumes = list(volume_info.keys())
+            if docker_manager is not None:
+                volumes = docker_manager.get_volumes()
+            else:
+                console.print(f"[red]{translator.get('Docker manager instance required for dynamic volume listing')}[/]")
+                return False
         
         if volumes:
             for volume in volumes:
@@ -149,7 +123,7 @@ def reset_docker_volumes(translator, volumes=None):
                     subprocess.run(["docker", "volume", "rm", volume], check=True)
                     console.print(f"[green]{translator.get('Removed Docker volume')}: {volume}[/]")
                 except subprocess.SubprocessError as e:
-                    console.print(f"[red]{translator.get('Error removing Docker volume')} {volume}: {str(e)}")
+                    console.print(f"[red]{translator.get('Error removing Docker volume')} {volume}: {str(e)}[/]")
         else:
             console.print(f"[yellow]{translator.get('No Docker volumes found to remove')}[/]")
         
@@ -175,40 +149,67 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
         bool: True if all operations were successful, False otherwise
     """
     success = True
-    
-    if reset_options.get('docker_volumes') or reset_options.get('docker_all_volumes') or reset_options.get('project_folders'):
-        project_path = get_project_path(config_manager, translator)
-        
-        if project_path:
-            wizard.docker_manager.down_services(project_path)
-    
-    if reset_options.get('config_file'):
-        if not reset_config_file(config_manager, translator):
+
+    # 1. Docker volumes first
+    docker_volumes = reset_options.get('docker_volumes', [])
+    if docker_volumes:
+        if not reset_docker_volumes(translator, docker_volumes, docker_manager=wizard.docker_manager):
             success = False
-    
+    elif reset_options.get('docker_all_volumes'):
+        if not reset_docker_volumes(translator, docker_manager=wizard.docker_manager):
+            success = False
+
+    # 2. Project path (folders or entire path)
     project_folders = reset_options.get('project_folders', [])
     if project_folders:
         if not reset_project_path_data(config_manager, translator, project_folders):
             success = False
     elif reset_options.get('project_path'):
+        # Remove the data folder inside the project path as well
+        project_path = config_manager.config.get("project_path")
+        if not project_path:
+            project_path = config_manager.config.get("environment", {}).get("path")
+        if project_path:
+            import shutil
+            data_folder = os.path.join(project_path, "data")
+            if os.path.exists(data_folder):
+                try:
+                    shutil.rmtree(data_folder)
+                    console.print(f"[green]{translator.get('Removed project data folder')}: {data_folder}[/]")
+                except Exception as e:
+                    console.print(f"[red]{translator.get('Error removing project data folder')}: {str(e)}[/]")
         if not reset_project_path_data(config_manager, translator):
             success = False
-    
-    docker_volumes = reset_options.get('docker_volumes', [])
-    if docker_volumes:
-        if not reset_docker_volumes(translator, docker_volumes):
+
+    # 3. Config file last
+    if reset_options.get('config_file'):
+        if not reset_config_file(config_manager, translator):
             success = False
-    elif reset_options.get('docker_all_volumes'):
-        if not reset_docker_volumes(translator):
-            success = False
-    
+
+    # Stop Docker services if any project path or docker reset was done
+    if (reset_options.get('docker_volumes') or reset_options.get('docker_all_volumes') or
+        reset_options.get('project_folders') or reset_options.get('project_path')):
+        project_path = get_project_path(config_manager, translator)
+        if project_path:
+            wizard.docker_manager.down_services(project_path)
+
     if success:
         console.print(f"[bold green]{translator.get('Reset completed successfully')}[/]")
     else:
         console.print(f"[bold yellow]{translator.get('Reset completed with some errors')}[/]")
-    
+
     if reset_options.get('config_file') or reset_options.get('project_path'):
-        console.print(f"[yellow]{translator.get('Reloading configuration')}...[/]")
-        wizard.reload_configuration()
-    
+        console.print(Panel(
+            f"[bold green]{translator.get('Reset completed!')}[/]\n\n"
+            f"{translator.get('TeddyCloudStarter has been reset to defaults.')}\n\n"
+            f"[bold cyan]{translator.get('The setup wizard will start now for new initialization.')}[/]",
+            box=box.ROUNDED,
+            border_style="green"
+        ))
+        # Start the setup wizard instead of reloading configuration
+        if hasattr(wizard, 'run'):
+            wizard.run()
+        else:
+            console.print(f"[red]{translator.get('Unable to restart setup wizard. Please restart the application manually.')}[/]")
+
     return success

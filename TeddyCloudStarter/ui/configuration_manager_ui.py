@@ -7,7 +7,8 @@ import os
 from ..wizard.ui_helpers import console, custom_style
 from ..configuration.direct_mode import modify_http_port, modify_https_port, modify_teddycloud_port
 from ..configuration.nginx_mode import modify_domain_name, modify_https_mode, modify_security_settings, modify_ip_restrictions
-from ..configuration.reset_operations import perform_reset_operations, get_docker_volumes
+from ..configuration.reset_operations import perform_reset_operations
+from ..docker.manager import DockerManager
 
 def show_configuration_management_menu(wizard, config_manager, translator, security_managers=None):
     """Show configuration management menu.
@@ -52,7 +53,7 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
         elif current_mode == "nginx":
             mode_specific_choices = [
                 {'id': 'modify_domain', 'text': translator.get("Modify domain name")},
-                {'id': 'modify_https', 'text': translator.get("Modify HTTPS configuration")},
+                #{'id': 'modify_https', 'text': translator.get("Modify HTTPS configuration")},
                 {'id': 'modify_security', 'text': translator.get("Modify security settings")},
                 {'id': 'modify_ip_filtering', 'text': translator.get("Configure IP address filtering")}
             ]
@@ -89,6 +90,29 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
         elif selected_id == 'change_mode':
             wizard.select_deployment_mode()
             config_manager.save()
+
+            # --- Begin: Additional steps after deployment mode change ---
+            from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+            from ..configurations import TEMPLATES
+
+            # Stop and remove old containers
+            project_path = config_manager.config.get('environment', {}).get('path', None)
+            docker_manager = DockerManager(translator=translator)
+            docker_manager.down_services(project_path=project_path)
+
+            # Regenerate nginx and docker-compose configs
+            generate_nginx_configs(config_manager.config, translator, TEMPLATES)
+            generate_docker_compose(config_manager.config, translator, TEMPLATES)
+
+            # Ask to start services with new mode
+            start = questionary.confirm(
+                translator.get('Would you like to start the services with the new deployment mode?'),
+                default=True,
+                style=custom_style
+            ).ask()
+            if start:
+                docker_manager.start_services(project_path=project_path)
+            # --- End: Additional steps ---
             
         elif selected_id == 'change_path':
             wizard.select_project_path()
@@ -97,12 +121,16 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
             config_manager.toggle_auto_update()
             
         elif selected_id == 'reset':
-            reset_options = handle_reset_wizard(translator)
+            reset_options = handle_reset_wizard(translator, config_manager)
             if reset_options:
                 perform_reset_operations(reset_options, config_manager, wizard, translator)
                 
         elif selected_id == 'refresh':
-            wizard.refresh_server_configuration()
+            from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+            from ..configurations import TEMPLATES
+            generate_nginx_configs(config_manager.config, translator, TEMPLATES)
+            generate_docker_compose(config_manager.config, translator, TEMPLATES)
+            
             
         # Direct mode specific options
         elif selected_id == 'modify_http_port':
@@ -141,11 +169,12 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
             
         # After any action, loop back to show the menu again
 
-def handle_reset_wizard(translator):
+def handle_reset_wizard(translator, config_manager=None):
     """Handle the reset wizard with multiple options and subcategories.
     
     Args:
         translator: TranslationManager instance
+        config_manager: ConfigManager instance (required for dynamic folder listing)
         
     Returns:
         dict: Dictionary of reset options or None if canceled
@@ -190,7 +219,7 @@ def handle_reset_wizard(translator):
             reset_options['config_file'] = True
         elif value == 'project_path_menu':
             # Show project path submenu
-            handle_project_path_reset(reset_options, translator)
+            handle_project_path_reset(reset_options, translator, config_manager)
         elif value == 'docker_volumes_menu':
             # Show Docker volumes submenu
             handle_docker_volumes_reset(reset_options, translator)
@@ -215,21 +244,40 @@ def handle_reset_wizard(translator):
     
     return None
 
-def handle_project_path_reset(reset_options, translator):
+def handle_project_path_reset(reset_options, translator, config_manager=None):
     """Handle the project path reset submenu.
     
     Args:
         reset_options: Dictionary to store reset options
         translator: TranslationManager instance
+        config_manager: ConfigManager instance (required for dynamic folder listing)
     """
-    # Define project path options
+    # Get project path from config_manager
+    project_path = None
+    if config_manager and hasattr(config_manager, 'config'):
+        project_path = config_manager.config.get("environment", {}).get("path", None)
+    
+    # Debug output for project_path
+    console.print(f"[cyan]DEBUG: Using project_path: {project_path}[/]")
+    data_dir = os.path.normpath(os.path.join(project_path, "data")) if project_path else None
+    console.print(f"[cyan]DEBUG: Checking data_dir: {data_dir}[/]")
+    existing_folders = []
+    if data_dir and os.path.isdir(data_dir):
+        existing_folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
+    console.print(f"[cyan]DEBUG: Found folders: {existing_folders}[/]")
+    # Always offer to reset the entire ProjectPath
     project_path_options = [
-        {'name': translator.get('Reset entire ProjectPath'), 'value': 'entire_path'},
-        {'name': translator.get('if exist (configurations)'), 'value': 'configurations'},
-        {'name': translator.get('if exist (backup)'), 'value': 'backup'},
-        {'name': translator.get('if exist (client_certs)'), 'value': 'client_certs'},
-        {'name': translator.get('if exist (server_clients)'), 'value': 'server_clients'}
+        {'name': translator.get('Reset entire ProjectPath'), 'value': 'entire_path'}
     ]
+    # Add only existing folders for selection
+    for folder in sorted(existing_folders):
+        project_path_options.append({
+            'name': f"{translator.get('Subfolder:')} /{folder}", 'value': folder
+        })
+    
+    if len(project_path_options) == 1:
+        console.print(f"[yellow]{translator.get('No folders found in ProjectPath')}[/]")
+        return
     
     selected_options = questionary.checkbox(
         translator.get("Select ProjectPath items to reset:"),
@@ -256,10 +304,10 @@ def handle_docker_volumes_reset(reset_options, translator):
         reset_options: Dictionary to store reset options
         translator: TranslationManager instance
     """
-    # Get the list of available Docker volumes
-    volume_info = get_docker_volumes(translator)
-    volume_names = list(volume_info.keys())
-    
+    # Use DockerManager to get the list of available Docker volumes
+    docker_manager = DockerManager(translator=translator)
+    volume_names = docker_manager.get_volumes()
+
     # Define standard volume options to check for
     standard_volumes = [
         'teddycloudstarter_certs',
@@ -281,7 +329,7 @@ def handle_docker_volumes_reset(reset_options, translator):
     # Add standard volumes that exist
     for vol in standard_volumes:
         if vol in volume_names:
-            docker_options.append({'name': f"{translator.get('if exist')} ({vol})", 'value': vol})
+            docker_options.append({'name': f"{translator.get('Volume:')} ({vol})", 'value': vol})
     
     # Add any additional volumes found
     for vol in volume_names:

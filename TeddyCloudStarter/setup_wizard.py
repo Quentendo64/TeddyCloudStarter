@@ -67,15 +67,11 @@ class SetupWizard(BaseWizard):
         if not self.config_manager.config.get("environment", {}).get("path"):
             self.select_project_path()
 
-        # Step 2: Select deployment mode
+        # Step 2: Select deployment mode (and configure it)
         self.select_deployment_mode()
+        # Removed redundant calls to configure_direct_mode/configure_nginx_mode
+        # as select_deployment_mode already performs configuration
         
-        # Step 3: Configure selected deployment mode
-        if self.config_manager.config["mode"] == "direct":
-            self.configure_direct_mode()
-        elif self.config_manager.config["mode"] == "nginx":
-            self.configure_nginx_mode()
-            
         # Save the configuration
         self.config_manager.save()
         
