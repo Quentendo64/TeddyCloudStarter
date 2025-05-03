@@ -21,144 +21,125 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
     Returns:
         bool: True if configuration was modified, False otherwise
     """
-    console.print(f"[bold cyan]{translator.get('Configuration Management')}[/]")
-    
-    current_config = config_manager.config
-    current_mode = current_config.get("mode", "direct")
-    
-    # Check auto-update status to display appropriate menu option
-    auto_update_enabled = current_config.get("app_settings", {}).get("auto_update", False)
-    
-    # Build menu choices with IDs and translated texts
-    choices = [
-        {'id': 'change_mode', 'text': translator.get("Change deployment mode")},
-        {'id': 'change_path', 'text': translator.get("Change project path")},
-        {'id': 'toggle_update', 'text': translator.get("Disable auto-update") if auto_update_enabled 
-                                        else translator.get("Enable auto-update")},
-        {'id': 'reset', 'text': translator.get("Reset TeddyCloudStarter")},
-        {'id': 'refresh', 'text': translator.get("Refresh server configuration")},
-        {'id': 'back', 'text': translator.get("Back to main menu")}
-    ]
-    
-    # Add mode-specific options
-    mode_specific_choices = []
-    if current_mode == "direct":
-        mode_specific_choices = [
-            {'id': 'modify_http_port', 'text': translator.get("Modify HTTP port")},
-            {'id': 'modify_https_port', 'text': translator.get("Modify HTTPS port")}
-            #{'id': 'modify_tc_port', 'text': translator.get("Modify TeddyCloud port")}
-        ]
-    elif current_mode == "nginx":
-        mode_specific_choices = [
-            {'id': 'modify_domain', 'text': translator.get("Modify domain name")},
-            {'id': 'modify_https', 'text': translator.get("Modify HTTPS configuration")},
-            {'id': 'modify_security', 'text': translator.get("Modify security settings")},
-            {'id': 'modify_ip_filtering', 'text': translator.get("Configure IP address filtering")}
+    while True:
+        console.print(f"[bold cyan]{translator.get('Configuration Management')}[/]")
+        
+        current_config = config_manager.config
+        current_mode = current_config.get("mode", "direct")
+        
+        # Check auto-update status to display appropriate menu option
+        auto_update_enabled = current_config.get("app_settings", {}).get("auto_update", False)
+        
+        # Build menu choices with IDs and translated texts
+        choices = [
+            {'id': 'change_mode', 'text': translator.get("Change deployment mode")},
+            {'id': 'change_path', 'text': translator.get("Change project path")},
+            {'id': 'toggle_update', 'text': translator.get("Disable auto-update") if auto_update_enabled 
+                                            else translator.get("Enable auto-update")},
+            {'id': 'reset', 'text': translator.get("Reset TeddyCloudStarter")},
+            {'id': 'refresh', 'text': translator.get("Refresh server configuration")},
+            {'id': 'back', 'text': translator.get("Back to main menu")}
         ]
         
-        # Add basic auth bypass option if basic auth is configured
-        if (current_config.get("nginx", {}).get("security", {}).get("type") == "basic_auth"):
-            mode_specific_choices.append(
-                {'id': 'modify_auth_bypass', 'text': translator.get("Configure basic auth bypass IPs")}
-            )
-    
-    # Insert mode-specific options at position 3 (after change_path and toggle_update)
-    for i, choice in enumerate(mode_specific_choices):
-        choices.insert(3 + i, choice)
-    
-    # Show configuration management menu
-    choice_texts = [choice['text'] for choice in choices]
-    selected_text = questionary.select(
-        translator.get("What would you like to do?"),
-        choices=choice_texts,
-        style=custom_style
-    ).ask()
-    
-    # Find the selected ID
-    selected_id = 'back'  # Default to back
-    for choice in choices:
-        if choice['text'] == selected_text:
-            selected_id = choice['id']
-            break
-    
-    # Process action based on the selected ID
-    if selected_id == 'change_mode':
-        wizard.select_deployment_mode()
-        
-        # After changing mode, check if we need to configure the new mode
-        if config_manager.config["mode"] == "direct":
-            wizard.configure_direct_mode()
-        elif config_manager.config["mode"] == "nginx":
-            wizard.configure_nginx_mode()
+        # Add mode-specific options
+        mode_specific_choices = []
+        if current_mode == "direct":
+            mode_specific_choices = [
+                {'id': 'modify_http_port', 'text': translator.get("Modify HTTP port")},
+                {'id': 'modify_https_port', 'text': translator.get("Modify HTTPS port")}
+                #{'id': 'modify_tc_port', 'text': translator.get("Modify TeddyCloud port")}
+            ]
+        elif current_mode == "nginx":
+            mode_specific_choices = [
+                {'id': 'modify_domain', 'text': translator.get("Modify domain name")},
+                {'id': 'modify_https', 'text': translator.get("Modify HTTPS configuration")},
+                {'id': 'modify_security', 'text': translator.get("Modify security settings")},
+                {'id': 'modify_ip_filtering', 'text': translator.get("Configure IP address filtering")}
+            ]
             
-        # Save the configuration
-        config_manager.save()
-        return True
+            # Add basic auth bypass option if basic auth is configured
+            if (current_config.get("nginx", {}).get("security", {}).get("type") == "basic_auth"):
+                mode_specific_choices.append(
+                    {'id': 'modify_auth_bypass', 'text': translator.get("Configure basic auth bypass IPs")}
+                )
         
-    elif selected_id == 'change_path':
-        wizard.select_project_path()
-        return True
+        # Insert mode-specific options at position 3 (after change_path and toggle_update)
+        for i, choice in enumerate(mode_specific_choices):
+            choices.insert(3 + i, choice)
         
-    elif selected_id == 'toggle_update':
-        # Use the toggle_auto_update function we added
-        config_manager.toggle_auto_update()
-        return True
+        # Show configuration management menu
+        choice_texts = [choice['text'] for choice in choices]
+        selected_text = questionary.select(
+            translator.get("What would you like to do?"),
+            choices=choice_texts,
+            style=custom_style
+        ).ask()
         
-    elif selected_id == 'reset':
-        reset_options = handle_reset_wizard(translator)
-        if reset_options:
-            perform_reset_operations(reset_options, config_manager, wizard, translator)
-            return True
-        return False
+        # Find the selected ID
+        selected_id = 'back'  # Default to back
+        for choice in choices:
+            if choice['text'] == selected_text:
+                selected_id = choice['id']
+                break
         
-    elif selected_id == 'refresh':
-        wizard.refresh_server_configuration()
-        return True
+        # Process action based on the selected ID
+        if selected_id == 'back':
+            return False  # Return to main menu
         
-    # Direct mode specific options
-    elif selected_id == 'modify_http_port':
-        modify_http_port(config_manager.config, translator)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_https_port':
-        modify_https_port(config_manager.config, translator)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_tc_port':
-        modify_teddycloud_port(config_manager.config, translator)
-        config_manager.save()
-        return True
-        
-    # Nginx mode specific options
-    elif selected_id == 'modify_domain':
-        modify_domain_name(config_manager.config, translator)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_https':
-        modify_https_mode(config_manager.config, translator, security_managers)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_security':
-        modify_security_settings(config_manager.config, translator, security_managers)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_ip_filtering':
-        modify_ip_restrictions(config_manager.config, translator, security_managers)
-        config_manager.save()
-        return True
-        
-    elif selected_id == 'modify_auth_bypass':
-        from ..configuration.nginx_mode import configure_auth_bypass_ips
-        configure_auth_bypass_ips(config_manager.config, translator, security_managers)
-        config_manager.save()
-        return True
-        
-    return False  # Return to main menu
+        elif selected_id == 'change_mode':
+            wizard.select_deployment_mode()
+            config_manager.save()
+            
+        elif selected_id == 'change_path':
+            wizard.select_project_path()
+            
+        elif selected_id == 'toggle_update':
+            config_manager.toggle_auto_update()
+            
+        elif selected_id == 'reset':
+            reset_options = handle_reset_wizard(translator)
+            if reset_options:
+                perform_reset_operations(reset_options, config_manager, wizard, translator)
+                
+        elif selected_id == 'refresh':
+            wizard.refresh_server_configuration()
+            
+        # Direct mode specific options
+        elif selected_id == 'modify_http_port':
+            modify_http_port(config_manager.config, translator)
+            config_manager.save()
+            
+        elif selected_id == 'modify_https_port':
+            modify_https_port(config_manager.config, translator)
+            config_manager.save()
+            
+        elif selected_id == 'modify_tc_port':
+            modify_teddycloud_port(config_manager.config, translator)
+            config_manager.save()
+            
+        # Nginx mode specific options
+        elif selected_id == 'modify_domain':
+            modify_domain_name(config_manager.config, translator)
+            config_manager.save()
+            
+        elif selected_id == 'modify_https':
+            modify_https_mode(config_manager.config, translator, security_managers)
+            config_manager.save()
+            
+        elif selected_id == 'modify_security':
+            modify_security_settings(config_manager.config, translator, security_managers)
+            config_manager.save()
+            
+        elif selected_id == 'modify_ip_filtering':
+            modify_ip_restrictions(config_manager.config, translator, security_managers)
+            config_manager.save()
+            
+        elif selected_id == 'modify_auth_bypass':
+            from ..configuration.nginx_mode import configure_auth_bypass_ips
+            configure_auth_bypass_ips(config_manager.config, translator, security_managers)
+            config_manager.save()
+            
+        # After any action, loop back to show the menu again
 
 def handle_reset_wizard(translator):
     """Handle the reset wizard with multiple options and subcategories.

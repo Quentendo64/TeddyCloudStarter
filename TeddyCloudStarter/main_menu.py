@@ -259,8 +259,11 @@ class MainMenu(BaseWizard):
                 "lets_encrypt_manager": self.lets_encrypt_manager,
                 "ip_restrictions_manager": self.ip_restrictions_manager
             }
-            
-            result = show_configuration_management_menu(self, self.config_manager, self.translator, security_managers)
+            # Use SetupWizard for configuration management menu to ensure select_deployment_mode is available
+            setup_wizard = SetupWizard(self.locales_dir)
+            setup_wizard.config_manager = self.config_manager  # Share current config
+            setup_wizard.translator = self.translator  # Share current translator
+            result = show_configuration_management_menu(setup_wizard, self.config_manager, self.translator, security_managers)
             if result:  # If configuration was modified or wizard was run
                 return True
             return self.show_main_menu()  # Show menu again
