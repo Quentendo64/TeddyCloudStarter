@@ -24,10 +24,17 @@ def show_certificate_management_menu(config, translator, security_managers):
         if config["nginx"]["https_mode"] == "letsencrypt":
             choices.append({'id': 'lets_encrypt_management', 'text': translator.get("Let's Encrypt Certificate Management")})
             choices.append({'id': 'test_domain', 'text': translator.get("Test domain for Let's Encrypt")})
-        
         if config["nginx"]["security"]["type"] == "client_cert":
             choices.append({'id': 'create_client_cert', 'text': translator.get("Create additional client certificate")})
-            choices.append({'id': 'invalidate_client_cert', 'text': translator.get("Invalidate client certificate")})
+            # Only show invalidate option if there are active (not revoked) certificates
+            from ..config_manager import ConfigManager
+            config_manager = ConfigManager()
+            fresh_config = config_manager.config
+            active_certs = []
+            if ("security" in fresh_config and "client_certificates" in fresh_config["security"]):
+                active_certs = [cert for cert in fresh_config["security"]["client_certificates"] if not cert.get("revoked", False)]
+            if active_certs:
+                choices.append({'id': 'invalidate_client_cert', 'text': translator.get("Invalidate client certificate")})
     
     choices.append({'id': 'back', 'text': translator.get("Back to main menu")})
     
@@ -45,11 +52,11 @@ def show_certificate_management_menu(config, translator, security_managers):
             break
     
     if selected_id == 'create_client_cert':
-        create_client_certificate(translator, security_managers["client_cert_manager"])
+        create_client_certificate(translator, security_managers["client_cert_manager"], config, security_managers)
         return False
         
     elif selected_id == 'invalidate_client_cert':
-        invalidate_client_certificate(config, translator, security_managers["client_cert_manager"])
+        invalidate_client_certificate(config, translator, security_managers["client_cert_manager"], security_managers)
         return False
         
     elif selected_id == 'lets_encrypt_management':
@@ -74,13 +81,15 @@ def show_certificate_management_menu(config, translator, security_managers):
         
     return True
 
-def create_client_certificate(translator, client_cert_manager):
+def create_client_certificate(translator, client_cert_manager, config=None, security_managers=None):
     """
     Create a new client certificate.
     
     Args:
         translator: The translator instance for localization
         client_cert_manager: The client certificate manager instance
+        config: The configuration dictionary (optional, for menu navigation)
+        security_managers: The security managers dictionary (optional, for menu navigation)
     """
     client_name = questionary.text(
         translator.get("Enter a name for the client certificate:"),
@@ -106,17 +115,18 @@ def create_client_certificate(translator, client_cert_manager):
     success, cert_info = client_cert_manager.generate_client_certificate(client_name, passout=passout)
     if success:
         console.print(f"[bold green]{translator.get('Client certificate successfully created')}[/]")
-        
         if cert_info and "p12_path" in cert_info:
             console.print(f"[green]{translator.get('Certificate bundle (.p12 file) saved to:')} {cert_info['p12_path']}[/]")
-            
             if not use_custom_password and "password" in cert_info:
                 console.print(f"[yellow]{translator.get('Auto-generated password:')} {cert_info['password']}[/]")
                 console.print(f"[yellow]{translator.get('IMPORTANT: Save this password! It will not be shown again.')}[/]")
     else:
         console.print(f"[bold red]{translator.get('Failed to create client certificate.')}[/]")
+    # Always return to certificate management menu if context is available
+    if config and security_managers:
+        show_certificate_management_menu(config, translator, security_managers)
 
-def invalidate_client_certificate(config, translator, client_cert_manager):
+def invalidate_client_certificate(config, translator, client_cert_manager, security_managers=None):
     """
     Revoke a client certificate.
     
@@ -124,61 +134,72 @@ def invalidate_client_certificate(config, translator, client_cert_manager):
         config: The configuration dictionary
         translator: The translator instance for localization
         client_cert_manager: The client certificate manager instance
+        security_managers: Optional, needed to re-show the menu
     """
     from ..config_manager import ConfigManager
     config_manager = ConfigManager()
-    
     fresh_config = config_manager.config
-    
+
     if ("security" not in fresh_config or 
         "client_certificates" not in fresh_config["security"] or 
         not fresh_config["security"]["client_certificates"]):
         console.print(f"[bold yellow]{translator.get('No client certificates found.')}[/]")
+        if security_managers:
+            show_certificate_management_menu(config, translator, security_managers)
         return
-    
+
     active_certs = [cert for cert in fresh_config["security"]["client_certificates"] 
                    if not cert.get("revoked", False)]
-    
+
     if not active_certs:
         console.print(f"[bold yellow]{translator.get('No active client certificates found to invalidate.')}[/]")
+        if security_managers:
+            show_certificate_management_menu(config, translator, security_managers)
         return
     
-    cert_choices = []
-    
-    for cert in active_certs:
-        created_date = cert.get("created_date", "")
-        name = cert.get("name", "Unknown")
-        cert_choices.append(name)
-    
+    cert_choices = [cert["safe_name"] for cert in active_certs]
     cert_choices.append(translator.get("Cancel"))
-    
+
     selected_cert = questionary.select(
         translator.get("Select certificate to invalidate:"),
         choices=cert_choices,
         style=custom_style
     ).ask()
-    
+
     if selected_cert == translator.get("Cancel"):
         console.print(f"[bold yellow]{translator.get('Certificate invalidation canceled.')}[/]")
+        if security_managers:
+            show_certificate_management_menu(config, translator, security_managers)
         return
-    
+
+    cert_name_clean = selected_cert  # safe_name is used directly
+
     confirm = questionary.confirm(
         translator.get("Are you sure you want to invalidate this certificate?"),
         default=False,
         style=custom_style
     ).ask()
-    
     if not confirm:
         console.print(f"[bold yellow]{translator.get('Certificate invalidation canceled.')}[/]")
+        if security_managers:
+            show_certificate_management_menu(config, translator, security_managers)
         return
-    
+
     console.print(f"[bold cyan]{translator.get('Fully revoking certificate...')}[/]")
-    
-    success, _ = client_cert_manager.revoke_client_certificate(cert_name=selected_cert)
-    
+
+    success, _ = client_cert_manager.revoke_client_certificate(cert_name=cert_name_clean)
+
     if success:
-        config_manager.invalidate_client_certificate(selected_cert)
+        config_manager.invalidate_client_certificate(cert_name_clean)
         console.print(f"[bold green]{translator.get('Certificate successfully invalidated.')}[/]")
+
+        # Always refresh docker-compose.yml after revocation
+        from ..configuration.generator import generate_docker_compose
+        from ..configurations import TEMPLATES
+        if generate_docker_compose(fresh_config, translator, TEMPLATES):
+            console.print(f"[bold green]{translator.get('Docker Compose configuration regenerated successfully.')}[/]")
+        else:
+            console.print(f"[bold red]{translator.get('Failed to regenerate Docker Compose configuration.')}[/]")
         
         if (fresh_config.get("mode") == "nginx" and 
             fresh_config.get("nginx", {}).get("security", {}).get("type") == "client_cert"):
@@ -190,26 +211,31 @@ def invalidate_client_certificate(config, translator, client_cert_manager):
             
             if generate_nginx_configs(fresh_config, translator, TEMPLATES):
                 console.print(f"[bold green]{translator.get('Nginx configuration regenerated successfully.')}[/]")
-                
-                restart_service = questionary.confirm(
-                    translator.get("Would you like to restart the nginx-auth service to apply the changes?"),
-                    default=True,
-                    style=custom_style
-                ).ask()
-                
-                if restart_service:
-                    import subprocess
-                    try:
-                        console.print(f"[bold cyan]{translator.get('Restarting nginx-auth service...')}[/]")
-                        result = subprocess.run(["docker", "restart", "nginx-auth"], 
-                                              check=True, capture_output=True)
-                        console.print(f"[bold green]{translator.get('nginx-auth service restarted successfully.')}[/]")
-                    except subprocess.CalledProcessError as e:
-                        console.print(f"[bold red]{translator.get('Failed to restart nginx-auth service:')} {e}[/]")
+                # Use DockerManager to check if nginx-auth is running, passing project_path
+                from ..docker.manager import DockerManager
+                docker_manager = DockerManager(translator=translator)
+                # Get project_path from config
+                project_path = config.get('environment', {}).get('path')
+                services_status = docker_manager.get_services_status(project_path=project_path)
+                nginx_auth_running = services_status.get("nginx-auth", {}).get("state") == translator.get("Running")
+                if nginx_auth_running:
+                    restart_service = questionary.confirm(
+                        translator.get("Would you like to restart the nginx-auth service to apply the changes?"),
+                        default=True,
+                        style=custom_style
+                    ).ask()
+                    if restart_service:
+                        try:
+                            docker_manager.restart_service("nginx-auth", project_path=project_path)
+                        except Exception as e:
+                            console.print(f"[bold red]{translator.get('Failed to restart nginx-auth service:')} {e}[/]")
             else:
                 console.print(f"[bold red]{translator.get('Failed to regenerate nginx configuration.')}[/]")
     else:
         console.print(f"[bold red]{translator.get('Failed to invalidate certificate.')}[/]")
+    # Always return to certificate management menu if context is available
+    if security_managers:
+        show_certificate_management_menu(config, translator, security_managers)
 
 def show_letsencrypt_management_menu(config, translator, lets_encrypt_manager):
     """

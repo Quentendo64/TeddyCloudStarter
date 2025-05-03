@@ -31,7 +31,7 @@ def confirm_restrict_by_ip(has_current_restrictions, translator):
         bool: True if user wants to restrict by IP, False otherwise
     """
     return questionary.confirm(
-        translator.get("Do you want to restrict access by IP address?"),
+        translator.get("Do you want to restrict access to the Server by IP address?"),
         default=has_current_restrictions,
         style=custom_style
     ).ask()

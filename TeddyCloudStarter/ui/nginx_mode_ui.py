@@ -51,37 +51,6 @@ def display_letsencrypt_not_available_warning(domain, translator):
         border_style="yellow"
     ))
 
-
-def prompt_for_https_mode(choices, default_choice, translator):
-    """
-    Prompt user to select an HTTPS mode.
-    
-    Args:
-        choices: List of dictionaries with 'id' and 'text' keys
-        default_choice: Default choice ID to select
-        translator: The translator instance for localization
-        
-    Returns:
-        str: The selected HTTPS mode identifier (not the translated text)
-    """
-    choice_texts = [choice['text'] for choice in choices]
-    
-    default_text = next((choice['text'] for choice in choices if choice['id'] == default_choice), choice_texts[0])
-    
-    selected_text = questionary.select(
-        translator.get("How would you like to handle HTTPS?"),
-        choices=choice_texts,
-        default=default_text,
-        style=custom_style
-    ).ask()
-    
-    for choice in choices:
-        if choice['text'] == selected_text:
-            return choice['id']
-            
-    return choices[0]['id']
-
-
 def display_letsencrypt_requirements(translator):
     """
     Display Let's Encrypt requirements panel.
@@ -451,3 +420,316 @@ def prompt_for_fallback_option(translator):
             return choice['id']
     
     return 'try_again'
+
+
+def prompt_for_domain(current_domain, translator):
+    """Prompt for a domain name.
+    
+    Args:
+        current_domain: The current domain name (if any)
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected domain name
+    """
+    if current_domain:
+        domain_message = translator.get("Enter your domain name (or leave as-is)")
+        default_domain = current_domain
+    else:
+        domain_message = translator.get("Enter your domain name")
+        default_domain = ""
+        
+    return questionary.text(
+        domain_message,
+        default=default_domain,
+        style=custom_style
+    ).ask()
+
+def prompt_for_https_mode(https_choices, default_choice_value, translator):
+    """Prompt for HTTPS mode.
+    
+    Args:
+        https_choices: List of available HTTPS mode choices
+        default_choice_value: The default HTTPS mode value string
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected HTTPS mode value string
+    """
+    # Create a standardized format of choices that questionary expects
+    formatted_choices = []
+    
+    for choice in https_choices:
+        # Handle id/text format (old format)
+        if isinstance(choice, dict) and 'id' in choice and 'text' in choice:
+            formatted_choices.append({
+                "value": choice['id'],
+                "name": choice['text']
+            })
+                
+    # Extract valid values for validation
+    valid_values = [choice["value"] for choice in formatted_choices]
+    
+    # Find the actual choice dictionary corresponding to the default value
+    default_choice_obj = None
+    if default_choice_value in valid_values:
+        default_choice_obj = next((choice for choice in formatted_choices if choice["value"] == default_choice_value), None)
+    
+    # If the provided default value isn't valid or not found, fall back to the first choice object
+    if not default_choice_obj:
+        if formatted_choices:
+            default_choice_obj = formatted_choices[0]
+        else:
+            # Fallback option if no choices are available (should never happen)
+            console.print(f"[bold red]{translator.get('Error: No HTTPS choices available.')}[/]")
+            return None
+    
+    # Create the questionary selection, passing the choice object as default
+    selected_value = questionary.select(
+        translator.get("Select HTTPS mode:"),
+        choices=formatted_choices,
+        default=default_choice_obj, # Pass the dictionary object
+        style=custom_style
+    ).ask() # ask() returns the 'value' of the selected choice
+    
+    return selected_value # Return the selected value string
+def display_self_signed_certificate_info(domain, translator):
+    """Display information about self-signed certificates.
+    
+    Args:
+        domain: The domain name for the certificate
+        translator: The translator instance for localization
+    """
+    console.print(f"[bold cyan]{translator.get('Generating self-signed certificates for')} {domain}...[/]")
+    console.print(f"[yellow]{translator.get('Note: Self-signed certificates will cause browser warnings. They are recommended only for testing.')}[/]")
+
+def prompt_security_type(translator):
+    """Prompt for security type.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected security type
+    """
+    return questionary.select(
+        translator.get("Select security method for admin access:"),
+        choices=[
+            {"value": 'none', "name": translator.get("No additional security")},
+            {"value": 'basic_auth', "name": translator.get("Username/password (HTTP Basic Auth)")},
+            {"value": 'client_cert', "name": translator.get("Client certificates")}
+        ],
+        style=custom_style
+    ).ask()
+
+def prompt_htpasswd_option(translator):
+    """Prompt for .htpasswd file options.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected .htpasswd option
+    """
+    return questionary.select(
+        translator.get("How would you like to create the .htpasswd file?"),
+        choices=[
+            {"value": 'generate', "name": translator.get("Generate now (interactive)")},
+            {"value": 'manual', "name": translator.get("I'll create it myself")}
+        ],
+        style=custom_style
+    ).ask()
+
+def prompt_client_cert_source(translator):
+    """Prompt for client certificate source.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected client certificate source
+    """
+    return questionary.select(
+        translator.get("How would you like to manage client certificates?"),
+        choices=[
+            {"value": 'generate', "name": translator.get("Generate new client certificate")},
+            {"value": 'skip', "name": translator.get("Skip for now (generate later)")}
+        ],
+        style=custom_style
+    ).ask()
+
+def prompt_client_cert_name(translator):
+    """Prompt for client certificate name.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The entered client name
+    """
+    return questionary.text(
+        translator.get("Enter a name for the client certificate (e.g., 'admin', 'my-device'):"),
+        style=custom_style
+    ).ask()
+
+def prompt_modify_ip_restrictions(translator):
+    """Prompt for IP restriction modification options.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected IP restriction action
+    """
+    return questionary.select(
+        translator.get("IP restriction options:"),
+        choices=[
+            {"value": 'add', "name": translator.get("Add IP address")},
+            {"value": 'remove', "name": translator.get("Remove IP address")},
+            {"value": 'clear', "name": translator.get("Clear all IP restrictions")},
+            {"value": 'back', "name": translator.get("Back")}
+        ],
+        style=custom_style
+    ).ask()
+
+def confirm_continue_anyway(translator):
+    """Confirm if user wants to continue despite port issues.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        bool: True if user wants to continue, False otherwise
+    """
+    return questionary.confirm(
+        translator.get("Would you like to proceed anyway?"),
+        default=False,
+        style=custom_style
+    ).ask()
+
+def display_waiting_for_htpasswd(htpasswd_path, translator):
+    """Display .htpasswd waiting message.
+    
+    Args:
+        htpasswd_path: Path where .htpasswd file is expected
+        translator: The translator instance for localization
+    """
+    console.print(f"[bold cyan]{translator.get('Waiting for .htpasswd file at')} {htpasswd_path}[/]")
+    console.print(f"[yellow]{translator.get('Press Ctrl+C to cancel at any time')}[/]")
+
+def confirm_change_security_method(translator):
+    """Confirm if user wants to change the security method.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        bool: True if user wants to change, False otherwise
+    """
+    return questionary.confirm(
+        translator.get("Would you like to choose a different security method?"),
+        default=False,
+        style=custom_style
+    ).ask()
+
+def select_https_mode_for_modification(current_mode, translator):
+    """Prompt for selecting a new HTTPS mode.
+    
+    Args:
+        current_mode: The current HTTPS mode
+        translator: The translator instance for localization
+        
+    Returns:
+        tuple: (selected display text, selected mode value)
+    """
+    choices = [
+        {
+            "value": "letsencrypt", 
+            "name": translator.get("Let's Encrypt (automatic certificates)")
+        },
+        {
+            "value": "self_signed", 
+            "name": translator.get("Self-signed certificates")
+        },
+        {
+            "value": "user_provided", 
+            "name": translator.get("Custom certificates (provide your own)")
+        },
+        {
+            "value": "none", 
+            "name": translator.get("No HTTPS (not recommended)")
+        }
+    ]
+    
+    # Find the default choice based on current_mode
+    default_choice = next((c for c in choices if c["value"] == current_mode), choices[0])
+    
+    selected = questionary.select(
+        translator.get("Select new HTTPS mode:"),
+        choices=choices,
+        default=default_choice["value"],
+        style=custom_style
+    ).ask()
+    
+    # Return both display text and value
+    selected_choice = next(c for c in choices if c["value"] == selected)
+    return selected_choice["name"], selected
+
+def select_security_type_for_modification(current_type, translator):
+    """Prompt for selecting a new security type.
+    
+    Args:
+        current_type: The current security type
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected security type
+    """
+    choices = [
+        {
+            "value": "none", 
+            "name": translator.get("No additional security")
+        },
+        {
+            "value": "basic_auth", 
+            "name": translator.get("Username/password (HTTP Basic Auth)")
+        },
+        {
+            "value": "client_cert", 
+            "name": translator.get("Client certificates")
+        },
+        {
+            "value": "ip_restriction", 
+            "name": translator.get("IP address restrictions only")
+        }
+    ]
+    
+    # Find the default choice based on current_type
+    default_choice = next((c for c in choices if c["value"] == current_type), choices[0])
+    
+    selected = questionary.select(
+        translator.get("Select new security type:"),
+        choices=choices,
+        default=default_choice["value"],
+        style=custom_style
+    ).ask()
+    
+    return selected
+
+def prompt_for_fallback_option(translator):
+    """Prompt for fallback option when certificate generation fails.
+    
+    Args:
+        translator: The translator instance for localization
+        
+    Returns:
+        str: The selected fallback option
+    """
+    return questionary.select(
+        translator.get("Would you like to retry self-signed certificate generation or switch to custom certificates?"),
+        choices=[
+            {"value": 'try_again', "name": translator.get("Try self-signed certificate again")},
+            {"value": 'custom', "name": translator.get("Switch to custom certificates mode")}
+        ],
+        style=custom_style
+    ).ask()

@@ -24,61 +24,61 @@ def show_backup_recovery_menu(config_manager, docker_manager, translator):
     Returns:
         bool: True if user chose to exit, False otherwise
     """
-    project_path = get_project_path(config_manager)
-    if not project_path:
-        console.print(f"[bold yellow]{translator.get('No project path configured. Please set up a project path first.')}[/]")
-        return True
-    
-    backup_dir = os.path.join(project_path, "data", "backup")
-    has_backups = os.path.exists(backup_dir) and any(
-        f.startswith('teddycloud-') and f.endswith('.tar.gz') 
-        for f in os.listdir(backup_dir)
-    ) if os.path.exists(backup_dir) else False
-    
-    has_config_backups = any(
-        os.path.isfile(f) and os.path.basename(f).startswith('config.json.backup.') 
-        for f in Path(os.path.dirname(config_manager.config_path)).glob('config.json.backup.*')
-    )
-    
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir, exist_ok=True)
-    
-    choices = [
-        translator.get("Backup TeddyCloudStarter Configuration"),
-        translator.get("Backup Docker volumes")
-    ]
-    
-    if has_backups:
-        choices.append(translator.get("Restore Docker volumes"))
-    
-    if has_config_backups:
-        choices.append(translator.get("Restore TeddyCloudStarter Configuration"))
+    while True:
+        project_path = get_project_path(config_manager)
+        if not project_path:
+            console.print(f"[bold yellow]{translator.get('No project path configured. Please set up a project path first.')}[/]")
+            return True
         
-    choices.append(translator.get("Back to main menu"))
-    
-    action = questionary.select(
-        translator.get("Backup / Recovery Management"),
-        choices=choices,
-        style=custom_style
-    ).ask()
-    
-    if action == translator.get("Backup TeddyCloudStarter Configuration"):
-        config_manager.backup()
-        return False
+        backup_dir = os.path.join(project_path, "data", "backup")
+        has_backups = os.path.exists(backup_dir) and any(
+            f.startswith('teddycloud-') and f.endswith('.tar.gz') 
+            for f in os.listdir(backup_dir)
+        ) if os.path.exists(backup_dir) else False
         
-    elif action == translator.get("Backup Docker volumes"):
-        show_backup_volumes_menu(docker_manager, translator, project_path)
-        return False
+        has_config_backups = any(
+            os.path.isfile(f) and os.path.basename(f).startswith('config.json.backup.') 
+            for f in Path(os.path.dirname(config_manager.config_path)).glob('config.json.backup.*')
+        )
         
-    elif action == translator.get("Restore Docker volumes"):
-        show_restore_volumes_menu(docker_manager, translator, project_path)
-        return False
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir, exist_ok=True)
         
-    elif action == translator.get("Restore TeddyCloudStarter Configuration"):
-        show_restore_config_menu(config_manager, translator)
-        return False
-    
-    return True
+        choices = [
+            translator.get("Backup TeddyCloudStarter Configuration"),
+            translator.get("Backup Docker volumes")
+        ]
+        
+        if has_backups:
+            choices.append(translator.get("Restore Docker volumes"))
+        
+        if has_config_backups:
+            choices.append(translator.get("Restore TeddyCloudStarter Configuration"))
+            
+        choices.append(translator.get("Back to main menu"))
+        
+        action = questionary.select(
+            translator.get("Backup / Recovery Management"),
+            choices=choices,
+            style=custom_style
+        ).ask()
+        
+        if action == translator.get("Backup TeddyCloudStarter Configuration"):
+            config_manager.backup()
+            continue
+        elif action == translator.get("Backup Docker volumes"):
+            show_backup_volumes_menu(docker_manager, translator, project_path)
+            continue
+        elif action == translator.get("Restore Docker volumes"):
+            show_restore_volumes_menu(docker_manager, translator, project_path)
+            continue
+        elif action == translator.get("Restore TeddyCloudStarter Configuration"):
+            show_restore_config_menu(config_manager, translator)
+            continue
+        elif action == translator.get("Back to main menu"):
+            return True
+        else:
+            return True
 
 def show_backup_volumes_menu(docker_manager, translator, project_path):
     """
@@ -227,20 +227,20 @@ def restore_config_backup(backup_path, config_manager, translator):
     try:
         console.print(f"[bold cyan]{translator.get('Creating backup of current configuration before restoring')}...[/]")
         config_manager.backup()
-        
         shutil.copy2(backup_path, config_manager.config_path)
-        
         config_manager.config = config_manager._load_config()
-        
         console.print(f"[bold green]{translator.get('Configuration successfully restored from backup')}.[/]")
-        
         if questionary.confirm(
             translator.get("It's recommended to restart the application for changes to take effect. Do you want to restart now?"),
             default=True,
             style=custom_style
         ).ask():
+            console.print(f"[bold yellow]{translator.get('Restarting application...')}[/]")
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        else:
             console.print(f"[bold yellow]{translator.get('Please restart the application manually to apply the restored configuration')}.[/]")
-            
     except Exception as e:
         error_msg = f"Error restoring configuration: {str(e)}"
         if translator:

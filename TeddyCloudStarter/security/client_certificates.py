@@ -438,6 +438,7 @@ class ClientCertificateManager:
         Returns:
             Tuple[bool, Dict[str, Any]]: (success, certificate_info)
         """
+        self._ensure_directories()
         console.print(f"[bold cyan]{self._translate('Revoking client certificate...')}[/]")
         
         try:
@@ -530,13 +531,13 @@ class ClientCertificateManager:
                 # Revoke the certificate using OpenSSL
                 ca_key_path = self.ca_dir / "ca.key"
                 ca_crt_path = self.ca_dir / "ca.crt"
-                
+                openssl_conf_path = self.ca_dir / "openssl.cnf"
                 subprocess.run([
-                    "openssl", "ca", "-config", "openssl.cnf",
+                    "openssl", "ca", "-config", str(openssl_conf_path.absolute()),
                     "-revoke", str(cert_path),
                     "-keyfile", str(ca_key_path),
                     "-cert", str(ca_crt_path)
-                ], check=True)
+                ], check=True, cwd=str(self.ca_dir))
                 
                 # Generate CRL
                 success, crl_path = self.ca_manager.generate_crl()

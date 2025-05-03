@@ -213,34 +213,34 @@ For more information, visit: https://github.com/quentendo64/teddycloudstarter
         Returns:
             bool: True if successful, False otherwise
         """
+        self._ensure_directories()
         try:
             index_file = self.ca_dir / "index.txt"
             if not index_file.exists():
                 with open(index_file, "w") as f:
                     pass
-            
+            # Ensure newcerts directory exists
+            newcerts_dir = self.ca_dir / "newcerts"
+            newcerts_dir.mkdir(parents=True, exist_ok=True)
             serial_file = self.ca_dir / "serial"
             if not serial_file.exists():
                 with open(serial_file, "w") as f:
                     f.write("01")
-            
             crlnumber_file = self.ca_dir / "crlnumber"
             if not crlnumber_file.exists():
                 with open(crlnumber_file, "w") as f:
                     f.write("01")
-            
             openssl_conf_file = self.ca_dir / "openssl.cnf"
-            if not openssl_conf_file.exists():
-                ca_dir_abs = str(self.ca_dir.absolute())
-                ca_crt_abs = str((self.ca_dir / "ca.crt").absolute())
-                ca_key_abs = str((self.ca_dir / "ca.key").absolute())
-                index_abs = str((self.ca_dir / "index.txt").absolute())
-                serial_abs = str((self.ca_dir / "serial").absolute())
-                newcerts_abs = str((self.ca_dir / "newcerts").absolute())
-                crlnumber_abs = str((self.ca_dir / "crlnumber").absolute())
-                
-                with open(openssl_conf_file, "w") as f:
-                    f.write(f"""
+            # Always overwrite openssl.cnf to ensure correct paths
+            ca_dir_abs = self.ca_dir.resolve().as_posix()
+            ca_crt_abs = (self.ca_dir / "ca.crt").resolve().as_posix()
+            ca_key_abs = (self.ca_dir / "ca.key").resolve().as_posix()
+            index_abs = (self.ca_dir / "index.txt").resolve().as_posix()
+            serial_abs = (self.ca_dir / "serial").resolve().as_posix()
+            newcerts_abs = (self.ca_dir / "newcerts").resolve().as_posix()
+            crlnumber_abs = (self.ca_dir / "crlnumber").resolve().as_posix()
+            with open(openssl_conf_file, "w") as f:
+                f.write(f"""
 [ ca ]
 default_ca = TCS_default
 
@@ -273,7 +273,6 @@ basicConstraints = critical,CA:true
 [ crl_ext ]
 authorityKeyIdentifier=keyid:always
 """)
-            
             return True
         except Exception as e:
             error_msg = f"Error setting up CA directory: {e}"

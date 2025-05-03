@@ -28,21 +28,22 @@ def show_application_management_menu(config_manager, docker_manager, translator)
         translator.get("Back to main menu")
     ]
     
-    action = questionary.select(
-        translator.get("Application Management"),
-        choices=choices,
-        style=custom_style
-    ).ask()
-    
-    if action == translator.get("Inject tonies.custom.json file"):
-        inject_tonies_custom_json(config_manager, docker_manager, translator)
+    while True:
+        action = questionary.select(
+            translator.get("Application Management"),
+            choices=choices,
+            style=custom_style
+        ).ask()
+        
+        if action == translator.get("Inject tonies.custom.json file"):
+            result = inject_tonies_custom_json(config_manager, docker_manager, translator)
+            if result == "cancel":
+                continue  # Show the Application Management Menu again
+            return False
+        elif action == translator.get("Back to main menu"):
+            console.print(f"[bold cyan]{translator.get('Returning to main menu')}...[/]")
+            return True
         return False
-    
-    elif action == translator.get("Back to main menu"):
-        console.print(f"[bold cyan]{translator.get('Returning to main menu')}...[/]")
-        return True
-    
-    return False
 
 def inject_tonies_custom_json(config_manager, docker_manager, translator):
     """
@@ -78,9 +79,9 @@ def inject_tonies_custom_json(config_manager, docker_manager, translator):
                 console.print(f"[bold green]{translator.get('Created empty tonies.custom.json file at')} {source_file}[/]")
             except Exception as e:
                 console.print(f"[bold red]{translator.get('Error creating file')}: {e}[/]")
-                return
+                return "cancel"
         else:
-            return
+            return "cancel"
     
     try:
         result = subprocess.run(

@@ -123,6 +123,11 @@ class DockerManager:
             return self.translator.get(text)
         return text
         
+    def _get_data_dir(self, project_path=None):
+        """Helper to get the correct data directory based on project_path."""
+        base_path = project_path if project_path else os.getcwd()
+        return os.path.join(base_path, "data")
+        
     def down_services(self, project_path=None):
         """
         Completely stop and remove Docker containers, networks defined in docker-compose.yml.
@@ -137,30 +142,21 @@ class DockerManager:
         if not self.docker_available:
             console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
             return False
-        
         try:
             console.print(f"[bold yellow]{self._translate('Stopping and removing all Docker services...')}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
-            
             if not os.path.exists(docker_compose_path):
                 console.print(f"[yellow]{self._translate('No docker-compose.yml found, skipping Docker service shutdown')}")
                 return False
-                
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["down"], check=True, capture_output=True, text=True)
                 console.print(f"[green]{self._translate('Docker services stopped and removed successfully')}[/]")
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error stopping Docker services: {e}"
             console.print(f"[yellow]{self._translate(error_msg)}[/]")
@@ -182,18 +178,13 @@ class DockerManager:
         
         try:
             original_dir = os.getcwd()
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             docker_compose_path = os.path.join(data_dir, "docker-compose.yml")
-            
             if not os.path.exists(docker_compose_path):
                 error_msg = f"docker-compose.yml not found at {docker_compose_path}"
                 console.print(f"[bold yellow]{self._translate(error_msg)}[/]")
                 return {}
-                
             os.chdir(data_dir)
-            
             try:
                 service_list_result = subprocess.run(
                     self.compose_cmd + ["config", "--services"],
@@ -273,14 +264,9 @@ class DockerManager:
         
         try:
             console.print(f"[bold cyan]{self._translate('Restarting Docker services...')}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["down"], check=True)
                 subprocess.run(self.compose_cmd + ["up", "-d"], check=True)
@@ -288,7 +274,6 @@ class DockerManager:
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error restarting services: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -297,7 +282,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def restart_service(self, service_name: str, project_path=None):
         """Restart a specific Docker service."""
         if not self.docker_available:
@@ -307,14 +292,9 @@ class DockerManager:
         try:
             msg = f"Restarting service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["restart", service_name], check=True)
                 success_msg = f"Service {service_name} restarted successfully."
@@ -322,7 +302,6 @@ class DockerManager:
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error restarting service {service_name}: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -331,7 +310,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def start_services(self, project_path=None):
         """Start all Docker services."""
         if not self.docker_available:
@@ -340,21 +319,15 @@ class DockerManager:
         
         try:
             console.print(f"[bold cyan]{self._translate('Starting Docker services...')}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["up", "-d"], check=True)
                 console.print(f"[bold green]{self._translate('Services started successfully.')}[/]")
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error starting services: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -363,7 +336,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def start_service(self, service_name: str, project_path=None):
         """Start a specific Docker service."""
         if not self.docker_available:
@@ -373,14 +346,9 @@ class DockerManager:
         try:
             msg = f"Starting service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["up", "-d", service_name], check=True)
                 success_msg = f"Service {service_name} started successfully."
@@ -388,7 +356,6 @@ class DockerManager:
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error starting service {service_name}: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -397,7 +364,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def stop_services(self, project_path=None):
         """Stop all Docker services."""
         if not self.docker_available:
@@ -406,21 +373,15 @@ class DockerManager:
         
         try:
             console.print(f"[bold cyan]{self._translate('Stopping all Docker services...')}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["stop"], check=True)
                 console.print(f"[bold green]{self._translate('All services stopped successfully.')}[/]")
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error stopping services: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -429,7 +390,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def stop_service(self, service_name: str, project_path=None):
         """Stop a specific Docker service."""
         if not self.docker_available:
@@ -439,14 +400,9 @@ class DockerManager:
         try:
             msg = f"Stopping service {service_name}..."
             console.print(f"[bold cyan]{self._translate(msg)}[/]")
-            
             original_dir = os.getcwd()
-            
-            base_path = project_path if project_path else original_dir
-            
-            data_dir = os.path.join(base_path, "data")
+            data_dir = self._get_data_dir(project_path)
             os.chdir(data_dir)
-            
             try:
                 subprocess.run(self.compose_cmd + ["stop", service_name], check=True)
                 success_msg = f"Service {service_name} stopped successfully."
@@ -454,7 +410,6 @@ class DockerManager:
                 return True
             finally:
                 os.chdir(original_dir)
-                
         except subprocess.SubprocessError as e:
             error_msg = f"Error stopping service {service_name}: {e}"
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
@@ -463,7 +418,7 @@ class DockerManager:
             error_msg = f"Error: docker-compose.yml not found in {data_dir}."
             console.print(f"[bold red]{self._translate(error_msg)}[/]")
             return False
-            
+    
     def get_logs(self, service_name=None, lines=0, project_path=None):
         """
         Get logs from Docker services.
