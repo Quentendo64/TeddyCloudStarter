@@ -3,9 +3,12 @@
 Configuration generators for TeddyCloudStarter.
 """
 import os
-import jinja2
 from pathlib import Path
+
+import jinja2
+
 from ..wizard.ui_helpers import console
+
 
 def generate_docker_compose(config, translator, templates):
     """

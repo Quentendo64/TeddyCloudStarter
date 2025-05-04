@@ -3,16 +3,17 @@
 Certificate Authority operations for TeddyCloudStarter.
 """
 import os
-import shutil
-import time
 import platform
-import subprocess
 import re
+import shutil
+import subprocess
+import time
 from pathlib import Path
 from typing import Optional, Tuple
+
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box
 
 console = Console()
 

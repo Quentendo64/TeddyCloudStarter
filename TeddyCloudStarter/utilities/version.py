@@ -5,14 +5,16 @@ Version handling utilities for TeddyCloudStarter.
 
 import json
 import os
+import subprocess
+import sys
 from urllib import request
 from urllib.error import URLError
-import sys
+
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box
 from rich.prompt import Confirm
-import subprocess
+
 from .. import __version__
 
 console = Console()

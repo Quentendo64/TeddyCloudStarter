@@ -5,8 +5,9 @@ File system utility functions for TeddyCloudStarter.
 import os
 import platform
 from pathlib import Path
+from typing import List, Optional
+
 import questionary
-from typing import Optional, List
 from rich.console import Console
 
 console = Console()

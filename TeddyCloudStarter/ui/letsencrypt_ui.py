@@ -3,7 +3,9 @@
 Let's Encrypt UI functionality for TeddyCloudStarter.
 """
 import questionary
+
 from ..wizard.ui_helpers import console, custom_style
+
 
 def display_letsencrypt_not_available_warning(domain, translator):
     """

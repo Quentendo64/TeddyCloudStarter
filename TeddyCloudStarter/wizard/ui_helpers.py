@@ -2,11 +2,12 @@
 """
 UI helpers for TeddyCloudStarter.
 """
+import questionary
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich import box
-import questionary
+
 from ..utilities.validation import validate_config
 
 console = Console()

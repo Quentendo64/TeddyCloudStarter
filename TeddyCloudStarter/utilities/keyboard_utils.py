@@ -3,8 +3,8 @@
 Keyboard utility functions for TeddyCloudStarter.
 """
 import os
-import sys
 import platform
+import sys
 
 from .logger import get_logger
 
@@ -19,9 +19,9 @@ def capture_keypress():
             return msvcrt.getch().decode('utf-8', errors='ignore').lower()
         return None
     else:
+        import select
         import termios
         import tty
-        import select
         
         is_wsl = "microsoft-standard" in platform.release().lower() or "microsoft" in platform.release().lower()
         

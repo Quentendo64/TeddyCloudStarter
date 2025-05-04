@@ -3,25 +3,29 @@
 Main menu module for TeddyCloudStarter.
 """
 import os
-import time
 import shutil
+import time
 from pathlib import Path
+
 import questionary
 
-# Import our modules - use relative imports to avoid circular dependencies
-from .wizard.base_wizard import BaseWizard
-from .wizard.ui_helpers import console, custom_style, display_configuration_table, show_welcome_message, show_development_message
-from .configuration.generator import generate_docker_compose, generate_nginx_configs
-from .ui.certificate_manager_ui import show_certificate_management_menu
-from .ui.docker_manager_ui import show_docker_management_menu
-from .ui.backup_manager_ui import show_backup_recovery_menu
-from .ui.configuration_manager_ui import show_configuration_management_menu
-from .ui.application_manager_ui import show_application_management_menu
-from .ui.support_features_ui import show_support_features_menu
-from .setup_wizard import SetupWizard
+from .configuration.generator import (generate_docker_compose,
+                                      generate_nginx_configs)
 from .security.certificate_authority import CertificateAuthority
 from .security.client_certificates import ClientCertificateManager
 from .security.lets_encrypt import LetsEncryptManager
+from .setup_wizard import SetupWizard
+from .ui.application_manager_ui import show_application_management_menu
+from .ui.backup_manager_ui import show_backup_recovery_menu
+from .ui.certificate_manager_ui import show_certificate_management_menu
+from .ui.configuration_manager_ui import show_configuration_management_menu
+from .ui.docker_manager_ui import show_docker_management_menu
+from .ui.support_features_ui import show_support_features_menu
+# Import our modules - use relative imports to avoid circular dependencies
+from .wizard.base_wizard import BaseWizard
+from .wizard.ui_helpers import (console, custom_style,
+                                display_configuration_table,
+                                show_development_message, show_welcome_message)
 
 
 class MainMenu(BaseWizard):

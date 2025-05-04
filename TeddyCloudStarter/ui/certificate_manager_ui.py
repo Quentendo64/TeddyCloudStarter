@@ -3,8 +3,11 @@
 Certificate management UI for TeddyCloudStarter.
 """
 import re
+
 import questionary
+
 from ..wizard.ui_helpers import console, custom_style
+
 
 def show_certificate_management_menu(config, translator, security_managers):
     """

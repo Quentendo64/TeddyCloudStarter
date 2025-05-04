@@ -2,13 +2,19 @@
 """
 Configuration management UI module for TeddyCloudStarter.
 """
-import questionary
 import os
-from ..wizard.ui_helpers import console, custom_style
-from ..configuration.direct_mode import modify_http_port, modify_https_port, modify_teddycloud_port
-from ..configuration.nginx_mode import modify_domain_name, modify_https_mode, modify_security_settings, modify_ip_restrictions
+
+import questionary
+
+from ..configuration.direct_mode import (modify_http_port, modify_https_port,
+                                         modify_teddycloud_port)
+from ..configuration.nginx_mode import (modify_domain_name, modify_https_mode,
+                                        modify_ip_restrictions,
+                                        modify_security_settings)
 from ..configuration.reset_operations import perform_reset_operations
 from ..docker.manager import DockerManager
+from ..wizard.ui_helpers import console, custom_style
+
 
 def show_configuration_management_menu(wizard, config_manager, translator, security_managers=None):
     """Show configuration management menu.
@@ -92,7 +98,8 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
             config_manager.save()
 
             # --- Begin: Additional steps after deployment mode change ---
-            from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+            from ..configuration.generator import (generate_docker_compose,
+                                                   generate_nginx_configs)
             from ..configurations import TEMPLATES
 
             # Stop and remove old containers
@@ -126,7 +133,8 @@ def show_configuration_management_menu(wizard, config_manager, translator, secur
                 perform_reset_operations(reset_options, config_manager, wizard, translator)
                 
         elif selected_id == 'refresh':
-            from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+            from ..configuration.generator import (generate_docker_compose,
+                                                   generate_nginx_configs)
             from ..configurations import TEMPLATES
             generate_nginx_configs(config_manager.config, translator, TEMPLATES)
             generate_docker_compose(config_manager.config, translator, TEMPLATES)

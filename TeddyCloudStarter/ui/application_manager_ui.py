@@ -6,10 +6,13 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+
 import questionary
-from rich.panel import Panel
 from rich import box
+from rich.panel import Panel
+
 from ..wizard.ui_helpers import console, custom_style
+
 
 def show_application_management_menu(config_manager, docker_manager, translator):
     """

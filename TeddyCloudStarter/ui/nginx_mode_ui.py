@@ -2,17 +2,19 @@
 """
 UI module for Nginx mode configuration in TeddyCloudStarter.
 """
-import questionary
 import os
 import subprocess
 from pathlib import Path
-from rich.panel import Panel
+
+import questionary
 from rich import box
+from rich.panel import Panel
 from rich.prompt import Prompt
 
-from ..wizard.ui_helpers import console, custom_style
-from ..utilities.network import check_port_available, check_domain_resolvable
+from ..utilities.network import check_domain_resolvable, check_port_available
 from ..utilities.validation import validate_domain_name, validate_ip_address
+from ..wizard.ui_helpers import console, custom_style
+
 
 def display_letsencrypt_not_available_warning(domain, translator):
     """

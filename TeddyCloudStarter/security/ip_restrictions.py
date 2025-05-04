@@ -5,31 +5,21 @@ Handles configuration and validation of IP restrictions.
 """
 import os
 from pathlib import Path
-from rich.console import Console
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
+
 import questionary
-from ..ui.ip_restrictions_ui import (
-    display_current_ip_restrictions,
-    confirm_restrict_by_ip,
-    display_ip_input_instructions,
-    prompt_for_ip_address,
-    confirm_no_ips_continue,
-    display_ip_added,
-    display_ip_already_exists,
-    display_ip_restrictions_status,
-    display_invalid_ip_error,
-    prompt_ip_management_action,
-    select_ip_to_remove,
-    confirm_clear_ip_restrictions,
-    # Auth bypass specific UI functions
-    display_current_auth_bypass_ips,
-    confirm_enable_auth_bypass,
-    display_auth_bypass_input_instructions,
-    prompt_for_auth_bypass_ip,
-    display_auth_bypass_status,
-    confirm_clear_auth_bypass_ips,
-    prompt_auth_bypass_management_action
-)
+from rich.console import Console
+
+from ..ui.ip_restrictions_ui import (  # Auth bypass specific UI functions
+    confirm_clear_auth_bypass_ips, confirm_clear_ip_restrictions,
+    confirm_enable_auth_bypass, confirm_no_ips_continue,
+    confirm_restrict_by_ip, display_auth_bypass_input_instructions,
+    display_auth_bypass_status, display_current_auth_bypass_ips,
+    display_current_ip_restrictions, display_invalid_ip_error,
+    display_ip_added, display_ip_already_exists, display_ip_input_instructions,
+    display_ip_restrictions_status, prompt_auth_bypass_management_action,
+    prompt_for_auth_bypass_ip, prompt_for_ip_address,
+    prompt_ip_management_action, select_ip_to_remove)
 from ..utilities.validation import validate_ip_address
 
 # Re-export console to ensure compatibility

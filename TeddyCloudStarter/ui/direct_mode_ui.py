@@ -3,8 +3,9 @@
 UI module for Direct mode configuration in TeddyCloudStarter.
 """
 import questionary
-from ..wizard.ui_helpers import console, custom_style
+
 from ..utilities.network import check_port_available
+from ..wizard.ui_helpers import console, custom_style
 
 
 def confirm_use_http(default_value, translator):

@@ -2,9 +2,9 @@
 """
 Localization utilities for TeddyCloudStarter.
 """
-import os
-import locale
 import gettext
+import locale
+import os
 from pathlib import Path
 from typing import Optional
 

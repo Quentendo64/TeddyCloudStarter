@@ -3,12 +3,16 @@
 Base wizard class for TeddyCloudStarter.
 """
 from pathlib import Path
+
 from ..config_manager import ConfigManager
-from ..docker.manager import DockerManager
-from ..utilities.localization import Translator
-from ..utilities.file_system import get_project_path
-from ..security import CertificateAuthority, ClientCertificateManager, LetsEncryptManager, BasicAuthManager, IPRestrictionsManager, AuthBypassIPManager
 from ..configurations import TEMPLATES
+from ..docker.manager import DockerManager
+from ..security import (AuthBypassIPManager, BasicAuthManager,
+                        CertificateAuthority, ClientCertificateManager,
+                        IPRestrictionsManager, LetsEncryptManager)
+from ..utilities.file_system import get_project_path
+from ..utilities.localization import Translator
+
 
 class BaseWizard:
     """Base class for wizard functionality."""

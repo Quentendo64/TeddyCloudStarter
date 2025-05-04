@@ -48,3 +48,14 @@ include = ["TeddyCloudStarter*"]  # This will include all TeddyCloudStarter pack
 # Explicitly include package data to handle localization files
 [tool.setuptools.package-data]
 "TeddyCloudStarter.locales.de.LC_MESSAGES" = ["*.mo", "*.po"]
+
+[tool.black]
+line-length = 88
+skip-string-normalization = false
+
+[tool.flake8]
+max-line-length = 88
+exclude = .git,__pycache__,build,dist
+
+[tool.isort]
+profile = "black"

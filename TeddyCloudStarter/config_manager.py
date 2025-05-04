@@ -2,15 +2,18 @@
 """
 Configuration management for TeddyCloudStarter.
 """
-import os
-import json
-import time
-import shutil
 import datetime
-from typing import Dict, Any, Optional
-from rich.console import Console
+import json
+import os
+import shutil
+import time
 from pathlib import Path
-from . import __version__ 
+from typing import Any, Dict, Optional
+
+from rich.console import Console
+
+from . import __version__
+
 console = Console()
 
 DEFAULT_CONFIG_PATH = os.path.join(str(Path.home()), ".teddycloudstarter", "config.json")

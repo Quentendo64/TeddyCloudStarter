@@ -6,30 +6,28 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from ..wizard.ui_helpers import console
-from ..utilities.network import check_port_available, check_domain_resolvable
-from ..utilities.validation import ConfigValidator
+
 import questionary
-from ..ui.nginx_mode_ui import (
-    prompt_for_domain,
-    prompt_for_https_mode,
-    display_self_signed_certificate_info,
-    prompt_security_type,
-    prompt_htpasswd_option, 
-    prompt_client_cert_source,
-    prompt_client_cert_name,
-    prompt_modify_ip_restrictions,
-    confirm_continue_anyway,
-    display_waiting_for_htpasswd,
-    confirm_change_security_method,
-    select_https_mode_for_modification,
-    select_security_type_for_modification,
-    prompt_for_fallback_option
-)
-from .letsencrypt_helper import handle_letsencrypt_setup, check_domain_suitable_for_letsencrypt
-from ..wizard.ui_helpers import console, custom_style
-from ..security.lets_encrypt import LetsEncryptManager
+
 from ..docker.manager import DockerManager
+from ..security.lets_encrypt import LetsEncryptManager
+from ..ui.nginx_mode_ui import (confirm_change_security_method,
+                                confirm_continue_anyway,
+                                display_self_signed_certificate_info,
+                                display_waiting_for_htpasswd,
+                                prompt_client_cert_name,
+                                prompt_client_cert_source, prompt_for_domain,
+                                prompt_for_fallback_option,
+                                prompt_for_https_mode, prompt_htpasswd_option,
+                                prompt_modify_ip_restrictions,
+                                prompt_security_type,
+                                select_https_mode_for_modification,
+                                select_security_type_for_modification)
+from ..utilities.network import check_domain_resolvable, check_port_available
+from ..utilities.validation import ConfigValidator
+from ..wizard.ui_helpers import console, custom_style
+from .letsencrypt_helper import (check_domain_suitable_for_letsencrypt,
+                                 handle_letsencrypt_setup)
 
 _validator = ConfigValidator()
 
@@ -297,8 +295,10 @@ def configure_nginx_mode(config, translator, security_managers):
                 # Save config with letsencrypt
                 config["nginx"] = nginx_config
                 config["mode"] = "nginx"
-                from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+                from ..configuration.generator import (generate_docker_compose,
+                                                       generate_nginx_configs)
                 from ..configurations import TEMPLATES
+
                 # Regenerate docker-compose.yml
                 generate_docker_compose(config, translator, TEMPLATES)
                 # Regenerate nginx configs
@@ -454,7 +454,8 @@ def modify_https_mode(config, translator, security_managers):
                     if not use_anyway:
                         continue
                 
-                from .letsencrypt_helper import switch_to_letsencrypt_https_mode
+                from .letsencrypt_helper import \
+                    switch_to_letsencrypt_https_mode
                 
                 success = switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager)
                 if not success:
@@ -652,10 +653,11 @@ def modify_domain_name(config, translator):
         dict: The updated configuration dictionary
     """
     # Import here to avoid circular import
-    from .generator import generate_nginx_configs
+    import questionary
+
     from ..configurations import TEMPLATES
     from ..docker.manager import DockerManager
-    import questionary
+    from .generator import generate_nginx_configs
 
     nginx_config = config["nginx"]
     current_domain = nginx_config.get("domain", "")

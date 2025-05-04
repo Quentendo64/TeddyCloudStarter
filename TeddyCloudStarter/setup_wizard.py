@@ -3,16 +3,19 @@
 Setup wizard module for TeddyCloudStarter.
 """
 import os
-import questionary
 from pathlib import Path
 
-# Import our modules - use relative imports to avoid circular dependencies
-from .wizard.base_wizard import BaseWizard
-from .wizard.ui_helpers import console, custom_style, show_welcome_message, show_development_message
-from .configuration.generator import generate_docker_compose, generate_nginx_configs
+import questionary
+
 from .configuration.direct_mode import configure_direct_mode
+from .configuration.generator import (generate_docker_compose,
+                                      generate_nginx_configs)
 from .configuration.nginx_mode import configure_nginx_mode
 from .utilities.file_system import browse_directory
+# Import our modules - use relative imports to avoid circular dependencies
+from .wizard.base_wizard import BaseWizard
+from .wizard.ui_helpers import (console, custom_style,
+                                show_development_message, show_welcome_message)
 
 
 class SetupWizard(BaseWizard):

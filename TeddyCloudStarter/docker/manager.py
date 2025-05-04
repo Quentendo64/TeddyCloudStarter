@@ -5,8 +5,9 @@ Docker management functionality for TeddyCloudStarter.
 import os
 import subprocess
 import time
+from typing import Dict, List, Optional, Tuple
+
 from rich.console import Console
-from typing import List, Dict, Tuple, Optional
 
 console = Console()
 

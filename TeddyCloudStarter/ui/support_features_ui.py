@@ -3,15 +3,17 @@
 Support features UI for TeddyCloudStarter.
 """
 import os
-import sys
 import subprocess
-import questionary
+import sys
 from pathlib import Path
-from rich.panel import Panel
-from rich import box
 
-from ..wizard.ui_helpers import console, custom_style
+import questionary
+from rich import box
+from rich.panel import Panel
+
 from ..utilities.file_system import browse_directory
+from ..wizard.ui_helpers import console, custom_style
+
 
 def show_support_features_menu(config_manager, docker_manager, translator):
     """

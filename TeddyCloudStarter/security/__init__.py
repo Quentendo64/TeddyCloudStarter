@@ -13,5 +13,5 @@ This module contains various security-related functionalities:
 from .basic_auth import BasicAuthManager
 from .certificate_authority import CertificateAuthority
 from .client_certificates import ClientCertificateManager
+from .ip_restrictions import AuthBypassIPManager, IPRestrictionsManager
 from .lets_encrypt import LetsEncryptManager
-from .ip_restrictions import IPRestrictionsManager, AuthBypassIPManager

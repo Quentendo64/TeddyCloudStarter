@@ -4,7 +4,9 @@ Setup-Skript für TeddyCloudStarter
 """
 
 import os
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
+
 with open(os.path.join('TeddyCloudStarter', '__init__.py'), 'r') as f:
     for line in f:
         if line.startswith('__version__'):

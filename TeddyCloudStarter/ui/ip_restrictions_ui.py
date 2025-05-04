@@ -3,8 +3,10 @@
 UI module for IP restrictions configuration in TeddyCloudStarter.
 """
 import questionary
-from ..wizard.ui_helpers import console, custom_style
+
 from ..utilities.validation import validate_ip_address
+from ..wizard.ui_helpers import console, custom_style
+
 
 def display_current_ip_restrictions(ip_list, translator):
     """

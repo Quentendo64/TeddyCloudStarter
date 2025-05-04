@@ -3,15 +3,16 @@
 Support features utility module for TeddyCloudStarter.
 Provides functionality to create support packages for troubleshooting.
 """
-import os
-import sys
-import shutil
-import tempfile
-import json
 import datetime
-import zipfile
+import json
+import os
+import shutil
 import subprocess
+import sys
+import tempfile
+import zipfile
 from pathlib import Path
+
 from rich.console import Console
 
 console = Console()

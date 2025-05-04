@@ -3,16 +3,18 @@
 Client certificate operations for TeddyCloudStarter.
 """
 import os
-import shutil
-import time
-import subprocess
 import re
-from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+import shutil
+import subprocess
+import time
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box
+
 from .certificate_authority import CertificateAuthority
 
 # Re-export console to ensure compatibility
@@ -382,7 +384,7 @@ class ClientCertificateManager:
         try:
             # Find the correct config file to update
             from ..config_manager import ConfigManager
-            
+
             # First try the project-specific config
             if self.base_dir and self.base_dir != Path("."):
                 project_config_path = Path(self.base_dir) / "config.json"

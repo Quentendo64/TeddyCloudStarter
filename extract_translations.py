@@ -8,10 +8,10 @@ This script:
 3. Updates existing .po files with msgmerge if available
 """
 
-import os
-import subprocess
-import re
 import glob
+import os
+import re
+import subprocess
 from pathlib import Path
 
 PACKAGE_DIR = Path("TeddyCloudStarter")

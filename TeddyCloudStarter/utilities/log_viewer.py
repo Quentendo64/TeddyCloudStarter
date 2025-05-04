@@ -3,17 +3,17 @@
 Log viewing utilities for TeddyCloudStarter.
 """
 import os
-import time
-import threading
+import platform
 import queue
 import sys
-import platform
+import threading
+import time
 
 from rich.console import Console
-from rich.live import Live
-from rich.text import Text
 from rich.layout import Layout
+from rich.live import Live
 from rich.panel import Panel
+from rich.text import Text
 
 console = Console()
 
@@ -26,9 +26,9 @@ def capture_keypress():
             return msvcrt.getch().decode('utf-8', errors='ignore').lower()
         return None
     else:
+        import select
         import termios
         import tty
-        import select
         
         is_wsl = "microsoft-standard" in platform.release().lower() or "microsoft" in platform.release().lower()
         

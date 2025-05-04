@@ -3,14 +3,15 @@
 Basic authentication functionality for TeddyCloudStarter.
 Handles generation and management of .htpasswd files.
 """
+import getpass
 import os
+import socket
 import subprocess
 import time
-import socket
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 import questionary
-import getpass
 from rich.console import Console
 from rich.table import Table
 

@@ -3,19 +3,19 @@
 Logging utilities for TeddyCloudStarter.
 Provides standardized logging to console and file.
 """
+import json
+import logging
 import os
 import sys
-import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, Dict, Any
-import json
+from typing import Any, Dict, Optional, Union
 
+from rich import box
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.theme import Theme
 from rich.panel import Panel
-from rich import box
+from rich.theme import Theme
 
 # Create custom theme for Rich console
 custom_theme = Theme({

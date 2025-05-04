@@ -4,10 +4,14 @@ Reset operations module for TeddyCloudStarter configuration.
 """
 import os
 import subprocess
-from ..wizard.ui_helpers import console
-from rich.panel import Panel
+
 from rich import box
-from ..utilities.file_system import get_project_path
+from rich.panel import Panel
+
+from ..utilities.file_system import (create_directory, get_project_path,
+                                     normalize_path, validate_path)
+from ..wizard.ui_helpers import console
+
 
 def reset_config_file(config_manager, translator):
     """
@@ -52,7 +56,7 @@ def reset_project_path_data(config_manager, translator, folders=None):
             console.print(f"[yellow]{translator.get('No project path configured')}")
             return True
         
-        if not os.path.exists(project_path):
+        if not validate_path(project_path):
             console.print(f"[yellow]{translator.get('Project path does not exist')}: {project_path}")
             
             if folders is None:
@@ -63,9 +67,9 @@ def reset_project_path_data(config_manager, translator, folders=None):
         
         if folders is None:
             # Remove the data folder inside the project path if it exists
-            data_folder = os.path.join(project_path, "data")
-            if os.path.exists(data_folder):
-                import shutil
+            import shutil
+            data_folder = normalize_path(os.path.join(project_path, "data"))
+            if validate_path(data_folder):
                 try:
                     shutil.rmtree(data_folder)
                     console.print(f"[green]{translator.get('Removed project data folder')}: {data_folder}[/]")
@@ -79,9 +83,9 @@ def reset_project_path_data(config_manager, translator, folders=None):
             return True
         
         for folder in folders:
-            folder_path = os.path.join(project_path, folder)
-            if os.path.exists(folder_path):
-                import shutil
+            import shutil
+            folder_path = normalize_path(os.path.join(project_path, folder))
+            if validate_path(folder_path):
                 try:
                     shutil.rmtree(folder_path)
                     console.print(f"[green]{translator.get('Removed project folder')}: {folder}")
@@ -89,10 +93,10 @@ def reset_project_path_data(config_manager, translator, folders=None):
                     console.print(f"[red]{translator.get('Error removing project folder')} {folder}: {str(e)}")
             else:
                 console.print(f"[yellow]{translator.get('Project folder does not exist')}: {folder}")
-                
+        
         return True
     except Exception as e:
-        console.print(f"[red]{translator.get('Error resetting project path')}: {str(e)}")
+        console.print(f"[red]{translator.get('Error resetting project path')}: {str(e)}[/]")
         return False
 
 def reset_docker_volumes(translator, volumes=None, docker_manager=None):
@@ -185,8 +189,8 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
             project_path = config_manager.config.get("environment", {}).get("path")
         if project_path:
             import shutil
-            data_folder = os.path.join(project_path, "data")
-            if os.path.exists(data_folder):
+            data_folder = normalize_path(os.path.join(project_path, "data"))
+            if validate_path(data_folder):
                 try:
                     shutil.rmtree(data_folder)
                     console.print(f"[green]{translator.get('Removed project data folder')}: {data_folder}[/]")

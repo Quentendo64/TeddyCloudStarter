@@ -3,11 +3,14 @@
 Docker management UI for TeddyCloudStarter.
 """
 import time
+
 import questionary
-from rich.table import Table
 from rich import box
-from ..wizard.ui_helpers import console, custom_style
+from rich.table import Table
+
 from ..utilities.log_viewer import display_live_logs
+from ..wizard.ui_helpers import console, custom_style
+
 
 def show_docker_management_menu(translator, docker_manager, config_manager=None):
     """

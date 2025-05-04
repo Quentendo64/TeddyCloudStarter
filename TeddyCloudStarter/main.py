@@ -3,17 +3,17 @@
 TeddyCloudStarter - The wizard for setting up TeddyCloud with Docker.
 """
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Ensure required packages are installed
 try:
+    import dns.resolver
+    import jinja2
+    import questionary
     from rich.console import Console
     from rich.panel import Panel
-    import questionary
-    import jinja2
-    import dns.resolver
 except ImportError:
     print("Required packages not found. Installing them...")
     try:
@@ -36,10 +36,10 @@ except ImportError:
         sys.exit(1)
         
     # Try importing again after installation
+    import jinja2
+    import questionary
     from rich.console import Console
     from rich.panel import Panel
-    import questionary
-    import jinja2
     try:
         import dns.resolver
     except ImportError:
@@ -47,14 +47,14 @@ except ImportError:
         print("This package is required for domain validation.")
         sys.exit(1)
 
+from .config_manager import DEFAULT_CONFIG_PATH
+from .docker.manager import DockerManager
+from .main_menu import MainMenu
 # Import our modules
 from .setup_wizard import SetupWizard
-from .main_menu import MainMenu
-from .wizard.ui_helpers import console
-from .config_manager import DEFAULT_CONFIG_PATH
+from .utilities.file_system import ensure_project_directories, get_project_path
 from .utilities.version import check_for_updates
-from .utilities.file_system import get_project_path, ensure_project_directories
-from .docker.manager import DockerManager
+from .wizard.ui_helpers import console
 
 # Determine if running as installed package or directly from source
 package_path = os.path.dirname(__file__)

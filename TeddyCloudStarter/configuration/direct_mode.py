@@ -2,20 +2,17 @@
 """
 Direct mode configuration for TeddyCloudStarter.
 """
-from ..wizard.ui_helpers import console
+from ..ui.direct_mode_ui import (confirm_custom_http_port,
+                                 confirm_custom_https_port,
+                                 confirm_custom_teddycloud_port,
+                                 confirm_no_admin_interface,
+                                 confirm_port_usage_anyway, confirm_use_http,
+                                 confirm_use_https, prompt_for_http_port,
+                                 prompt_for_https_port,
+                                 prompt_for_teddycloud_port)
 from ..utilities.network import check_port_available
-from ..ui.direct_mode_ui import (
-    confirm_use_http,
-    confirm_custom_http_port,
-    prompt_for_http_port,
-    confirm_use_https,
-    confirm_custom_https_port,
-    prompt_for_https_port,
-    confirm_custom_teddycloud_port,
-    prompt_for_teddycloud_port,
-    confirm_port_usage_anyway,
-    confirm_no_admin_interface
-)
+from ..wizard.ui_helpers import console
+
 
 def configure_direct_mode(config, translator):
     """

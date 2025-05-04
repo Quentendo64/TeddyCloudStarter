@@ -3,8 +3,10 @@
 Let's Encrypt helper functions for TeddyCloudStarter.
 """
 import os
-from ..wizard.ui_helpers import console
+
 from ..utilities.network import check_domain_resolvable
+from ..wizard.ui_helpers import console
+
 
 def check_domain_suitable_for_letsencrypt(domain, translator, current_mode=None):
     """
@@ -18,10 +20,8 @@ def check_domain_suitable_for_letsencrypt(domain, translator, current_mode=None)
     Returns:
         bool: True if domain is suitable for Let's Encrypt, False otherwise
     """
-    from ..ui.nginx_mode_ui import (
-        display_letsencrypt_not_available_warning,
-        confirm_switch_to_self_signed
-    )
+    from ..ui.nginx_mode_ui import (confirm_switch_to_self_signed,
+                                    display_letsencrypt_not_available_warning)
     
     domain_resolvable = check_domain_resolvable(domain)
     
@@ -47,11 +47,9 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
     Returns:
         bool: True if setup was successful, False otherwise
     """
-    from ..ui.nginx_mode_ui import (
-        display_letsencrypt_requirements,
-        confirm_letsencrypt_requirements,
-        confirm_test_certificate
-    )
+    from ..ui.nginx_mode_ui import (confirm_letsencrypt_requirements,
+                                    confirm_test_certificate,
+                                    display_letsencrypt_requirements)
     
     domain = nginx_config.get("domain", "")
     

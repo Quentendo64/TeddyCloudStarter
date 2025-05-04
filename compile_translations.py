@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def compile_translations():
     """Compile all .po files to .mo files."""
     locales_dir = Path("TeddyCloudStarter/locales")

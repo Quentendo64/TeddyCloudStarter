@@ -2,9 +2,10 @@
 """
 Network utility functions for TeddyCloudStarter.
 """
-import socket
-import re
 import ipaddress
+import re
+import socket
+
 import dns.resolver
 
 
