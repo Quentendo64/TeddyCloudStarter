@@ -59,6 +59,7 @@ def show_configuration_management_menu(
                     else translator.get("Enable auto-update")
                 ),
             },
+            {"id": "change_tc_branch", "text": translator.get("Change TeddyCloud image branch")},
             {"id": "reset", "text": translator.get("Reset TeddyCloudStarter")},
             {"id": "refresh", "text": translator.get("Refresh server configuration")},
             {"id": "back", "text": translator.get("Back to main menu")},
@@ -164,6 +165,21 @@ def show_configuration_management_menu(
         elif selected_id == "toggle_update":
             config_manager.toggle_auto_update()
 
+        elif selected_id == "change_tc_branch":
+            # Prompt for new branch/tag
+            current_tag = config_manager.config.get("teddycloud_image_tag", "latest")
+            new_tag = questionary.text(
+                translator.get("Enter TeddyCloud image branch/tag (e.g. 'latest', 'develop')"),
+                default=current_tag,
+                style=custom_style,
+            ).ask()
+            if new_tag and new_tag != current_tag:
+                config_manager.config["teddycloud_image_tag"] = new_tag
+                config_manager.save()
+                from ..configuration.generator import generate_docker_compose
+                from ..configurations import TEMPLATES
+                generate_docker_compose(config_manager.config, translator, TEMPLATES)
+                console.print(f"[green]{translator.get('TeddyCloud image branch updated. Please restart the container to apply changes.')}[/]")
         elif selected_id == "reset":
             reset_options = handle_reset_wizard(translator, config_manager)
             if reset_options:

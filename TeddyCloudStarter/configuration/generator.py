@@ -41,6 +41,7 @@ def generate_docker_compose(config, translator, templates):
             )
 
         context = {"mode": config["mode"]}
+        context["teddycloud_image_tag"] = config.get("teddycloud_image_tag", "latest")
 
         if config["mode"] == "direct":
             context.update(

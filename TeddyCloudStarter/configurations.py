@@ -83,7 +83,7 @@ services:
     container_name: teddycloud-app
     tty: true
     hostname: teddycloud
-    image: ghcr.io/toniebox-reverse-engineering/teddycloud:latest
+    image: ghcr.io/toniebox-reverse-engineering/teddycloud:{{ teddycloud_image_tag|default('latest') }}
     volumes:
       - certs:/teddycloud/certs
       - config:/teddycloud/config
