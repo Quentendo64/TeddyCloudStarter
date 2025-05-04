@@ -4,6 +4,7 @@ Nginx mode configuration for TeddyCloudStarter.
 """
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -307,7 +308,12 @@ def configure_nginx_mode(config, translator, security_managers):
         )
 
     if not ports_available and not confirm_continue_anyway(translator):
-        return config
+        import sys
+
+        console.print(
+            f"[bold red]{translator.get('Exiting setup. Required ports are in use and user chose not to proceed.')}"
+        )
+        sys.exit(0)
 
     # Configure domain
     if not nginx_config["domain"]:

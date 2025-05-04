@@ -19,7 +19,7 @@ services:
     tty: true
     hostname: {{ domain }}
     image: nginx:stable-alpine
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
     volumes:
       - ./configurations/nginx-edge.conf:/etc/nginx/nginx.conf:ro
       {%- if https_mode == "letsencrypt" %}
@@ -30,6 +30,9 @@ services:
       - 80:80
       - 443:443
     restart: unless-stopped
+    depends_on:
+      - teddycloud
+      - nginx-auth
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
@@ -42,7 +45,7 @@ services:
     tty: true
     hostname: nginx-auth
     image: nginx:stable-alpine
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
     volumes:
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
       {% if https_mode == "custom" %}

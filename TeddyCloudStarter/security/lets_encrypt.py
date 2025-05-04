@@ -94,7 +94,9 @@ class LetsEncryptManager:
     ):
         """
         Create a Let's Encrypt certificate using certbot in webroot mode.
-        Ensures nginx-edge is running and uses the correct volumes.
+        1. Starts all services with docker compose up -d
+        2. Runs a temporary certbot container with correct volumes
+        3. Checks if certificate files exist in the Docker volume
         Args:
             domain (str): The main domain for the certificate
             email (str): Optional email for Let's Encrypt registration
@@ -106,81 +108,76 @@ class LetsEncryptManager:
         Returns:
             bool: True if successful, False otherwise
         """
-        # Ensure DockerManager is provided
-        if docker_manager is None:
-            from ..docker.manager import DockerManager
+        import shlex
+        from rich.console import Console
+        console = Console()
+        import subprocess
+        from pathlib import Path
 
-            docker_manager = DockerManager(translator=self.translator)
-        if not docker_manager.is_available():
-            console.print(f"[bold red]{self._translate('Docker is not available.')}[/]")
-            return False
+        # Compose file path
+        if project_path:
+            compose_file = str(Path(project_path) / "data" / "docker-compose.yml")
+        else:
+            compose_file = str(Path("data") / "docker-compose.yml")
 
-        # Ensure nginx-edge is running
-        services = docker_manager.get_services_status(project_path)
-        if services.get("nginx-edge", {}).get("state", "").lower() != "running":
-            console.print(
-                f"[bold yellow]{self._translate('Starting nginx-edge service for webroot challenge...')}[/]"
-            )
-            started = docker_manager.start_service("nginx-edge", project_path)
-            if not started:
-                console.print(
-                    f"[bold red]{self._translate('Failed to start nginx-edge service. Cannot proceed with certificate request.')}[/]"
-                )
-                return False
+        # 1. Start all services
+        up_cmd = [
+            "docker", "compose", "-f", compose_file, "up", "-d"
+        ]
+        console.print(f"[cyan]Starting all services with docker compose up -d...[/]")
+        subprocess.run(up_cmd, check=True)
 
-        # Prepare certbot command
+        # 2. Run certbot in a temporary container
+        # Get volume names (assume default names based on compose project)
+        project_name = Path(compose_file).stem.replace("docker-compose", "teddycloudstarter")
+        certbot_conf_vol = f"{project_name}_certbot_conf"
+        certbot_www_vol = f"{project_name}_certbot_www"
+        certbot_logs_vol = f"{project_name}_certbot_logs"
         certbot_image = "certbot/certbot:latest"
-        webroot_path = "/var/www/certbot"
-        cmd = [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            "certbot_conf:/etc/letsencrypt",
-            "-v",
-            "certbot_www:/var/www/certbot",
-            "-v",
-            "certbot_logs:/var/log/letsencrypt",
+        certbot_cmd = [
+            "sudo", "docker", "run", "--rm",
+            "-v", f"{certbot_conf_vol}:/etc/letsencrypt",
+            "-v", f"{certbot_www_vol}:/var/www/certbot",
+            "-v", f"{certbot_logs_vol}:/var/log/letsencrypt",
             certbot_image,
-            "certonly",
-            "--webroot",
-            "-w",
-            webroot_path,
-            "-d",
-            domain,
+            "certonly", "--webroot",
+            "-w", "/var/www/certbot",
+            "-d", domain,
+            "--agree-tos", "--non-interactive"
         ]
         if email:
-            cmd += ["--email", email]
+            certbot_cmd += ["--email", email]
         else:
-            cmd += ["--register-unsafely-without-email"]
+            certbot_cmd += ["--register-unsafely-without-email"]
         if sans:
             for san in sans:
-                cmd += ["-d", san]
+                certbot_cmd += ["-d", san]
         if staging:
-            cmd += ["--staging"]
+            certbot_cmd += ["--staging"]
         if force_renewal:
-            cmd += ["--force-renewal"]
-        cmd += ["--agree-tos", "--non-interactive"]
+            certbot_cmd += ["--force-renewal"]
 
-        console.print(
-            f"[bold cyan]{self._translate('Requesting Let\'s Encrypt certificate for')} {domain}...[/]"
-        )
-        try:
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
-            if result.returncode == 0:
-                console.print(
-                    f"[bold green]{self._translate('Certificate successfully obtained for')} {domain}[/]"
-                )
-                return True
-            else:
-                console.print(
-                    f"[bold red]{self._translate('Failed to obtain certificate for')} {domain}[/]"
-                )
-                console.print(result.stdout)
-                console.print(result.stderr)
-                return False
-        except Exception as e:
-            console.print(
-                f"[bold red]{self._translate('Error running certbot:')} {e}[/]"
-            )
+        console.print(f"[cyan]Running certbot to issue certificate for {domain}...[/]")
+        result = subprocess.run(certbot_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            console.print(f"[red]Certbot failed![/]")
+            console.print(result.stdout)
+            console.print(result.stderr)
+            return False
+
+        # 3. Check if certificate files exist in the Docker volume
+        check_cmd = [
+            "sudo", "docker", "run", "--rm",
+            "-v", f"{certbot_conf_vol}:/etc/letsencrypt",
+            "alpine", "ls", f"/etc/letsencrypt/live/{domain}"
+        ]
+        console.print(f"[cyan]Checking for certificate files in Docker volume...[/]")
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True)
+        if check_result.returncode == 0:
+            console.print(f"[green]Certificate files found for {domain}![/]")
+            return True
+        else:
+            console.print(f"[red]Certificate files not found for {domain}![/]")
+            console.print(check_result.stdout)
+            console.print(check_result.stderr)
             return False
