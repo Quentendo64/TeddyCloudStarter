@@ -517,3 +517,31 @@ def display_waiting_for_htpasswd(htpasswd_path, translator):
         f"[bold cyan]{translator.get('Waiting for .htpasswd file at')} {htpasswd_path}[/]"
     )
     console.print(f"[yellow]{translator.get('Press Ctrl+C to cancel at any time')}[/]")
+
+
+def prompt_client_cert_password(translator):
+    """
+    Prompt user to optionally set a custom password for the client certificate bundle (.p12 file).
+
+    Args:
+        translator: The translator instance for localization
+
+    Returns:
+        str or None: The password entered by the user, or None to use the default
+    """
+    use_custom_password = questionary.confirm(
+        translator.get(
+            "Would you like to set a custom password for the client certificate bundle (.p12 file)?"
+        ),
+        default=False,
+        style=custom_style,
+    ).ask()
+
+    if use_custom_password:
+        password = questionary.password(
+            translator.get("Enter password for the certificate bundle (min 4 characters):"),
+            validate=lambda text: len(text) >= 4,
+            style=custom_style,
+        ).ask()
+        return password
+    return None

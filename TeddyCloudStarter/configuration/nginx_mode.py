@@ -17,6 +17,7 @@ from ..ui.nginx_mode_ui import (
     display_self_signed_certificate_info,
     display_waiting_for_htpasswd,
     prompt_client_cert_name,
+    prompt_client_cert_password,
     prompt_client_cert_source,
     prompt_for_domain,
     prompt_for_fallback_option,
@@ -250,8 +251,9 @@ def configure_client_certificates(translator, client_cert_manager):
 
     if cert_source == "generate":
         client_name = prompt_client_cert_name(translator)
+        passout = prompt_client_cert_password(translator)
         success, cert_info = client_cert_manager.generate_client_certificate(
-            client_name
+            client_name, passout=passout
         )
         if success and cert_info:
             console.print(
