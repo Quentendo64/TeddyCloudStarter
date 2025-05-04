@@ -4,8 +4,6 @@ Certificate Authority operations for TeddyCloudStarter.
 """
 import os
 import platform
-import re
-import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -63,7 +61,7 @@ class CertificateAuthority:
                 self.base_dir = Path(project_path)
             else:
                 console.print(
-                    f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
+                    "[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
                 )
                 self.base_dir = Path.cwd()
                 if self.translator:

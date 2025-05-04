@@ -8,8 +8,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
-import tempfile
 import zipfile
 from pathlib import Path
 
@@ -174,13 +172,13 @@ class SupportPackageCreator:
                 json.dump(self.config_manager.config, f, indent=2)
 
             if self.anonymize:
-                console.print(f"[cyan]Anonymizing TeddyCloudStarter config.json...[/]")
+                console.print("[cyan]Anonymizing TeddyCloudStarter config.json...[/]")
                 self._anonymize_config_json(config_path)
         elif os.path.exists("config.json"):
             shutil.copy("config.json", config_dir / "config.json")
 
             if self.anonymize:
-                console.print(f"[cyan]Anonymizing copied config.json...[/]")
+                console.print("[cyan]Anonymizing copied config.json...[/]")
                 self._anonymize_config_json(config_dir / "config.json")
 
         docker_compose_path = os.path.join(
@@ -188,7 +186,7 @@ class SupportPackageCreator:
         )
         if os.path.exists(docker_compose_path):
             console.print(
-                f"[cyan]Including docker-compose.yml in support package...[/]"
+                "[cyan]Including docker-compose.yml in support package...[/]"
             )
             shutil.copy(docker_compose_path, config_dir / "docker-compose.yml")
 
@@ -225,7 +223,7 @@ class SupportPackageCreator:
 
             if teddycloud_container in check_result.stdout:
                 console.print(
-                    f"[cyan]Found running teddycloud container, copying config files directly...[/]"
+                    "[cyan]Found running teddycloud container, copying config files directly...[/]"
                 )
 
                 for file in files_to_extract:
@@ -247,7 +245,7 @@ class SupportPackageCreator:
                             shutil.copy(dest_path, config_dir / file)
 
                             if self.anonymize and file == "config.ini":
-                                console.print(f"[cyan]Anonymizing config.ini...[/]")
+                                console.print("[cyan]Anonymizing config.ini...[/]")
                                 self._anonymize_config_ini(config_dir / file)
                     except Exception as e:
                         console.print(
@@ -255,7 +253,7 @@ class SupportPackageCreator:
                         )
             else:
                 console.print(
-                    f"[yellow]Teddycloud container not running, accessing volume directly...[/]"
+                    "[yellow]Teddycloud container not running, accessing volume directly...[/]"
                 )
 
                 temp_container = "temp_support_config_access"
@@ -328,7 +326,7 @@ class SupportPackageCreator:
                             shutil.copy(dest_path, config_dir / file)
 
                             if self.anonymize and file == "config.ini":
-                                console.print(f"[cyan]Anonymizing config.ini...[/]")
+                                console.print("[cyan]Anonymizing config.ini...[/]")
                                 self._anonymize_config_ini(config_dir / file)
                     except Exception:
                         pass
@@ -522,7 +520,7 @@ class SupportPackageCreator:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.writelines(anonymized_lines)
 
-            console.print(f"[green]Successfully anonymized config.ini file[/]")
+            console.print("[green]Successfully anonymized config.ini file[/]")
 
         except Exception as e:
             console.print(

@@ -2,17 +2,12 @@
 """
 UI module for Nginx mode configuration in TeddyCloudStarter.
 """
-import os
-import subprocess
-from pathlib import Path
 
 import questionary
 from rich import box
 from rich.panel import Panel
-from rich.prompt import Prompt
 
-from ..utilities.network import check_domain_resolvable, check_port_available
-from ..utilities.validation import validate_domain_name, validate_ip_address
+from ..utilities.validation import validate_domain_name
 from ..wizard.ui_helpers import console, custom_style
 
 

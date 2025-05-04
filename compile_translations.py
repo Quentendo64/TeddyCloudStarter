@@ -6,7 +6,6 @@ This script should be run after updating any translations.
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 

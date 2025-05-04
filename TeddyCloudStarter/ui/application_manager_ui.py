@@ -2,8 +2,6 @@
 """
 Application management UI for TeddyCloudStarter.
 """
-import os
-import shutil
 import subprocess
 from pathlib import Path
 

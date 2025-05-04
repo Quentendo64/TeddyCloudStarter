@@ -2,16 +2,10 @@
 """
 Let's Encrypt certificate management functionality for TeddyCloudStarter.
 """
-import os
-import shutil
-import socket
 import subprocess
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rich.console import Console
-from rich.prompt import Confirm
 
 # Re-export console to ensure compatibility
 console = Console()
@@ -66,7 +60,7 @@ class LetsEncryptManager:
         else:
             # Log an error if no project path is found
             console.print(
-                f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
+                "[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
             )
             self.base_dir = Path.cwd()
             if self.translator:

@@ -79,7 +79,7 @@ class ClientCertificateManager:
             else:
                 # Log an error if no project path is found
                 console.print(
-                    f"[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
+                    "[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
                 )
                 self.base_dir = Path.cwd()
                 if self.translator:

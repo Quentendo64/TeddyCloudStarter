@@ -15,7 +15,6 @@ from ..security import (
     IPRestrictionsManager,
     LetsEncryptManager,
 )
-from ..utilities.file_system import get_project_path
 from ..utilities.localization import Translator
 
 

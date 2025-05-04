@@ -7,9 +7,8 @@ import getpass
 import os
 import socket
 import subprocess
-import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import questionary
 from rich.console import Console

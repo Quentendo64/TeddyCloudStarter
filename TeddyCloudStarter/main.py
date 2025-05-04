@@ -51,10 +51,6 @@ except ImportError:
         sys.exit(1)
 
     # Try importing again after installation
-    import jinja2
-    import questionary
-    from rich.console import Console
-    from rich.panel import Panel
 
     try:
         import dns.resolver

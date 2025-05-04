@@ -2,7 +2,6 @@
 """
 Let's Encrypt helper functions for TeddyCloudStarter.
 """
-import os
 
 from ..utilities.network import check_domain_resolvable
 from ..wizard.ui_helpers import console

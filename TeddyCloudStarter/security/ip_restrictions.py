@@ -3,11 +3,7 @@
 IP restrictions functionality for TeddyCloudStarter.
 Handles configuration and validation of IP restrictions.
 """
-import os
-from pathlib import Path
-from typing import Dict, List, Optional
 
-import questionary
 from rich.console import Console
 
 from ..ui.ip_restrictions_ui import (  # Auth bypass specific UI functions
@@ -20,7 +16,6 @@ from ..ui.ip_restrictions_ui import (  # Auth bypass specific UI functions
     display_auth_bypass_status,
     display_current_auth_bypass_ips,
     display_current_ip_restrictions,
-    display_invalid_ip_error,
     display_ip_added,
     display_ip_already_exists,
     display_ip_input_instructions,
@@ -31,7 +26,6 @@ from ..ui.ip_restrictions_ui import (  # Auth bypass specific UI functions
     prompt_ip_management_action,
     select_ip_to_remove,
 )
-from ..utilities.validation import validate_ip_address
 
 # Re-export console to ensure compatibility
 console = Console()

@@ -4,13 +4,12 @@ Reset operations module for TeddyCloudStarter configuration.
 """
 import os
 import subprocess
+import shutil
 
 from rich import box
 from rich.panel import Panel
 
 from ..utilities.file_system import (
-    create_directory,
-    get_project_path,
     normalize_path,
     validate_path,
 )
@@ -78,8 +77,6 @@ def reset_project_path_data(config_manager, translator, folders=None):
 
         if folders is None:
             # Remove the data folder inside the project path if it exists
-            import shutil
-
             data_folder = normalize_path(os.path.join(project_path, "data"))
             if validate_path(data_folder):
                 try:
@@ -99,8 +96,6 @@ def reset_project_path_data(config_manager, translator, folders=None):
             return True
 
         for folder in folders:
-            import shutil
-
             folder_path = normalize_path(os.path.join(project_path, folder))
             if validate_path(folder_path):
                 try:
@@ -227,8 +222,6 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
         if not project_path:
             project_path = config_manager.config.get("environment", {}).get("path")
         if project_path:
-            import shutil
-
             data_folder = normalize_path(os.path.join(project_path, "data"))
             if validate_path(data_folder):
                 try:

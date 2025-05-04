@@ -4,7 +4,6 @@ Version handling utilities for TeddyCloudStarter.
 """
 
 import json
-import os
 import subprocess
 import sys
 from urllib import request

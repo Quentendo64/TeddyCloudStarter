@@ -92,9 +92,9 @@ class MainMenu(BaseWizard):
             if generate_docker_compose(
                 self.config_manager.config, self.translator, self.templates
             ):
-                console.print(f"[green]Successfully refreshed docker-compose.yml[/]")
+                console.print("[green]Successfully refreshed docker-compose.yml[/]")
             else:
-                console.print(f"[bold red]Failed to refresh docker-compose.yml[/]")
+                console.print("[bold red]Failed to refresh docker-compose.yml[/]")
 
             # Generate nginx config files if in nginx mode
             if self.config_manager.config["mode"] == "nginx":
@@ -102,11 +102,11 @@ class MainMenu(BaseWizard):
                     self.config_manager.config, self.translator, self.templates
                 ):
                     console.print(
-                        f"[green]Successfully refreshed nginx configuration files[/]"
+                        "[green]Successfully refreshed nginx configuration files[/]"
                     )
                 else:
                     console.print(
-                        f"[bold red]Failed to refresh nginx configuration files[/]"
+                        "[bold red]Failed to refresh nginx configuration files[/]"
                     )
 
             # Inform the user about next steps

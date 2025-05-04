@@ -8,7 +8,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from rich.console import Console
 
@@ -265,7 +265,7 @@ class ConfigManager:
                         )
                         if not success:
                             # If actual revocation fails, still mark as revoked in config
-                            error_msg = f"Certificate revocation process failed, but certificate will be marked as revoked in configuration."
+                            error_msg = "Certificate revocation process failed, but certificate will be marked as revoked in configuration."
                             if self.translator:
                                 error_msg = self.translator.get(error_msg)
                             console.print(f"[bold yellow]{error_msg}[/]")

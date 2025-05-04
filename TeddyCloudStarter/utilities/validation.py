@@ -5,10 +5,9 @@ Centralizes all validation logic for configuration data.
 """
 import os
 import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-from .network import check_domain_resolvable, validate_domain_name, validate_ip_address
+from .network import validate_domain_name, validate_ip_address
 
 
 class ConfigValidator:

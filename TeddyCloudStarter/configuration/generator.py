@@ -3,7 +3,6 @@
 Configuration generators for TeddyCloudStarter.
 """
 import os
-from pathlib import Path
 
 import jinja2
 

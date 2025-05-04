@@ -3,13 +3,11 @@
 Logging utilities for TeddyCloudStarter.
 Provides standardized logging to console and file.
 """
-import json
 import logging
 import os
-import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Optional
 
 from rich import box
 from rich.console import Console

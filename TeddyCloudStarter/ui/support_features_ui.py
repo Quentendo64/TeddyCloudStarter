@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import questionary
-from rich import box
 from rich.panel import Panel
 
 from ..utilities.file_system import browse_directory

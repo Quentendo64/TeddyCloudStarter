@@ -10,7 +10,6 @@ from pathlib import Path
 import questionary
 
 from ..docker.manager import DockerManager
-from ..security.lets_encrypt import LetsEncryptManager
 from ..ui.nginx_mode_ui import (
     confirm_change_security_method,
     confirm_continue_anyway,
@@ -22,7 +21,6 @@ from ..ui.nginx_mode_ui import (
     prompt_for_fallback_option,
     prompt_for_https_mode,
     prompt_htpasswd_option,
-    prompt_modify_ip_restrictions,
     prompt_security_type,
     select_https_mode_for_modification,
     select_security_type_for_modification,

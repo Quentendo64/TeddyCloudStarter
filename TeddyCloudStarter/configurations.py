@@ -19,7 +19,7 @@ services:
     tty: true
     hostname: {{ domain }}
     image: nginx:stable-alpine
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     volumes:
       - ./configurations/nginx-edge.conf:/etc/nginx/nginx.conf:ro
       {%- if https_mode == "letsencrypt" %}
@@ -37,13 +37,12 @@ services:
       retries: 3
       start_period: 10s
 
-  
   nginx-auth:
     container_name: nginx-auth
     tty: true
     hostname: nginx-auth
     image: nginx:stable-alpine
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     volumes:
       - ./configurations/nginx-auth.conf:/etc/nginx/nginx.conf:ro
       {% if https_mode == "custom" %}
@@ -83,10 +82,10 @@ services:
     hostname: teddycloud
     image: ghcr.io/toniebox-reverse-engineering/teddycloud:latest
     volumes:
-      - certs:/teddycloud/certs        
-      - config:/teddycloud/config         
-      - content:/teddycloud/data/content  
-      - library:/teddycloud/data/library  
+      - certs:/teddycloud/certs
+      - config:/teddycloud/config
+      - content:/teddycloud/data/content
+      - library:/teddycloud/data/library
       - custom_img:/teddycloud/data/www/custom_img
       - custom_img:/teddycloud/data/library/custom_img
       - firmware:/teddycloud/data/firmware
@@ -161,23 +160,22 @@ events {
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    
-    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
+
+    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
     access_log /var/log/nginx/access.log teddystarter_format;
 
-    
     upstream teddycloud_http {
         server teddycloud-app:80;
     }
-    
+
     server {
         listen 80;
         server_name {{ domain }};
-        
+
         location / {
             return 301 https://$host$request_uri;
         }
-        
+
         {%- if https_mode == "letsencrypt" %}
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
@@ -186,30 +184,30 @@ http {
     }
 }
 
-stream {  
+stream {
     map $ssl_preread_server_name $upstream {
         {{ domain }} teddycloud_admin;
         default teddycloud_box;
     }
-    
+
     upstream teddycloud_admin {
-                server nginx-auth:443;
-            }
-    
+        server nginx-auth:443;
+    }
+
     upstream teddycloud_box {
         server teddycloud-app:443;
     }
-    
+
     server {
         {%- if allowed_ips %}
         {% for ip in allowed_ips %}
         allow {{ ip }};
         {% endfor %}
         deny all;
-        {%- endif %}        
-        listen 443;        
+        {%- endif %}
+        listen 443;
         ssl_preread on;
-        proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;        
+        proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
         proxy_pass $upstream;
     }
 }
@@ -237,9 +235,9 @@ http {
     sendfile        on;
     tcp_nopush      on;
     keepalive_timeout  65;
-    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';            
+    log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
     access_log /var/log/nginx/access.log teddystarter_format;
-    
+
     {% if security_type == "basic_auth" and auth_bypass_ips %}
     geo $auth_bypass {
         default 0;
@@ -247,19 +245,19 @@ http {
         {{ ip }} 1;
         {% endfor %}
     }
-    
+
     map $auth_bypass $auth_basic_realm {
         0 "TeddyCloud Admin Area";
         1 "off";
     }
     {% endif %}
-    
+
     server {
         listen 443 ssl;
         server_tokens off;
-        {%if https_mode == "letsencrypt" %}        
-        ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem; 
-        ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem; 
+        {%if https_mode == "letsencrypt" %}
+        ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
         {% else %}
         ssl_certificate /etc/nginx/certificates/server.crt;
         ssl_certificate_key /etc/nginx/certificates/server.key;
@@ -277,8 +275,7 @@ http {
         ssl_session_cache shared:SSL:10m;
         ssl_session_timeout 1d;
         ssl_session_tickets off;
-        
-        
+
         location / {
             client_max_body_size 4096M;
             {% if security_type == "basic_auth" %}
@@ -299,14 +296,14 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Host $server_name;
-            proxy_set_header X-Forwarded-Proto $scheme;            
+            proxy_set_header X-Forwarded-Proto $scheme;
             proxy_max_temp_file_size 4096M;
             proxy_connect_timeout  60s;
             proxy_read_timeout  10800s;
             proxy_send_timeout  10800s;
             send_timeout  10800s;
             proxy_buffers 8 16k;
-            proxy_buffer_size 32k;            
+            proxy_buffer_size 32k;
             proxy_busy_buffers_size 32k;
             proxy_pass http://teddycloud-app:80;
         }

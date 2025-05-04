@@ -2,7 +2,6 @@
 """
 Display utility functions for TeddyCloudStarter.
 """
-import sys
 import threading
 import time
 from datetime import datetime

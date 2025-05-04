@@ -4,7 +4,6 @@ UI module for Direct mode configuration in TeddyCloudStarter.
 """
 import questionary
 
-from ..utilities.network import check_port_available
 from ..wizard.ui_helpers import console, custom_style
 
 
