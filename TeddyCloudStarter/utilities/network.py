@@ -11,16 +11,16 @@ import dns.resolver
 
 def check_port_available(port: int) -> bool:
     """Check if a port is available on the system.
-    
+
     Args:
         port: The port number to check
-        
+
     Returns:
         bool: True if port is available, False otherwise
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(('127.0.0.1', port))
+            s.bind(("127.0.0.1", port))
             return True
         except socket.error:
             return False
@@ -28,35 +28,39 @@ def check_port_available(port: int) -> bool:
 
 def validate_domain_name(domain: str) -> bool:
     """Validate a domain name format.
-    
+
     Args:
         domain: The domain name to validate
-        
+
     Returns:
         bool: True if valid domain, False otherwise
     """
-    domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+    domain_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
     return bool(re.match(domain_pattern, domain))
 
 
 def check_domain_resolvable(domain: str) -> bool:
     """Check if a domain is publicly resolvable using Quad9 DNS.
-    
+
     Args:
         domain: The domain to check
-        
+
     Returns:
         bool: True if resolvable, False otherwise
     """
     try:
         resolver = dns.resolver.Resolver(configure=False)
-        resolver.nameservers = ['9.9.9.9', '149.112.112.112']
-        
-        answers = resolver.resolve(domain, 'A')
-        
+        resolver.nameservers = ["9.9.9.9", "149.112.112.112"]
+
+        answers = resolver.resolve(domain, "A")
+
         return True
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, 
-            dns.resolver.NoNameservers, dns.exception.Timeout):
+    except (
+        dns.resolver.NXDOMAIN,
+        dns.resolver.NoAnswer,
+        dns.resolver.NoNameservers,
+        dns.exception.Timeout,
+    ):
         return False
     except Exception:
         try:
@@ -68,10 +72,10 @@ def check_domain_resolvable(domain: str) -> bool:
 
 def validate_ip_address(ip_str: str) -> bool:
     """Validate an IP address or CIDR notation.
-    
+
     Args:
         ip_str: The string to validate as IP or CIDR
-        
+
     Returns:
         bool: True if valid IP or CIDR, False otherwise
     """

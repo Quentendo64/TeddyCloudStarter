@@ -21,7 +21,7 @@ console = Console()
 def display_live_logs(container, service_name, show_timestamp=False):
     """
     Display live logs from a Docker container with interactive controls.
-    
+
     Controls:
     - Press 'p' to pause/play logs
     - Press 'c' to clear logs
@@ -31,15 +31,17 @@ def display_live_logs(container, service_name, show_timestamp=False):
     stop_thread = False
     last_lines = []
     max_lines = 100  # Keep track of the last 100 lines
-    
+
     def log_reader():
         nonlocal last_lines
         try:
-            for log in container.logs(stream=True, follow=True, timestamps=show_timestamp):
+            for log in container.logs(
+                stream=True, follow=True, timestamps=show_timestamp
+            ):
                 if stop_thread:
                     break
                 if not paused:
-                    log_line = log.decode('utf-8').strip()
+                    log_line = log.decode("utf-8").strip()
                     last_lines.append(log_line)
                     # Keep only the last max_lines
                     if len(last_lines) > max_lines:
@@ -48,12 +50,12 @@ def display_live_logs(container, service_name, show_timestamp=False):
                 time.sleep(0.01)  # Small delay to reduce CPU usage
         except Exception as e:
             logger.print_error(f"Error reading logs: {e}")
-    
+
     # Start log reader thread
     log_thread = threading.Thread(target=log_reader)
     log_thread.daemon = True
     log_thread.start()
-    
+
     # Show controls
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     controls_text = Text()
@@ -67,22 +69,22 @@ def display_live_logs(container, service_name, show_timestamp=False):
     controls_text.append(" = clear | ", style="white")
     controls_text.append("q", style="yellow bold")
     controls_text.append(" = quit", style="white")
-    
+
     console.print(Panel(controls_text))
-    
+
     try:
         while True:
             key = capture_keypress()
             if key:
-                if key == 'q':
+                if key == "q":
                     print("\nExiting log view.")
                     stop_thread = True
                     break
-                elif key == 'p':
+                elif key == "p":
                     paused = not paused
                     status = "⏸️ Paused" if paused else "▶️ Resumed"
                     console.print(f"[yellow]{status}[/yellow] log streaming")
-                elif key == 'c' and not paused:
+                elif key == "c" and not paused:
                     console.clear()
                     console.print(Panel(controls_text))
                     console.print("[yellow]Logs cleared[/yellow]")
@@ -90,7 +92,7 @@ def display_live_logs(container, service_name, show_timestamp=False):
     except KeyboardInterrupt:
         stop_thread = True
         print("\nExiting log view.")
-    
+
     # Ensure the thread stops
     stop_thread = True
     log_thread.join(timeout=1.0)

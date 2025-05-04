@@ -13,18 +13,22 @@ logger = get_logger("KeyboardUtils")
 
 def capture_keypress():
     """Cross-platform function to get a single keypress without requiring Enter"""
-    if os.name == 'nt':
+    if os.name == "nt":
         import msvcrt
+
         if msvcrt.kbhit():
-            return msvcrt.getch().decode('utf-8', errors='ignore').lower()
+            return msvcrt.getch().decode("utf-8", errors="ignore").lower()
         return None
     else:
         import select
         import termios
         import tty
-        
-        is_wsl = "microsoft-standard" in platform.release().lower() or "microsoft" in platform.release().lower()
-        
+
+        is_wsl = (
+            "microsoft-standard" in platform.release().lower()
+            or "microsoft" in platform.release().lower()
+        )
+
         if is_wsl:
             try:
                 old_settings = termios.tcgetattr(sys.stdin)

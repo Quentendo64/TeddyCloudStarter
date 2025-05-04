@@ -12,16 +12,18 @@ from rich.console import Console
 
 console = Console()
 
-custom_style = questionary.Style([
-    ('qmark', 'fg:#673ab7 bold'),
-    ('question', 'bold'),
-    ('answer', 'fg:#4caf50 bold'),
-    ('pointer', 'fg:#673ab7 bold'),
-    ('highlighted', 'fg:#673ab7 bold'),
-    ('selected', 'fg:#4caf50'),
-    ('separator', 'fg:#673ab7'),
-    ('instruction', 'fg:#f44336'),
-])
+custom_style = questionary.Style(
+    [
+        ("qmark", "fg:#673ab7 bold"),
+        ("question", "bold"),
+        ("answer", "fg:#4caf50 bold"),
+        ("pointer", "fg:#673ab7 bold"),
+        ("highlighted", "fg:#673ab7 bold"),
+        ("selected", "fg:#4caf50"),
+        ("separator", "fg:#673ab7"),
+        ("instruction", "fg:#f44336"),
+    ]
+)
 
 PARENT_DIR = ".."
 CREATE_NEW = "[Create new folder]"
@@ -31,11 +33,11 @@ MANUAL_ENTRY = "[Enter path manually]"
 def get_project_path(config_manager=None, translator=None) -> Optional[str]:
     """
     Get the project path from config or prompt the user to set it if not set.
-    
+
     Args:
         config_manager: The configuration manager instance
         translator: Translator instance for internationalization
-        
+
     Returns:
         Optional[str]: The project path, or None if not set
     """
@@ -49,12 +51,18 @@ def get_project_path(config_manager=None, translator=None) -> Optional[str]:
             if project_path and validate_path(project_path):
                 return project_path
 
-        console.print(f"[bold yellow]{_('No project path is set. Please select a project path.')}[/]")
-        project_path = browse_directory(title=_("Select Project Path"), translator=translator)
+        console.print(
+            f"[bold yellow]{_('No project path is set. Please select a project path.')}[/]"
+        )
+        project_path = browse_directory(
+            title=_("Select Project Path"), translator=translator
+        )
 
         if project_path:
             if config_manager:
-                config_manager.config.setdefault("environment", {})["path"] = project_path
+                config_manager.config.setdefault("environment", {})[
+                    "path"
+                ] = project_path
                 config_manager.save()
             return project_path
 
@@ -69,13 +77,13 @@ def get_project_path(config_manager=None, translator=None) -> Optional[str]:
 def ensure_project_directories(project_path):
     """
     Create necessary directories in the project path.
-    
+
     Args:
         project_path: The path to the project directory (must not be None)
     """
     if not project_path:
         raise ValueError("project_path must not be None")
-    
+
     base_path = Path(project_path)
     (base_path / "data").mkdir(exist_ok=True)
     (base_path / "data" / "configurations").mkdir(exist_ok=True)
@@ -84,10 +92,10 @@ def ensure_project_directories(project_path):
 
 def normalize_path(path: str) -> str:
     """Normalize a file path by resolving ../ and ./ references.
-    
+
     Args:
         path: The path to normalize
-        
+
     Returns:
         str: The normalized path
     """
@@ -96,10 +104,10 @@ def normalize_path(path: str) -> str:
 
 def create_directory(path: str) -> bool:
     """Create a directory at the specified path.
-    
+
     Args:
         path: The path where to create the directory
-        
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -113,10 +121,10 @@ def create_directory(path: str) -> bool:
 
 def get_directory_contents(path: str) -> List[str]:
     """Get contents of a directory, separated into directories and files.
-    
+
     Args:
         path: The directory path to list
-        
+
     Returns:
         List[str]: List of directory entries, directories first followed by files
     """
@@ -124,14 +132,14 @@ def get_directory_contents(path: str) -> List[str]:
         entries = os.listdir(path)
         dirs = []
         files = []
-        
+
         for entry in entries:
             full_path = os.path.join(path, entry)
             if os.path.isdir(full_path):
                 dirs.append(entry + os.sep)
             else:
                 files.append(entry)
-                
+
         return sorted(dirs) + sorted(files)
     except Exception as e:
         console.print(f"[bold red]Error listing directory: {e}[/]")
@@ -140,10 +148,10 @@ def get_directory_contents(path: str) -> List[str]:
 
 def validate_path(path: str) -> bool:
     """Validate that a path exists and is a directory.
-    
+
     Args:
         path: The path to validate
-        
+
     Returns:
         bool: True if the path is valid, False otherwise
     """
@@ -152,151 +160,150 @@ def validate_path(path: str) -> bool:
 
 def get_common_roots() -> List[str]:
     """Get a list of common root directories based on the OS.
-    
+
     Returns:
         List[str]: List of common root directories
     """
     system = platform.system()
-    
+
     if system == "Windows":
         import string
+
         drives = []
         for drive in string.ascii_uppercase:
             if os.path.exists(f"{drive}:"):
                 drives.append(f"{drive}:")
         return drives
-    
+
     elif system == "Darwin":
         return ["/", "/Users", "/Applications", "/Volumes"]
-    
+
     else:
         return ["/", "/home", "/mnt", "/media"]
 
 
-def browse_directory(start_path: Optional[str] = None, 
-                     translator=None, 
-                     title: Optional[str] = None) -> Optional[str]:
+def browse_directory(
+    start_path: Optional[str] = None, translator=None, title: Optional[str] = None
+) -> Optional[str]:
     """Browse directories and select one.
-    
+
     Args:
         start_path: Starting directory. Ignored as we always start from root directories.
         translator: Translator instance for internationalization
         title: Optional title to display above the browser
-        
+
     Returns:
         Optional[str]: The selected directory path or None if cancelled
     """
     if title is None:
         title = "Select a directory"
-    
+
     _ = lambda text: text
     if translator is not None:
         _ = lambda text: translator.get(text) or text
-    
+
     # Always start from root directories using get_common_roots()
     choices = get_common_roots()
     choices.append(MANUAL_ENTRY)
-    
-    selection = questionary.select(
-        _(title),
-        choices=choices,
-        style=custom_style
-    ).ask()
-    
+
+    selection = questionary.select(_(title), choices=choices, style=custom_style).ask()
+
     if selection == MANUAL_ENTRY:
         path = questionary.text(
             _("Enter a path:"),
             style=custom_style,
         ).ask()
-        
+
         if not path:
             return None
-        
+
         path = normalize_path(path)
         if validate_path(path):
             return path
-        
+
         create_it = questionary.confirm(
-            _("Path doesn't exist. Create it?"),
-            default=True,
-            style=custom_style
+            _("Path doesn't exist. Create it?"), default=True, style=custom_style
         ).ask()
-        
+
         if create_it and create_directory(path):
             return path
         else:
             return browse_directory(None, translator, title)
-    
+
     elif not selection:
         return None
-    
+
     current_path = selection
-    if platform.system() == "Windows" and len(current_path) == 2 and current_path[1] == ':':
-        current_path = current_path + '\\'
-        
+    if (
+        platform.system() == "Windows"
+        and len(current_path) == 2
+        and current_path[1] == ":"
+    ):
+        current_path = current_path + "\\"
+
     while True:
         if not os.path.exists(current_path):
             console.print(f"[bold red]{_('Path does not exist')}: {current_path}[/]")
             return browse_directory(None, translator, title)
-        
+
         contents = get_directory_contents(current_path)
-        
+
         choices = [f"[{_('SELECT THIS DIRECTORY')}] {current_path}"]
-        
+
         if os.path.dirname(current_path) != current_path:
             choices.append(f"{PARENT_DIR} ({os.path.dirname(current_path)})")
-        
+
         choices.append(CREATE_NEW)
         choices.append(MANUAL_ENTRY)
         choices.append(f"[{_('CANCEL')}]")
-        
+
         for item in contents:
             if item.endswith(os.sep):
                 choices.insert(len(choices) - 3, item)
-        
+
         selection = questionary.select(
             _("Current directory") + f": {current_path}",
             choices=choices,
             style=custom_style,
         ).ask()
-        
+
         if not selection:
             return None
-        
+
         if selection.startswith(f"[{_('SELECT THIS DIRECTORY')}]"):
             return current_path
-        
+
         if selection.startswith(f"[{_('CANCEL')}]"):
             return None
-        
+
         if selection.startswith(PARENT_DIR):
             current_path = os.path.dirname(current_path)
             continue
-        
+
         if selection == CREATE_NEW:
             dir_name = questionary.text(
                 _("Enter new directory name:"),
                 style=custom_style,
             ).ask()
-            
+
             if not dir_name:
                 continue
-            
+
             new_dir_path = os.path.join(current_path, dir_name)
             if create_directory(new_dir_path):
                 current_path = new_dir_path
             continue
-        
+
         if selection == MANUAL_ENTRY:
             path = questionary.text(
                 _("Enter a path:"),
                 default=current_path,
                 style=custom_style,
             ).ask()
-            
+
             if not path:
                 continue
-            
+
             path = normalize_path(path)
             if validate_path(path):
                 current_path = path
@@ -304,13 +311,13 @@ def browse_directory(start_path: Optional[str] = None,
                 create_it = questionary.confirm(
                     _("Path doesn't exist. Create it?"),
                     default=True,
-                    style=custom_style
+                    style=custom_style,
                 ).ask()
-                
+
                 if create_it and create_directory(path):
                     current_path = path
             continue
-        
+
         new_path = os.path.join(current_path, selection.rstrip(os.sep))
         if os.path.isdir(new_path):
             current_path = new_path

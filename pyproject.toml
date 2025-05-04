@@ -41,11 +41,9 @@ Homepage = "https://github.com/Quentendo64/TeddyCloudStarter"
 [project.scripts]
 TeddyCloudStarter = "TeddyCloudStarter.main:main"
 
-# Add package discovery to include all packages and subpackages
 [tool.setuptools.packages.find]
-include = ["TeddyCloudStarter*"]  # This will include all TeddyCloudStarter packages and subpackages
+include = ["TeddyCloudStarter*"]
 
-# Explicitly include package data to handle localization files
 [tool.setuptools.package-data]
 "TeddyCloudStarter.locales.de.LC_MESSAGES" = ["*.mo", "*.po"]
 
@@ -55,7 +53,7 @@ skip-string-normalization = false
 
 [tool.flake8]
 max-line-length = 88
-exclude = .git,__pycache__,build,dist
+exclude = ".git,__pycache__,build,dist"
 
 [tool.isort]
 profile = "black"

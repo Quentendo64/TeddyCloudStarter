@@ -2,4 +2,3 @@
 """
 Wizard package for TeddyCloudStarter.
 """
-

@@ -317,5 +317,5 @@ http {
 TEMPLATES = {
     "docker-compose": DOCKER_COMPOSE,
     "nginx-edge": NGINX_EDGE,
-    "nginx-auth": NGINX_AUTH
+    "nginx-auth": NGINX_AUTH,
 }
