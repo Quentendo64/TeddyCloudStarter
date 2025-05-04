@@ -3,9 +3,19 @@
 Utilities package for TeddyCloudStarter.
 """
 
-# Import key utilities to make them available directly from utilities package
-from .validation import validate_domain_name, validate_ip_address, validate_config, ConfigValidator
-from .network import check_port_available, check_domain_resolvable
-from .file_system import browse_directory, get_directory_contents, create_directory, ensure_project_directories
-from .version import check_for_updates, get_pypi_version, compare_versions
-from .log import display_live_logs
+from .file_system import (
+    browse_directory,
+    create_directory,
+    ensure_project_directories,
+    get_directory_contents,
+)
+from .log_viewer import display_live_logs
+from .logger import TeddyLogger, get_logger, logger
+from .network import check_domain_resolvable, check_port_available
+from .validation import (
+    ConfigValidator,
+    validate_config,
+    validate_domain_name,
+    validate_ip_address,
+)
+from .version import check_for_updates, compare_versions, get_pypi_version

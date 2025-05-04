@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-
-## [0.4.8] - 2025-05-01
+### Added
+- Consolidate Certbot Logs to own docker volume
+- Logger Module for dynamic logs
+### Changed
+- Switch the UI Logic from String-based comparison to id comparison
+- Rename Logviewer
 ### Fixed
-- Docker management menu crash when Docker is not available
+- Lost in Translation
+
+
+## [0.4.9] - 2025-05-01
+### Added
+- Develop Branch 
+- TestPyPi Package Deployment
+### Fixed
+- Docker management menu error when Docker is not available
+## [0.4.8] - 2025-05-01
 ### Changed
 - Adjust Let's Encrypt Workflow
 ## [0.4.7] - 2025-05-01

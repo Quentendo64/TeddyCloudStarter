@@ -4,11 +4,13 @@ Setup-Skript für TeddyCloudStarter
 """
 
 import os
-from setuptools import setup, find_packages
-with open(os.path.join('TeddyCloudStarter', '__init__.py'), 'r') as f:
+
+from setuptools import find_packages, setup
+
+with open(os.path.join("TeddyCloudStarter", "__init__.py"), "r") as f:
     for line in f:
-        if line.startswith('__version__'):
-            version = line.split('=')[1].strip().strip("'\"")
+        if line.startswith("__version__"):
+            version = line.split("=")[1].strip().strip("'\"")
             break
 
 with open("README.md", "r", encoding="utf-8") as fh:

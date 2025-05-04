@@ -41,10 +41,41 @@ Homepage = "https://github.com/Quentendo64/TeddyCloudStarter"
 [project.scripts]
 TeddyCloudStarter = "TeddyCloudStarter.main:main"
 
-# Add package discovery to include all packages and subpackages
 [tool.setuptools.packages.find]
-include = ["TeddyCloudStarter*"]  # This will include all TeddyCloudStarter packages and subpackages
+include = ["TeddyCloudStarter*"]
 
-# Explicitly include package data to handle localization files
 [tool.setuptools.package-data]
 "TeddyCloudStarter.locales.de.LC_MESSAGES" = ["*.mo", "*.po"]
+
+[tool.black]
+line-length = 88
+skip-string-normalization = false
+# Specify target Python version for consistency
+target-version = ['py36', 'py37', 'py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+
+[tool.flake8]
+max-line-length = 88
+exclude = ".git,__pycache__,build,dist"
+# Add useful plugins for better linting
+extend-ignore = "E203,W503"
+select = "C,E,F,W,B,B950"
+# Plugins: bugbear, comprehensions, etc.
+# Install: flake8-bugbear, flake8-comprehensions, flake8-annotations
+
+[tool.isort]
+profile = "black"
+py_version = 313
+
+[tool.mypy]
+python_version = 3.13
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+strict_optional = true
+
+# [tool.ruff]
+line-length = 88
+target-version = "py313"
+select = ["E", "F", "B", "C", "I", "N", "UP", "S"]
+# Requires: pip install ruff

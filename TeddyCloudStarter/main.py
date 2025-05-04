@@ -3,23 +3,27 @@
 TeddyCloudStarter - The wizard for setting up TeddyCloud with Docker.
 """
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Ensure required packages are installed
 try:
+    import dns.resolver
+    import jinja2
+    import questionary
     from rich.console import Console
     from rich.panel import Panel
-    import questionary
-    import jinja2
-    import dns.resolver
 except ImportError:
     print("Required packages not found. Installing them...")
     try:
         # First check if pip is available
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
         except subprocess.CalledProcessError:
             print("\nError: pip is not installed for your Python installation.")
             print("Please install pip first using one of these methods:")
@@ -28,18 +32,26 @@ except ImportError:
             sys.exit(1)
 
         # If we got here, pip is available, so try to install the packages
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "jinja2", "dnspython"])
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "rich",
+                "questionary",
+                "jinja2",
+                "dnspython",
+            ]
+        )
     except Exception as e:
         print(f"\nFailed to install required packages: {e}")
         print("Please install them manually using:")
         print(f"{sys.executable} -m pip install rich questionary jinja2 dnspython\n")
         sys.exit(1)
-        
+
     # Try importing again after installation
-    from rich.console import Console
-    from rich.panel import Panel
-    import questionary
-    import jinja2
+
     try:
         import dns.resolver
     except ImportError:
@@ -47,13 +59,15 @@ except ImportError:
         print("This package is required for domain validation.")
         sys.exit(1)
 
-# Import our modules
-from .main_wizard import TeddyCloudWizard
-from .wizard.ui_helpers import console
 from .config_manager import DEFAULT_CONFIG_PATH
-from .utilities.version import check_for_updates
-from .utilities.file_system import get_project_path, ensure_project_directories
 from .docker.manager import DockerManager
+from .main_menu import MainMenu
+
+# Import our modules
+from .setup_wizard import SetupWizard
+from .utilities.file_system import ensure_project_directories, get_project_path
+from .utilities.version import check_for_updates
+from .wizard.ui_helpers import console
 
 # Determine if running as installed package or directly from source
 package_path = os.path.dirname(__file__)
@@ -61,21 +75,27 @@ package_path = os.path.dirname(__file__)
 # Set up paths for resources
 LOCALES_DIR = Path(package_path) / "locales"
 
+
 def check_docker_prerequisites():
     """
     Check if Docker and Docker Compose are installed and available.
     Display an error message and exit if they are not.
     """
     all_met, prerequisites, error_message = DockerManager.check_docker_prerequisites()
-    
+
     if not all_met:
         console.print("[bold red]ERROR: Docker prerequisites not met![/]")
         console.print(f"[bold yellow]{error_message}[/]")
-        console.print("[bold red]TeddyCloudStarter requires Docker and Docker Compose to function.[/]")
-        console.print("[bold red]Please install the missing components and try again.[/]")
+        console.print(
+            "[bold red]TeddyCloudStarter requires Docker and Docker Compose to function.[/]"
+        )
+        console.print(
+            "[bold red]Please install the missing components and try again.[/]"
+        )
         sys.exit(1)
-    
+
     return True
+
 
 def main():
     """Main entry point for the TeddyCloud Setup Wizard."""
@@ -83,48 +103,71 @@ def main():
     check_for_updates()
     # Check for Docker prerequisites first
     check_docker_prerequisites()
-    # Create the wizard instance with the correct locales directory
-    wizard = TeddyCloudWizard(LOCALES_DIR)
 
     # Check if config exists
     config_exists = os.path.exists(DEFAULT_CONFIG_PATH)
-    
-    # First handle language selection
-    if not config_exists or not wizard.config_manager.config.get("language"):
-        # If no config or no language setting, select language
-        wizard.select_language()
-    else:
-        # Set the language from config without showing selection
-        wizard.translator.set_language(wizard.config_manager.config["language"])
-    
-    # Now display welcome messages
-    wizard.display_welcome_message()
-    wizard.display_development_message()
-    
-    # After language is set, handle project path selection
-    if not wizard.config_manager.config.get("environment", {}).get("path"):
-        # Select project path if not set
-        wizard.select_project_path()
-    
-    # Get the project path from config and ensure directories exist
-    project_path = get_project_path(wizard.config_manager)
-    ensure_project_directories(project_path)
-    
-    # Properly set the project path in the wizard and reinitialize security managers
-    wizard.set_project_path(project_path)
-    
+
     if config_exists:
-        # If config exists, show pre-wizard menu in a loop until user exits
+        # If config exists, initialize the MainMenu and show it
+        menu = MainMenu(LOCALES_DIR)
+
+        # Set the language from config without showing selection
+        if menu.config_manager.config.get("language"):
+            menu.translator.set_language(menu.config_manager.config["language"])
+        else:
+            # If no language setting, select language
+            menu.select_language()
+
+        # Display welcome messages
+        menu.display_welcome_message()
+        menu.display_development_message()
+
+        # Get the project path from config and ensure directories exist
+        project_path = get_project_path(menu.config_manager)
+        ensure_project_directories(project_path)
+
+        # Properly set the project path and reinitialize security managers
+        menu.set_project_path(project_path)
+
+        # Show the main menu in a loop until user exits
         show_menu = True
         while show_menu:
-            result = wizard.show_pre_wizard_menu()
+            result = menu.show_main_menu()
             # If the result is False, it means the user chose to exit
             if result == False:
                 show_menu = False
     else:
-        # If no config, run the wizard
-        wizard.execute_wizard()
-    
+        # If no config, run the setup wizard
+        wizard = SetupWizard(LOCALES_DIR)
+
+        # Select language first
+        wizard.select_language()
+
+        # Display welcome messages
+        wizard.display_welcome_message()
+        wizard.display_development_message()
+
+        # Run the wizard
+        wizard.run()
+
+        # After wizard completes, show the main menu
+        menu = MainMenu(LOCALES_DIR)
+        # Set the project path from the wizard's config
+        if (
+            "environment" in wizard.config_manager.config
+            and "path" in wizard.config_manager.config["environment"]
+        ):
+            project_path = wizard.config_manager.config["environment"]["path"]
+            menu.set_project_path(project_path)
+
+        # Show the main menu in a loop until user exits
+        show_menu = True
+        while show_menu:
+            result = menu.show_main_menu()
+            # If the result is False, it means the user chose to exit
+            if result == False:
+                show_menu = False
+
     return 0
 
 
