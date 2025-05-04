@@ -150,7 +150,21 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
     """
     success = True
 
-    # 1. Docker volumes first
+    # Determine if we need to bring down Docker services first
+    need_docker_down = (
+        reset_options.get('docker_volumes') or
+        reset_options.get('docker_all_volumes') or
+        reset_options.get('project_folders') or
+        reset_options.get('project_path')
+    )
+    project_path = config_manager.config.get("project_path")
+    if not project_path:
+        project_path = config_manager.config.get("environment", {}).get("path")
+    if need_docker_down and project_path:
+        # Bring down Docker Compose services before removing volumes or data
+        wizard.docker_manager.down_services(project_path)
+
+    # 1. Docker volumes first (after services are down)
     docker_volumes = reset_options.get('docker_volumes', [])
     if docker_volumes:
         if not reset_docker_volumes(translator, docker_volumes, docker_manager=wizard.docker_manager):
@@ -186,12 +200,7 @@ def perform_reset_operations(reset_options, config_manager, wizard, translator):
         if not reset_config_file(config_manager, translator):
             success = False
 
-    # Stop Docker services if any project path or docker reset was done
-    if (reset_options.get('docker_volumes') or reset_options.get('docker_all_volumes') or
-        reset_options.get('project_folders') or reset_options.get('project_path')):
-        project_path = get_project_path(config_manager, translator)
-        if project_path:
-            wizard.docker_manager.down_services(project_path)
+    # No need to bring down Docker services again here
 
     if success:
         console.print(f"[bold green]{translator.get('Reset completed successfully')}[/]")

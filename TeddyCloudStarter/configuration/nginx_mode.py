@@ -28,6 +28,8 @@ from ..ui.nginx_mode_ui import (
 )
 from .letsencrypt_helper import handle_letsencrypt_setup, check_domain_suitable_for_letsencrypt
 from ..wizard.ui_helpers import console, custom_style
+from ..security.lets_encrypt import LetsEncryptManager
+from ..docker.manager import DockerManager
 
 _validator = ConfigValidator()
 
@@ -288,16 +290,62 @@ def configure_nginx_mode(config, translator, security_managers):
                 default_choice = 'self_signed'  # Set default to one that exists in the choices
         
             https_mode_id = prompt_for_https_mode(https_choices, default_choice, translator)
-        
             nginx_config["https_mode"] = https_mode_id
-        
-            # Handle Let's Encrypt setup
+
+            # --- NEW LETS ENCRYPT FLOW ---
             if nginx_config["https_mode"] == "letsencrypt":
-                letsencrypt_success = handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager)
-                if not letsencrypt_success:
-                    nginx_config["https_mode"] = "self_signed"
-                    console.print(f"[bold cyan]{translator.get('Switching to self-signed certificates mode')}...[/]")
-        
+                # Save config with letsencrypt
+                config["nginx"] = nginx_config
+                config["mode"] = "nginx"
+                from ..configuration.generator import generate_docker_compose, generate_nginx_configs
+                from ..configurations import TEMPLATES
+                # Regenerate docker-compose.yml
+                generate_docker_compose(config, translator, TEMPLATES)
+                # Regenerate nginx configs
+                generate_nginx_configs(config, translator, TEMPLATES)
+                # Create a staging certificate
+                docker_manager = DockerManager(translator=translator)
+                staging_success = lets_encrypt_manager.create_letsencrypt_certificate_webroot(
+                    domain=domain,
+                    email=None,
+                    sans=None,
+                    staging=True,
+                    force_renewal=True,
+                    project_path=project_path,
+                    docker_manager=docker_manager
+                )
+                if staging_success:
+                    # If success, create a production certificate
+                    prod_success = lets_encrypt_manager.create_letsencrypt_certificate_webroot(
+                        domain=domain,
+                        email=None,
+                        sans=None,
+                        staging=False,
+                        force_renewal=True,
+                        project_path=project_path,
+                        docker_manager=docker_manager
+                    )
+                    if prod_success:
+                        console.print(f"[bold green]{translator.get('Production Let\'s Encrypt certificate successfully created!')}[/]")
+                        break
+                    else:
+                        console.print(f"[bold red]{translator.get('Failed to create production certificate. Offering self-signed fallback.')}[/]")
+                        fallback = questionary.confirm(translator.get("Would you like to generate a self-signed certificate instead?"), default=True, style=custom_style).ask()
+                        if fallback:
+                            nginx_config["https_mode"] = "self_signed"
+                            continue
+                        else:
+                            break
+                else:
+                    console.print(f"[bold red]{translator.get('Failed to create staging certificate. Offering self-signed fallback.')}[/]")
+                    fallback = questionary.confirm(translator.get("Would you like to generate a self-signed certificate instead?"), default=True, style=custom_style).ask()
+                    if fallback:
+                        nginx_config["https_mode"] = "self_signed"
+                        continue
+                    else:
+                        break
+            # --- END LETS ENCRYPT FLOW ---
+
             # Handle self-signed certificates
             if nginx_config["https_mode"] == "self_signed":
                 success, result_mode = handle_self_signed_certificates(domain, translator, ca_manager, project_path)
