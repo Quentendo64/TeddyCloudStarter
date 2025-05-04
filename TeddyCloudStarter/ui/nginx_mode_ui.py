@@ -51,6 +51,27 @@ def display_letsencrypt_requirements(translator):
     )
 
 
+def display_letsencrypt_rate_limit_disclaimer(translator):
+    """
+    Display a disclaimer about Let's Encrypt rate limits.
+
+    Args:
+        translator: The translator instance for localization
+    """
+    console.print(
+        Panel(
+            f"[bold red]{translator.get('Let\'s Encrypt Rate Limits Disclaimer')}[/]\n\n"
+            f"{translator.get('Let\'s Encrypt enforces rate limits on certificate requests. Exceeding these limits may prevent you from obtaining or renewing certificates for a period of time.')}\n\n"
+            f"- {translator.get('Certificates per Registered Domain: 50 per week')}\n"
+            f"- {translator.get('Duplicate Certificate limit: 5 per week')}\n"
+            f"- {translator.get('Failed Validation limit: 5 failures per account, per hostname, per hour')}\n\n"
+            f"{translator.get('For full details, see:')} https://letsencrypt.org/docs/rate-limits/",
+            box=box.ROUNDED,
+            border_style="red",
+        )
+    )
+
+
 def confirm_letsencrypt_requirements(translator):
     """
     Ask user to confirm they meet Let's Encrypt requirements.

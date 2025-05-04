@@ -53,6 +53,7 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
         confirm_letsencrypt_requirements,
         confirm_test_certificate,
         display_letsencrypt_requirements,
+        display_letsencrypt_rate_limit_disclaimer,
     )
 
     domain = nginx_config.get("domain", "")
@@ -71,6 +72,7 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
 
     # Display Let's Encrypt requirements
     display_letsencrypt_requirements(translator)
+    display_letsencrypt_rate_limit_disclaimer(translator)
 
     # Confirm the user meets the requirements
     if not confirm_letsencrypt_requirements(translator):
