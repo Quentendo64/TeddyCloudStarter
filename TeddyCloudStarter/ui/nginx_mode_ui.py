@@ -580,7 +580,7 @@ def prompt_nginx_type(translator):
     """
     choices = [
         {"id": "standard", "text": translator.get("Standard (default)")},
-        {"id": "extended", "text": translator.get("Extended (advanced features)")},
+        #{"id": "extended", "text": translator.get("Extended (advanced features)")},
     ]
     choice_texts = [choice["text"] for choice in choices]
     selected_text = questionary.select(

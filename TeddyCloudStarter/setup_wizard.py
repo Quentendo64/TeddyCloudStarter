@@ -245,13 +245,13 @@ class SetupWizard(BaseWizard):
             {
                 "id": "direct",
                 "text": self.translator.get(
-                    "Direct mode (Simplest, all services on one machine)"
+                    "Direct mode (Simplest, all services on one container)"
                 ),
             },
             {
                 "id": "nginx",
                 "text": self.translator.get(
-                    "Nginx mode (Advanced, uses nginx for routing)"
+                    "Nginx mode (Advanced, uses nginx for routing and security)"
                 ),
             },
         ]
