@@ -26,6 +26,7 @@ from ..ui.nginx_mode_ui import (
     prompt_security_type,
     select_https_mode_for_modification,
     select_security_type_for_modification,
+    prompt_nginx_type,
 )
 from ..utilities.network import check_domain_resolvable, check_port_available
 from ..utilities.validation import ConfigValidator
@@ -290,6 +291,7 @@ def configure_nginx_mode(config, translator, security_managers):
         config["nginx"] = {
             "domain": "",
             "https_mode": "",
+            "nginx_type": "standard",
             "security": {"type": "", "allowed_ips": [], "auth_bypass_ips": []},
         }
 
@@ -300,6 +302,9 @@ def configure_nginx_mode(config, translator, security_managers):
             f"[bold red]{translator.get('Warning')}: {translator.get('Project path not set. Using current directory.')}[/]"
         )
         exit
+
+
+    nginx_config["nginx_type"] = prompt_nginx_type(translator)
 
     # Check for required ports
     ports_available, warnings = check_port_prerequisites()

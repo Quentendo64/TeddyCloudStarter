@@ -566,3 +566,29 @@ def prompt_client_cert_password(translator):
         ).ask()
         return password
     return None
+
+
+def prompt_nginx_type(translator):
+    """
+    Prompt user to select the Nginx type (standard or extended).
+
+    Args:
+        translator: The translator instance for localization
+
+    Returns:
+        str: The selected nginx_type ('standard' or 'extended')
+    """
+    choices = [
+        {"id": "standard", "text": translator.get("Standard (default)")},
+        {"id": "extended", "text": translator.get("Extended (advanced features)")},
+    ]
+    choice_texts = [choice["text"] for choice in choices]
+    selected_text = questionary.select(
+        translator.get("Select Nginx mode type:"),
+        choices=choice_texts,
+        style=custom_style,
+    ).ask()
+    for choice in choices:
+        if choice["text"] == selected_text:
+            return choice["id"]
+    return "standard"

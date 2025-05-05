@@ -56,6 +56,23 @@ def generate_docker_compose(config, translator, templates):
                 os.path.join(data_dir, "client_certs", "crl", "ca.crl")
             )
 
+            # Prepare boxes as a list of (crt_fingerprint_no_colon, macaddress) tuples
+            raw_boxes = config.get("boxes", [])
+            boxes = []
+            if isinstance(raw_boxes, list):
+                for box in raw_boxes:
+                    crt_fp = box.get("crt_fingerprint", "").replace(":", "").lower()
+                    mac = box.get("macaddress", "")
+                    if crt_fp and mac:
+                        boxes.append((crt_fp, mac))
+            elif isinstance(raw_boxes, dict):
+                # fallback for dict type
+                for box in raw_boxes.values():
+                    crt_fp = box.get("crt_fingerprint", "").replace(":", "").lower()
+                    mac = box.get("macaddress", "")
+                    if crt_fp and mac:
+                        boxes.append((crt_fp, mac))
+
             context.update(
                 {
                     "domain": config["nginx"]["domain"],
@@ -63,8 +80,11 @@ def generate_docker_compose(config, translator, templates):
                     "security_type": config["nginx"]["security"]["type"],
                     "allowed_ips": config["nginx"]["security"]["allowed_ips"],
                     "crl_file": crl_file,
+                    "nginx_type": config["nginx"].get("nginx_type", "standard"),
+                    "boxes": boxes,
                 }
             )
+            print("[DEBUG] boxes for docker-compose:", boxes)
 
             if config["nginx"]["https_mode"] == "user_provided":
                 server_certs_path = os.path.join(data_dir, "server_certs")
@@ -135,12 +155,28 @@ def generate_nginx_configs(config, translator, templates):
             "https_mode": config["nginx"]["https_mode"],
             "security_type": config["nginx"]["security"]["type"],
             "allowed_ips": config["nginx"]["security"]["allowed_ips"],
+            "nginx_type": config["nginx"].get("nginx_type", "standard"),
         }
 
         with open(os.path.join(config_dir, "nginx-edge.conf"), "w") as f:
             f.write(edge_template.render(**edge_context))
 
         auth_template = env.from_string(templates.get("nginx-auth", ""))
+        raw_boxes = config.get("boxes", [])
+        boxes = []
+        if isinstance(raw_boxes, list):
+            for box in raw_boxes:
+                crt_fp = box.get("crt_fingerprint", "").replace(":", "").lower()
+                mac = box.get("macaddress", "")
+                if crt_fp and mac:
+                    boxes.append((crt_fp, mac))
+        elif isinstance(raw_boxes, dict):
+            for box in raw_boxes.values():
+                crt_fp = box.get("crt_fingerprint", "").replace(":", "").lower()
+                mac = box.get("macaddress", "")
+                if crt_fp and mac:
+                    boxes.append((crt_fp, mac))
+
         auth_context = {
             "domain": config["nginx"]["domain"],
             "https_mode": config["nginx"]["https_mode"],
@@ -150,7 +186,10 @@ def generate_nginx_configs(config, translator, templates):
             "crl_file": os.path.exists(
                 os.path.join(data_dir, "client_certs", "crl", "ca.crl")
             ),
+            "nginx_type": config["nginx"].get("nginx_type", "standard"),
+            "boxes": boxes,
         }
+        print("[DEBUG] boxes for nginx-auth:", boxes)
 
         with open(os.path.join(config_dir, "nginx-auth.conf"), "w") as f:
             f.write(auth_template.render(**auth_context))
