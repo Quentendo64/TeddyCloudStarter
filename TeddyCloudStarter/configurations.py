@@ -70,6 +70,9 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
       {%- endif %}
+      {% if nginx_type == "extended" %}
+      - certs:/teddycloud/certs:ro
+      {%- endif %}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "nginx", "-t"]
@@ -196,10 +199,15 @@ stream {
     upstream teddycloud_admin {
         server nginx-auth:443;
     }
-
+    {% if nginx_type == "extended" %}
+    upstream teddycloud_box {
+        server nginx-auth:8443;
+    }
+    {% else %}
     upstream teddycloud_box {
         server teddycloud-app:443;
     }
+    {% endif %}
 
     server {
         {%- if allowed_ips %}
@@ -257,6 +265,7 @@ http {
 
     server {
         listen 443 ssl;
+        listen [::]:4443 ssl;
         server_tokens off;
         {%if https_mode == "letsencrypt" %}
         ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
@@ -311,6 +320,41 @@ http {
             proxy_pass http://teddycloud-app:80;
         }
     }
+    {% if nginx_type == "extended" %}
+    map $ssl_client_fingerprint $reject {
+        default 1;
+        {% for box in boxes %}{{ box[0] }} 0;
+        {% endfor %}
+    }
+    map $ssl_client_fingerprint $mac_address {
+        default "000000000000";
+        {% for box in boxes %}{{ box[0] }} {{ box[1] }};
+        {% endfor %}
+    }
+
+    server {
+        listen 8443 ssl;
+        listen [::]:8443 ssl;
+        server_name {{ domain }};
+        server_tokens off;
+        ssl_certificate /teddycloud/certs/server/teddy-cert.nginx.pem;
+        ssl_certificate_key /teddycloud/certs/server/teddy-key.nginx.pem;
+        ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
+        ssl_verify_client optional_no_ca;
+        ssl_client_certificate /teddycloud/certs/server/ca-root.pem;
+        if ($reject) {
+                return 403;
+        }
+        location / {
+                proxy_read_timeout 300s;
+                proxy_connect_timeout 75s;
+                proxy_pass https://teddycloud-app:443;
+                proxy_ssl_certificate /teddycloud/certs/client/$mac_address/client.pem;
+                proxy_ssl_certificate_key /teddycloud/certs/client/$mac_address/private.pem;
+                proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
+        }
+    }
+    {% endif %}
 }
 """
 

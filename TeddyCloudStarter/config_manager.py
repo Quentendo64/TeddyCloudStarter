@@ -66,7 +66,7 @@ class ConfigManager:
             "app_settings": {"log_level": "info", "log_path": "", "auto_update": True},
             "metadata": {
                 "config_version": "1.0",
-                "description": "Default TeddyCloudStarter configuration",
+                "description": "TeddyCloudStarter configuration",
             },
             "language": "en",
         }
