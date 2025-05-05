@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.1] - 2025-05-05
 ### Added
 - Implement Logger to M
+### Fixed
+- GH-10 / LogViewer cut Log History
 ## [0.6.0] - 2025-05-05
 ### Added
 - Let's Encrypt Rate Limit Disclaimer
