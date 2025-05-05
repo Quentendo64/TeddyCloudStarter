@@ -7,6 +7,7 @@ import re
 import questionary
 
 from ..wizard.ui_helpers import console, custom_style
+from ..utilities.logger import logger
 
 
 def show_certificate_management_menu(config, translator, security_managers):
@@ -21,10 +22,13 @@ def show_certificate_management_menu(config, translator, security_managers):
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    logger.debug("Entering show_certificate_management_menu.")
     choices = []
 
     if config["mode"] == "nginx":
+        logger.debug("Mode is nginx.")
         if config["nginx"]["https_mode"] == "letsencrypt":
+            logger.debug("HTTPS mode is letsencrypt. Adding Let's Encrypt management options.")
             choices.append(
                 {
                     "id": "lets_encrypt_management",
@@ -38,13 +42,13 @@ def show_certificate_management_menu(config, translator, security_managers):
                 }
             )
         if config["nginx"]["security"]["type"] == "client_cert":
+            logger.debug("Security type is client_cert. Adding client certificate options.")
             choices.append(
                 {
                     "id": "create_client_cert",
                     "text": translator.get("Create additional client certificate"),
                 }
             )
-            # Only show invalidate option if there are active (not revoked) certificates
             from ..config_manager import ConfigManager
 
             config_manager = ConfigManager()
@@ -59,7 +63,9 @@ def show_certificate_management_menu(config, translator, security_managers):
                     for cert in fresh_config["security"]["client_certificates"]
                     if not cert.get("revoked", False)
                 ]
+            logger.debug(f"Active client certificates: {active_certs}")
             if active_certs:
+                logger.debug("There are active client certificates. Adding invalidate option.")
                 choices.append(
                     {
                         "id": "invalidate_client_cert",
@@ -68,6 +74,7 @@ def show_certificate_management_menu(config, translator, security_managers):
                 )
 
     choices.append({"id": "back", "text": translator.get("Back to main menu")})
+    logger.debug(f"Menu choices: {choices}")
 
     choice_texts = [choice["text"] for choice in choices]
     selected_text = questionary.select(
@@ -75,14 +82,17 @@ def show_certificate_management_menu(config, translator, security_managers):
         choices=choice_texts,
         style=custom_style,
     ).ask()
+    logger.info(f"User selected: {selected_text}")
 
     selected_id = "back"
     for choice in choices:
         if choice["text"] == selected_text:
             selected_id = choice["id"]
             break
+    logger.debug(f"Selected menu id: {selected_id}")
 
     if selected_id == "create_client_cert":
+        logger.debug("User chose to create client certificate.")
         create_client_certificate(
             translator,
             security_managers["client_cert_manager"],
@@ -92,6 +102,7 @@ def show_certificate_management_menu(config, translator, security_managers):
         return False
 
     elif selected_id == "invalidate_client_cert":
+        logger.debug("User chose to invalidate client certificate.")
         invalidate_client_certificate(
             config,
             translator,
@@ -101,9 +112,11 @@ def show_certificate_management_menu(config, translator, security_managers):
         return False
 
     elif selected_id == "lets_encrypt_management":
+        logger.debug("User chose Let's Encrypt management.")
         action_id = show_letsencrypt_management_menu(
             config, translator, security_managers["lets_encrypt_manager"]
         )
+        logger.debug(f"LetsEncrypt management action selected: {action_id}")
 
         if action_id == "prod_webroot":
             request_letsencrypt_certificate(
@@ -145,11 +158,13 @@ def show_certificate_management_menu(config, translator, security_managers):
         return False
 
     elif selected_id == "test_domain":
+        logger.debug("User chose to test domain for Let's Encrypt.")
         test_domain_for_letsencrypt(
             config, translator, security_managers["lets_encrypt_manager"]
         )
         return False
 
+    logger.debug("User chose to return to main menu.")
     return True
 
 
@@ -165,12 +180,14 @@ def create_client_certificate(
         config: The configuration dictionary (optional, for menu navigation)
         security_managers: The security managers dictionary (optional, for menu navigation)
     """
+    logger.debug("Entering create_client_certificate.")
     client_name = questionary.text(
         translator.get("Enter a name for the client certificate:"),
         default="TeddyCloudClient",
         validate=lambda text: bool(text.strip()),
         style=custom_style,
     ).ask()
+    logger.info(f"User entered client name: {client_name}")
 
     use_custom_password = questionary.confirm(
         translator.get(
@@ -179,6 +196,7 @@ def create_client_certificate(
         default=False,
         style=custom_style,
     ).ask()
+    logger.info(f"User chose custom password: {use_custom_password}")
 
     passout = None
     if use_custom_password:
@@ -187,19 +205,25 @@ def create_client_certificate(
             validate=lambda text: len(text) >= 4,
             style=custom_style,
         ).ask()
+        logger.debug(f"User entered custom password: {'*' * len(passout) if passout else None}")
 
     success, cert_info = client_cert_manager.generate_client_certificate(
         client_name, passout=passout
     )
+    logger.debug(f"Certificate generation result: success={success}, cert_info={cert_info}")
+
     if success:
+        logger.success("Client certificate successfully created.")
         console.print(
             f"[bold green]{translator.get('Client certificate successfully created')}[/]"
         )
         if cert_info and "p12_path" in cert_info:
+            logger.info(f"Certificate bundle saved to: {cert_info['p12_path']}")
             console.print(
                 f"[green]{translator.get('Certificate bundle (.p12 file) saved to:')} {cert_info['p12_path']}[/]"
             )
             if not use_custom_password and "password" in cert_info:
+                logger.info(f"Auto-generated password: {cert_info['password']}")
                 console.print(
                     f"[yellow]{translator.get('Auto-generated password:')} {cert_info['password']}[/]"
                 )
@@ -207,11 +231,13 @@ def create_client_certificate(
                     f"[yellow]{translator.get('IMPORTANT: Save this password! It will not be shown again.')}[/]"
                 )
     else:
+        logger.error("Failed to create client certificate.")
         console.print(
             f"[bold red]{translator.get('Failed to create client certificate.')}[/]"
         )
     # Always return to certificate management menu if context is available
     if config and security_managers:
+        logger.debug("Returning to certificate management menu after client certificate creation.")
         show_certificate_management_menu(config, translator, security_managers)
 
 
@@ -227,6 +253,7 @@ def invalidate_client_certificate(
         client_cert_manager: The client certificate manager instance
         security_managers: Optional, needed to re-show the menu
     """
+    logger.debug("Entering invalidate_client_certificate.")
     from ..config_manager import ConfigManager
 
     config_manager = ConfigManager()
@@ -237,10 +264,12 @@ def invalidate_client_certificate(
         or "client_certificates" not in fresh_config["security"]
         or not fresh_config["security"]["client_certificates"]
     ):
+        logger.warning("No client certificates found.")
         console.print(
             f"[bold yellow]{translator.get('No client certificates found.')}[/]"
         )
         if security_managers:
+            logger.debug("Returning to certificate management menu after no certs found.")
             show_certificate_management_menu(config, translator, security_managers)
         return
 
@@ -249,12 +278,15 @@ def invalidate_client_certificate(
         for cert in fresh_config["security"]["client_certificates"]
         if not cert.get("revoked", False)
     ]
+    logger.debug(f"Active certificates for invalidation: {active_certs}")
 
     if not active_certs:
+        logger.warning("No active client certificates found to invalidate.")
         console.print(
             f"[bold yellow]{translator.get('No active client certificates found to invalidate.')}[/]"
         )
         if security_managers:
+            logger.debug("Returning to certificate management menu after no active certs found.")
             show_certificate_management_menu(config, translator, security_managers)
         return
 
@@ -266,12 +298,15 @@ def invalidate_client_certificate(
         choices=cert_choices,
         style=custom_style,
     ).ask()
+    logger.info(f"User selected certificate to invalidate: {selected_cert}")
 
     if selected_cert == translator.get("Cancel"):
+        logger.info("Certificate invalidation canceled by user.")
         console.print(
             f"[bold yellow]{translator.get('Certificate invalidation canceled.')}[/]"
         )
         if security_managers:
+            logger.debug("Returning to certificate management menu after cancel.")
             show_certificate_management_menu(config, translator, security_managers)
         return
 
@@ -282,22 +317,28 @@ def invalidate_client_certificate(
         default=False,
         style=custom_style,
     ).ask()
+    logger.info(f"User confirmation to invalidate: {confirm}")
     if not confirm:
+        logger.info("Certificate invalidation canceled by user at confirmation.")
         console.print(
             f"[bold yellow]{translator.get('Certificate invalidation canceled.')}[/]"
         )
         if security_managers:
+            logger.debug("Returning to certificate management menu after cancel at confirmation.")
             show_certificate_management_menu(config, translator, security_managers)
         return
 
     console.print(f"[bold cyan]{translator.get('Fully revoking certificate...')}[/]")
+    logger.info(f"Revoking certificate: {cert_name_clean}")
 
     success, _ = client_cert_manager.revoke_client_certificate(
         cert_name=cert_name_clean
     )
+    logger.debug(f"Certificate revocation result: {success}")
 
     if success:
         config_manager.invalidate_client_certificate(cert_name_clean)
+        logger.success("Certificate successfully invalidated.")
         console.print(
             f"[bold green]{translator.get('Certificate successfully invalidated.')}[/]"
         )
@@ -307,10 +348,12 @@ def invalidate_client_certificate(
         from ..configurations import TEMPLATES
 
         if generate_docker_compose(fresh_config, translator, TEMPLATES):
+            logger.success("Docker Compose configuration regenerated successfully.")
             console.print(
                 f"[bold green]{translator.get('Docker Compose configuration regenerated successfully.')}[/]"
             )
         else:
+            logger.error("Failed to regenerate Docker Compose configuration.")
             console.print(
                 f"[bold red]{translator.get('Failed to regenerate Docker Compose configuration.')}[/]"
             )
@@ -321,6 +364,7 @@ def invalidate_client_certificate(
             == "client_cert"
         ):
 
+            logger.info("Regenerating nginx configuration after certificate invalidation.")
             console.print(
                 f"[bold cyan]{translator.get('Regenerating nginx configuration...')}[/]"
             )
@@ -329,6 +373,7 @@ def invalidate_client_certificate(
             from ..configurations import TEMPLATES
 
             if generate_nginx_configs(fresh_config, translator, TEMPLATES):
+                logger.success("Nginx configuration regenerated successfully.")
                 console.print(
                     f"[bold green]{translator.get('Nginx configuration regenerated successfully.')}[/]"
                 )
@@ -344,6 +389,7 @@ def invalidate_client_certificate(
                 nginx_auth_running = services_status.get("nginx-auth", {}).get(
                     "state"
                 ) == translator.get("Running")
+                logger.debug(f"nginx-auth running: {nginx_auth_running}")
                 if nginx_auth_running:
                     restart_service = questionary.confirm(
                         translator.get(
@@ -352,25 +398,31 @@ def invalidate_client_certificate(
                         default=True,
                         style=custom_style,
                     ).ask()
+                    logger.info(f"User chose to restart nginx-auth: {restart_service}")
                     if restart_service:
                         try:
                             docker_manager.restart_service(
                                 "nginx-auth", project_path=project_path
                             )
+                            logger.success("nginx-auth service restarted successfully.")
                         except Exception as e:
+                            logger.error(f"Failed to restart nginx-auth service: {e}")
                             console.print(
                                 f"[bold red]{translator.get('Failed to restart nginx-auth service:')} {e}[/]"
                             )
             else:
+                logger.error("Failed to regenerate nginx configuration.")
                 console.print(
                     f"[bold red]{translator.get('Failed to regenerate nginx configuration.')}[/]"
                 )
     else:
+        logger.error("Failed to invalidate certificate.")
         console.print(
             f"[bold red]{translator.get('Failed to invalidate certificate.')}[/]"
         )
     # Always return to certificate management menu if context is available
     if security_managers:
+        logger.debug("Returning to certificate management menu after invalidation.")
         show_certificate_management_menu(config, translator, security_managers)
 
 
@@ -387,6 +439,7 @@ def show_letsencrypt_management_menu(config, translator, lets_encrypt_manager):
         str: The selected action identifier ('prod_webroot', 'prod_standalone',
              'staging_webroot', 'staging_standalone', 'refresh', or 'back')
     """
+    logger.debug("Entering show_letsencrypt_management_menu.")
     choices = [
         {
             "id": "prod_webroot",
@@ -410,6 +463,7 @@ def show_letsencrypt_management_menu(config, translator, lets_encrypt_manager):
         },
         {"id": "back", "text": translator.get("Back to certificate menu")},
     ]
+    logger.debug(f"LetsEncrypt management menu choices: {choices}")
 
     choice_texts = [choice["text"] for choice in choices]
     selected_text = questionary.select(
@@ -417,11 +471,14 @@ def show_letsencrypt_management_menu(config, translator, lets_encrypt_manager):
         choices=choice_texts,
         style=custom_style,
     ).ask()
+    logger.info(f"User selected: {selected_text}")
 
     for choice in choices:
         if choice["text"] == selected_text:
+            logger.debug(f"Returning action id: {choice['id']}")
             return choice["id"]
 
+    logger.debug("Returning default action id: back")
     return "back"
 
 
@@ -438,7 +495,9 @@ def request_letsencrypt_certificate(
         staging: Whether to use staging environment
         mode: Authentication mode, "webroot" or "standalone"
     """
+    logger.debug(f"Entering request_letsencrypt_certificate. staging={staging}, mode={mode}")
     domain = config["nginx"]["domain"]
+    logger.debug(f"Domain: {domain}")
 
     use_email = questionary.confirm(
         translator.get(
@@ -447,6 +506,7 @@ def request_letsencrypt_certificate(
         default=True,
         style=custom_style,
     ).ask()
+    logger.info(f"User chose to use email: {use_email}")
 
     email = None
     if use_email:
@@ -455,6 +515,7 @@ def request_letsencrypt_certificate(
             validate=lambda e: re.match(r"[^@]+@[^@]+\.[^@]+", e) is not None,
             style=custom_style,
         ).ask()
+        logger.debug(f"User entered email: {email}")
 
     additional_domains = []
     add_sans = questionary.confirm(
@@ -464,6 +525,7 @@ def request_letsencrypt_certificate(
         default=False,
         style=custom_style,
     ).ask()
+    logger.info(f"User chose to add SANs: {add_sans}")
 
     if add_sans:
         adding_domains = True
@@ -472,7 +534,7 @@ def request_letsencrypt_certificate(
                 translator.get("Enter additional domain name (leave empty to finish):"),
                 style=custom_style,
             ).ask()
-
+            logger.debug(f"User entered SAN: {san}")
             if not san:
                 adding_domains = False
             else:
@@ -481,18 +543,20 @@ def request_letsencrypt_certificate(
 
     staging_str = translator.get("staging") if staging else translator.get("production")
     mode_str = mode
-
+    logger.info(f"Requesting {staging_str} certificate using {mode_str} mode for domain {domain}.")
     console.print(
         f"[bold cyan]{translator.get('Requesting')} {staging_str} {translator.get('certificate using')} {mode_str} {translator.get('mode')}...[/]"
     )
     console.print(f"[cyan]{translator.get('Primary domain:')} {domain}[/]")
 
     if additional_domains:
+        logger.info(f"Additional domains: {additional_domains}")
         console.print(
             f"[cyan]{translator.get('Additional domains:')} {', '.join(additional_domains)}[/]"
         )
 
     if email:
+        logger.info(f"Email: {email}")
         console.print(f"[cyan]{translator.get('Email:')} {email}[/]")
 
     result = lets_encrypt_manager.request_certificate(
@@ -502,18 +566,21 @@ def request_letsencrypt_certificate(
         email=email,
         additional_domains=additional_domains,
     )
+    logger.debug(f"LetsEncrypt certificate request result: {result}")
 
     if result:
         cert_type = (
             translator.get("Staging") if staging else translator.get("Production")
         )
         success_msg = f"{cert_type} {translator.get('certificate requested successfully for')} {domain}"
+        logger.success(success_msg)
         console.print(f"[bold green]{success_msg}[/]")
     else:
         cert_type = (
             translator.get("staging") if staging else translator.get("production")
         )
         error_msg = f"{translator.get('Failed to request')} {cert_type} {translator.get('certificate')}"
+        logger.error(error_msg)
         console.print(f"[bold red]{error_msg}[/]")
 
 
@@ -526,7 +593,9 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
         translator: The translator instance for localization
         lets_encrypt_manager: The Let's Encrypt manager instance
     """
+    logger.debug("Entering refresh_letsencrypt_certificates.")
     domain = config["nginx"]["domain"]
+    logger.debug(f"Domain: {domain}")
 
     use_email = questionary.confirm(
         translator.get(
@@ -535,6 +604,7 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
         default=True,
         style=custom_style,
     ).ask()
+    logger.info(f"User chose to use email: {use_email}")
 
     email = None
     if use_email:
@@ -543,6 +613,7 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
             validate=lambda e: re.match(r"[^@]+@[^@]+\.[^@]+", e) is not None,
             style=custom_style,
         ).ask()
+        logger.debug(f"User entered email: {email}")
 
     additional_domains = []
     add_sans = questionary.confirm(
@@ -552,6 +623,7 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
         default=False,
         style=custom_style,
     ).ask()
+    logger.info(f"User chose to add SANs: {add_sans}")
 
     if add_sans:
         adding_domains = True
@@ -560,7 +632,7 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
                 translator.get("Enter additional domain name (leave empty to finish):"),
                 style=custom_style,
             ).ask()
-
+            logger.debug(f"User entered SAN: {san}")
             if not san:
                 adding_domains = False
             else:
@@ -570,12 +642,15 @@ def refresh_letsencrypt_certificates(config, translator, lets_encrypt_manager):
     result = lets_encrypt_manager.force_refresh_certificates(
         domain=domain, email=email, additional_domains=additional_domains
     )
+    logger.debug(f"LetsEncrypt force refresh result: {result}")
 
     if result:
+        logger.success(f"Let's Encrypt certificates refreshed for {domain}")
         console.print(
             f"[bold green]{translator.get('Let\'s Encrypt certificates refreshed for')} {domain}[/]"
         )
     else:
+        logger.error(f"Failed to refresh Let's Encrypt certificates for {domain}")
         console.print(
             f"[bold red]{translator.get('Failed to refresh Let\'s Encrypt certificates for')} {domain}[/]"
         )
@@ -590,16 +665,21 @@ def test_domain_for_letsencrypt(config, translator, lets_encrypt_manager):
         translator: The translator instance for localization
         lets_encrypt_manager: The Let's Encrypt manager instance
     """
+    logger.debug("Entering test_domain_for_letsencrypt.")
     domain = config["nginx"]["domain"]
+    logger.debug(f"Testing domain: {domain}")
     console.print(
         f"[bold yellow]{translator.get('Testing domain')} {domain} {translator.get('for Let\'s Encrypt...')}[/]"
     )
     result = lets_encrypt_manager.test_domain(domain)
+    logger.debug(f"Test domain result: {result}")
     if result:
+        logger.success(f"Domain {domain} is properly set up for Let's Encrypt.")
         console.print(
             f"[bold green]{translator.get('Success')}: {translator.get('Domain')} {domain} {translator.get('is properly set up for Let\'s Encrypt')}[/]"
         )
     else:
+        logger.warning(f"Domain {domain} may not be properly set up for Let's Encrypt.")
         console.print(
             f"[bold red]{translator.get('Warning')}: {translator.get('Domain')} {domain} {translator.get('may not be properly set up for Let\'s Encrypt')}[/]"
         )

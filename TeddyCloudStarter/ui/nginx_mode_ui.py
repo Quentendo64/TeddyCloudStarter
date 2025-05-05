@@ -9,6 +9,7 @@ from rich.panel import Panel
 
 from ..utilities.validation import validate_domain_name
 from ..wizard.ui_helpers import console, custom_style
+from ..utilities.logger import logger
 
 
 def display_letsencrypt_not_available_warning(domain, translator):
@@ -19,6 +20,7 @@ def display_letsencrypt_not_available_warning(domain, translator):
         domain: The domain name
         translator: The translator instance for localization
     """
+    logger.debug(f"Displaying Let's Encrypt not available warning for domain: {domain}")
     console.print(
         Panel(
             f"[bold yellow]{translator.get('Let\'s Encrypt Not Available')}[/]\n\n"
@@ -38,6 +40,7 @@ def display_letsencrypt_requirements(translator):
     Args:
         translator: The translator instance for localization
     """
+    logger.debug("Displaying Let's Encrypt requirements panel.")
     console.print(
         Panel(
             f"[bold yellow]{translator.get('Let\'s Encrypt Requirements')}[/]\n\n"
@@ -58,6 +61,7 @@ def display_letsencrypt_rate_limit_disclaimer(translator):
     Args:
         translator: The translator instance for localization
     """
+    logger.debug("Displaying Let's Encrypt rate limit disclaimer.")
     console.print(
         Panel(
             f"[bold red]{translator.get('Let\'s Encrypt Rate Limits Disclaimer')}[/]\n\n"

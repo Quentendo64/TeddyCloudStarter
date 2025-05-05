@@ -13,6 +13,7 @@ import questionary
 from ..utilities.file_system import get_project_path
 from ..utilities.log_viewer import capture_keypress
 from ..wizard.ui_helpers import console, custom_style
+from ..utilities.logger import logger
 
 
 def show_backup_recovery_menu(config_manager, docker_manager, translator):
@@ -27,15 +28,19 @@ def show_backup_recovery_menu(config_manager, docker_manager, translator):
     Returns:
         bool: True if user chose to exit, False otherwise
     """
+    logger.debug("Entering Backup/Recovery Management menu.")
     while True:
         project_path = get_project_path(config_manager)
+        logger.debug(f"Project path: {project_path}")
         if not project_path:
+            logger.warning("No project path configured. Prompting user to set up project path.")
             console.print(
                 f"[bold yellow]{translator.get('No project path configured. Please set up a project path first.')}[/]"
             )
             return True
 
         backup_dir = os.path.join(project_path, "data", "backup")
+        logger.debug(f"Backup directory: {backup_dir}")
         has_backups = (
             os.path.exists(backup_dir)
             and any(
@@ -45,6 +50,7 @@ def show_backup_recovery_menu(config_manager, docker_manager, translator):
             if os.path.exists(backup_dir)
             else False
         )
+        logger.debug(f"Has Docker volume backups: {has_backups}")
 
         has_config_backups = any(
             os.path.isfile(f) and os.path.basename(f).startswith("config.json.backup.")
@@ -52,8 +58,10 @@ def show_backup_recovery_menu(config_manager, docker_manager, translator):
                 "config.json.backup.*"
             )
         )
+        logger.debug(f"Has configuration backups: {has_config_backups}")
 
         if not os.path.exists(backup_dir):
+            logger.info(f"Backup directory does not exist. Creating: {backup_dir}")
             os.makedirs(backup_dir, exist_ok=True)
 
         choices = [
@@ -69,27 +77,35 @@ def show_backup_recovery_menu(config_manager, docker_manager, translator):
 
         choices.append(translator.get("Back to main menu"))
 
+        logger.debug(f"Backup/Recovery menu choices: {choices}")
         action = questionary.select(
             translator.get("Backup / Recovery Management"),
             choices=choices,
             style=custom_style,
         ).ask()
+        logger.info(f"User selected backup/recovery action: {action}")
 
         if action == translator.get("Backup TeddyCloudStarter Configuration"):
+            logger.debug("User chose to backup TeddyCloudStarter configuration.")
             config_manager.backup()
             continue
         elif action == translator.get("Backup Docker volumes"):
+            logger.debug("User chose to backup Docker volumes.")
             show_backup_volumes_menu(docker_manager, translator, project_path)
             continue
         elif action == translator.get("Restore Docker volumes"):
+            logger.debug("User chose to restore Docker volumes.")
             show_restore_volumes_menu(docker_manager, translator, project_path)
             continue
         elif action == translator.get("Restore TeddyCloudStarter Configuration"):
+            logger.debug("User chose to restore TeddyCloudStarter configuration.")
             show_restore_config_menu(config_manager, translator)
             continue
         elif action == translator.get("Back to main menu"):
+            logger.info("User chose to return to main menu from backup/recovery menu.")
             return True
         else:
+            logger.warning(f"Unknown action selected in backup/recovery menu: {action}")
             return True
 
 

@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import re
 from ..utilities.openssl_utils import der_to_pem_cert, der_to_pem_key, get_certificate_fingerprint
+from ..utilities.logger import logger
 
 
 def inject_tonies_custom_json(config_manager):
@@ -10,28 +11,38 @@ def inject_tonies_custom_json(config_manager):
     Logic to inject the tonies.custom.json file from ProjectPath/data/ to the config volume.
     Returns a dict with status and messages for the UI to handle.
     """
+    logger.debug("Starting injection of tonies.custom.json.")
     project_path = config_manager.config.get("environment", {}).get("path")
+    logger.debug(f"Project path from config: {project_path}")
     if not project_path:
+        logger.error("No project path set in config.")
         return {"status": "error", "message": "No project path set in config."}
 
     base_path = Path(project_path)
     source_file = base_path / "data" / "tonies.custom.json"
+    logger.debug(f"Source file path: {source_file}")
     if not source_file.exists():
+        logger.warning(f"tonies.custom.json file missing at {source_file}")
         return {"status": "missing_file", "source_file": str(source_file)}
 
     try:
+        logger.debug("Checking for running Docker containers.")
         result = subprocess.run([
             "docker", "ps", "--format", "{{.Names}}"
         ], check=True, capture_output=True, text=True)
         running_containers = [c for c in result.stdout.strip().split("\n") if c]
+        logger.debug(f"Running containers: {running_containers}")
         teddycloud_container = "teddycloud-app" if "teddycloud-app" in running_containers else None
+        logger.debug(f"Selected container: {teddycloud_container}")
     except Exception as e:
+        logger.error(f"Error checking running containers: {e}")
         running_containers = []
         teddycloud_container = None
 
     if not running_containers or not teddycloud_container:
         temp_container_name = "temp_teddycloud_file_injector"
         try:
+            logger.info(f"Creating temporary container: {temp_container_name}")
             subprocess.run([
                 "docker", "rm", "-f", temp_container_name
             ], check=False)
@@ -40,20 +51,28 @@ def inject_tonies_custom_json(config_manager):
             ], check=True)
             teddycloud_container = temp_container_name
             is_temp = True
-        except Exception:
+            logger.success(f"Temporary container {temp_container_name} created.")
+        except Exception as e:
+            logger.error(f"Failed to create temporary container: {e}")
             return {"status": "manual", "source_file": str(source_file)}
     else:
         is_temp = False
 
     target_path = "/config/tonies.custom.json" if is_temp else "/teddycloud/config/tonies.custom.json"
+    logger.debug(f"Target path in container: {target_path}")
     try:
+        logger.info(f"Copying {source_file} to {teddycloud_container}:{target_path}")
         subprocess.run([
             "docker", "cp", str(source_file), f"{teddycloud_container}:{target_path}"
         ], check=True)
         if is_temp:
+            logger.info(f"Removing temporary container: {teddycloud_container}")
             subprocess.run(["docker", "rm", "-f", teddycloud_container], check=True)
+            logger.success(f"Temporary container {teddycloud_container} removed.")
+        logger.success("tonies.custom.json injected successfully.")
         return {"status": "success", "is_temp": is_temp, "container": teddycloud_container}
     except Exception as e:
+        logger.error(f"Error injecting tonies.custom.json: {e}")
         return {"status": "error", "message": str(e)}
 
 

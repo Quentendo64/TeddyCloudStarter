@@ -20,32 +20,27 @@ from ..configuration.nginx_mode import (
 from ..configuration.reset_operations import perform_reset_operations
 from ..docker.manager import DockerManager
 from ..wizard.ui_helpers import console, custom_style
+from ..utilities.logger import logger
 
 
 def show_configuration_management_menu(
     wizard, config_manager, translator, security_managers=None
 ):
-    """Show configuration management menu.
-
-    Args:
-        wizard: TeddyCloudWizard instance
-        config_manager: ConfigManager instance
-        translator: TranslationManager instance
-        security_managers: Dictionary of security manager instances
-
-    Returns:
-        bool: True if configuration was modified, False otherwise
-    """
+    logger.debug("Entering show_configuration_management_menu.")
     while True:
+        logger.debug("Displaying Configuration Management menu header.")
         console.print(f"[bold cyan]{translator.get('Configuration Management')}[/]")
 
         current_config = config_manager.config
+        logger.debug(f"Current config: {current_config}")
         current_mode = current_config.get("mode", "direct")
+        logger.debug(f"Current mode: {current_mode}")
 
         # Check auto-update status to display appropriate menu option
         auto_update_enabled = current_config.get("app_settings", {}).get(
             "auto_update", False
         )
+        logger.debug(f"Auto-update enabled: {auto_update_enabled}")
 
         # Build menu choices with IDs and translated texts
         choices = [
@@ -64,10 +59,12 @@ def show_configuration_management_menu(
             {"id": "refresh", "text": translator.get("Refresh server configuration")},
             {"id": "back", "text": translator.get("Back to main menu")},
         ]
+        logger.debug(f"Base menu choices: {choices}")
 
         # Add mode-specific options
         mode_specific_choices = []
         if current_mode == "direct":
+            logger.debug("Adding direct mode specific choices.")
             mode_specific_choices = [
                 {"id": "modify_http_port", "text": translator.get("Modify HTTP port")},
                 {
@@ -77,6 +74,7 @@ def show_configuration_management_menu(
                 # {'id': 'modify_tc_port', 'text': translator.get("Modify TeddyCloud port")}
             ]
         elif current_mode == "nginx":
+            logger.debug("Adding nginx mode specific choices.")
             mode_specific_choices = [
                 {"id": "modify_domain", "text": translator.get("Modify domain name")},
                 # {'id': 'modify_https', 'text': translator.get("Modify HTTPS configuration")},
@@ -95,6 +93,7 @@ def show_configuration_management_menu(
                 current_config.get("nginx", {}).get("security", {}).get("type")
                 == "basic_auth"
             ):
+                logger.debug("Adding basic auth bypass option.")
                 mode_specific_choices.append(
                     {
                         "id": "modify_auth_bypass",
@@ -105,6 +104,7 @@ def show_configuration_management_menu(
         # Insert mode-specific options at position 3 (after change_path and toggle_update)
         for i, choice in enumerate(mode_specific_choices):
             choices.insert(3 + i, choice)
+        logger.debug(f"Final menu choices: {choices}")
 
         # Show configuration management menu
         choice_texts = [choice["text"] for choice in choices]
@@ -113,6 +113,7 @@ def show_configuration_management_menu(
             choices=choice_texts,
             style=custom_style,
         ).ask()
+        logger.info(f"User selected: {selected_text}")
 
         # Find the selected ID
         selected_id = "back"  # Default to back
@@ -120,14 +121,18 @@ def show_configuration_management_menu(
             if choice["text"] == selected_text:
                 selected_id = choice["id"]
                 break
+        logger.debug(f"Selected menu id: {selected_id}")
 
         # Process action based on the selected ID
         if selected_id == "back":
+            logger.info("User chose to return to main menu.")
             return False  # Return to main menu
 
         elif selected_id == "change_mode":
+            logger.info("User chose to change deployment mode.")
             wizard.select_deployment_mode()
             config_manager.save()
+            logger.debug("Deployment mode changed and config saved.")
 
             # --- Begin: Additional steps after deployment mode change ---
             from ..configuration.generator import (
@@ -140,12 +145,15 @@ def show_configuration_management_menu(
             project_path = config_manager.config.get("environment", {}).get(
                 "path", None
             )
+            logger.debug(f"Project path for DockerManager: {project_path}")
             docker_manager = DockerManager(translator=translator)
             docker_manager.down_services(project_path=project_path)
+            logger.debug("Old containers stopped and removed.")
 
             # Regenerate nginx and docker-compose configs
             generate_nginx_configs(config_manager.config, translator, TEMPLATES)
             generate_docker_compose(config_manager.config, translator, TEMPLATES)
+            logger.debug("nginx and docker-compose configs regenerated.")
 
             # Ask to start services with new mode
             start = questionary.confirm(
@@ -155,39 +163,51 @@ def show_configuration_management_menu(
                 default=True,
                 style=custom_style,
             ).ask()
+            logger.info(f"User chose to start services: {start}")
             if start:
                 docker_manager.start_services(project_path=project_path)
+                logger.debug("Services started with new deployment mode.")
             # --- End: Additional steps ---
 
         elif selected_id == "change_path":
+            logger.info("User chose to change project path.")
             wizard.select_project_path()
 
         elif selected_id == "toggle_update":
+            logger.info("User toggled auto-update.")
             config_manager.toggle_auto_update()
 
         elif selected_id == "change_tc_branch":
+            logger.info("User chose to change TeddyCloud image branch.")
             # Prompt for new branch/tag
             current_tag = config_manager.config.get("teddycloud_image_tag", "latest")
+            logger.debug(f"Current image tag: {current_tag}")
             new_tag = questionary.text(
                 translator.get("Enter TeddyCloud image branch/tag (e.g. 'latest', 'develop')"),
                 default=current_tag,
                 style=custom_style,
             ).ask()
+            logger.info(f"User entered new image tag: {new_tag}")
             if new_tag and new_tag != current_tag:
                 config_manager.config["teddycloud_image_tag"] = new_tag
                 config_manager.save()
                 from ..configuration.generator import generate_docker_compose
                 from ..configurations import TEMPLATES
                 generate_docker_compose(config_manager.config, translator, TEMPLATES)
+                logger.success("TeddyCloud image branch updated. User should restart container.")
                 console.print(f"[green]{translator.get('TeddyCloud image branch updated. Please restart the container to apply changes.')}[/]")
+
         elif selected_id == "reset":
+            logger.info("User chose to reset TeddyCloudStarter.")
             reset_options = handle_reset_wizard(translator, config_manager)
+            logger.debug(f"Reset options: {reset_options}")
             if reset_options:
                 perform_reset_operations(
                     reset_options, config_manager, wizard, translator
                 )
 
         elif selected_id == "refresh":
+            logger.info("User chose to refresh server configuration.")
             from ..configuration.generator import (
                 generate_docker_compose,
                 generate_nginx_configs,
@@ -196,40 +216,49 @@ def show_configuration_management_menu(
 
             generate_nginx_configs(config_manager.config, translator, TEMPLATES)
             generate_docker_compose(config_manager.config, translator, TEMPLATES)
+            logger.debug("Server configuration refreshed.")
 
         # Direct mode specific options
         elif selected_id == "modify_http_port":
+            logger.info("User chose to modify HTTP port.")
             modify_http_port(config_manager.config, translator)
             config_manager.save()
 
         elif selected_id == "modify_https_port":
+            logger.info("User chose to modify HTTPS port.")
             modify_https_port(config_manager.config, translator)
             config_manager.save()
 
         elif selected_id == "modify_tc_port":
+            logger.info("User chose to modify TeddyCloud port.")
             modify_teddycloud_port(config_manager.config, translator)
             config_manager.save()
 
         # Nginx mode specific options
         elif selected_id == "modify_domain":
+            logger.info("User chose to modify domain name.")
             modify_domain_name(config_manager.config, translator)
             config_manager.save()
 
         elif selected_id == "modify_https":
+            logger.info("User chose to modify HTTPS configuration.")
             modify_https_mode(config_manager.config, translator, security_managers)
             config_manager.save()
 
         elif selected_id == "modify_security":
+            logger.info("User chose to modify security settings.")
             modify_security_settings(
                 config_manager.config, translator, security_managers
             )
             config_manager.save()
 
         elif selected_id == "modify_ip_filtering":
+            logger.info("User chose to configure IP address filtering.")
             modify_ip_restrictions(config_manager.config, translator, security_managers)
             config_manager.save()
 
         elif selected_id == "modify_auth_bypass":
+            logger.info("User chose to configure basic auth bypass IPs.")
             from ..configuration.nginx_mode import configure_auth_bypass_ips
 
             configure_auth_bypass_ips(
@@ -237,19 +266,11 @@ def show_configuration_management_menu(
             )
             config_manager.save()
 
-        # After any action, loop back to show the menu again
+        logger.debug("Returning to configuration management menu loop.")
 
 
 def handle_reset_wizard(translator, config_manager=None):
-    """Handle the reset wizard with multiple options and subcategories.
-
-    Args:
-        translator: TranslationManager instance
-        config_manager: ConfigManager instance (required for dynamic folder listing)
-
-    Returns:
-        dict: Dictionary of reset options or None if canceled
-    """
+    logger.debug("Entering handle_reset_wizard.")
     console.print(
         f"\n[bold yellow]{translator.get('Warning')}: {translator.get('This will reset selected TeddyCloudStarter settings')}[/]"
     )
@@ -266,14 +287,17 @@ def handle_reset_wizard(translator, config_manager=None):
             "value": "docker_volumes_menu",
         },
     ]
+    logger.debug(f"Main reset options: {main_options}")
 
     selected_main_options = questionary.checkbox(
         translator.get("Select items to reset:"),
         choices=[option["name"] for option in main_options],
         style=custom_style,
     ).ask()
+    logger.info(f"User selected main reset options: {selected_main_options}")
 
     if not selected_main_options:
+        logger.info("No reset options selected. Exiting reset wizard.")
         return None
 
     # Convert selected option names to their values
@@ -282,6 +306,7 @@ def handle_reset_wizard(translator, config_manager=None):
         for option in main_options:
             if option["name"] == selected:
                 selected_values.append(option["value"])
+    logger.debug(f"Selected reset values: {selected_values}")
 
     # Initialize reset options dictionary
     reset_options = {
@@ -297,9 +322,11 @@ def handle_reset_wizard(translator, config_manager=None):
         if value == "config_file":
             reset_options["config_file"] = True
         elif value == "project_path_menu":
+            logger.debug("Handling project path reset submenu.")
             # Show project path submenu
             handle_project_path_reset(reset_options, translator, config_manager)
         elif value == "docker_volumes_menu":
+            logger.debug("Handling docker volumes reset submenu.")
             # Show Docker volumes submenu
             handle_docker_volumes_reset(reset_options, translator)
 
@@ -311,6 +338,7 @@ def handle_reset_wizard(translator, config_manager=None):
         and not reset_options["docker_all_volumes"]
         and not reset_options["docker_volumes"]
     ):
+        logger.info("No reset options selected in submenus. Exiting reset wizard.")
         return None
 
     # Confirm the reset
@@ -321,38 +349,34 @@ def handle_reset_wizard(translator, config_manager=None):
         default=False,
         style=custom_style,
     ).ask()
+    logger.info(f"User confirmed reset: {confirmed}")
 
     if confirmed:
+        logger.debug(f"Returning reset options: {reset_options}")
         return reset_options
 
+    logger.info("User cancelled reset confirmation.")
     return None
 
 
 def handle_project_path_reset(reset_options, translator, config_manager=None):
-    """Handle the project path reset submenu.
+    logger.debug("Entering handle_project_path_reset.")
 
-    Args:
-        reset_options: Dictionary to store reset options
-        translator: TranslationManager instance
-        config_manager: ConfigManager instance (required for dynamic folder listing)
-    """
     # Get project path from config_manager
     project_path = None
     if config_manager and hasattr(config_manager, "config"):
         project_path = config_manager.config.get("environment", {}).get("path", None)
-
-    # Debug output for project_path
-    console.print(f"[cyan]DEBUG: Using project_path: {project_path}[/]")
+    logger.debug(f"Project path: {project_path}")
     data_dir = (
         os.path.normpath(os.path.join(project_path, "data")) if project_path else None
     )
-    console.print(f"[cyan]DEBUG: Checking data_dir: {data_dir}[/]")
+    logger.debug(f"Data dir: {data_dir}")
     existing_folders = []
     if data_dir and os.path.isdir(data_dir):
         existing_folders = [
             f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))
         ]
-    console.print(f"[cyan]DEBUG: Found folders: {existing_folders}[/]")
+    logger.debug(f"Existing folders in data dir: {existing_folders}")
     # Always offer to reset the entire ProjectPath
     project_path_options = [
         {"name": translator.get("Reset entire ProjectPath"), "value": "entire_path"}
@@ -364,6 +388,7 @@ def handle_project_path_reset(reset_options, translator, config_manager=None):
         )
 
     if len(project_path_options) == 1:
+        logger.info("No folders found in ProjectPath.")
         console.print(f"[yellow]{translator.get('No folders found in ProjectPath')}[/]")
         return
 
@@ -372,8 +397,10 @@ def handle_project_path_reset(reset_options, translator, config_manager=None):
         choices=[option["name"] for option in project_path_options],
         style=custom_style,
     ).ask()
+    logger.info(f"User selected project path reset options: {selected_options}")
 
     if not selected_options:
+        logger.info("No project path reset options selected.")
         return
 
     # Process selected project path options
@@ -384,18 +411,16 @@ def handle_project_path_reset(reset_options, translator, config_manager=None):
                     reset_options["project_path"] = True
                 else:
                     reset_options["project_folders"].append(option["value"])
+    logger.debug(f"Updated reset_options after project path reset: {reset_options}")
 
 
 def handle_docker_volumes_reset(reset_options, translator):
-    """Handle the Docker volumes reset submenu.
+    logger.debug("Entering handle_docker_volumes_reset.")
 
-    Args:
-        reset_options: Dictionary to store reset options
-        translator: TranslationManager instance
-    """
     # Use DockerManager to get the list of available Docker volumes
     docker_manager = DockerManager(translator=translator)
     volume_names = docker_manager.get_volumes()
+    logger.debug(f"Available Docker volumes: {volume_names}")
 
     # Define standard volume options to check for
     standard_volumes = [
@@ -429,6 +454,7 @@ def handle_docker_volumes_reset(reset_options, translator):
 
     # If no Docker volumes exist, show message and return
     if len(docker_options) == 1 and not volume_names:
+        logger.info("No Docker volumes found.")
         console.print(f"[yellow]{translator.get('No Docker volumes found')}[/]")
         return
 
@@ -437,8 +463,10 @@ def handle_docker_volumes_reset(reset_options, translator):
         choices=[option["name"] for option in docker_options],
         style=custom_style,
     ).ask()
+    logger.info(f"User selected Docker volumes to remove: {selected_options}")
 
     if not selected_options:
+        logger.info("No Docker volumes selected for removal.")
         return
 
     # Process selected Docker volume options
@@ -449,3 +477,4 @@ def handle_docker_volumes_reset(reset_options, translator):
                     reset_options["docker_all_volumes"] = True
                 else:
                     reset_options["docker_volumes"].append(option["value"])
+    logger.debug(f"Updated reset_options after docker volumes reset: {reset_options}")

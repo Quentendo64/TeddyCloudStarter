@@ -80,7 +80,7 @@ def display_live_logs(docker_manager, service_name=None, project_path=None):
             return translator.get(text)
         return text
 
-    logs_process = docker_manager.get_logs(service_name, project_path=project_path)
+    logs_process = docker_manager.get_logs(service_name,lines=0,project_path=project_path)
     if not logs_process:
         console.print(f"[bold red]{_translate('Failed to start logs process.')}[/]")
         return

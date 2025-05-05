@@ -54,10 +54,11 @@ class TeddyLogger:
         self,
         name: str = "TeddyCloudStarter",
         config_manager=None,
-        log_to_file: bool = True,
+        log_to_file: bool = False,
         log_path: Optional[str] = None,
         use_panels: bool = False,  # Default to in-line formatting
         use_inline: bool = True,  # Use in-line formatting
+        log_to_console: bool = True,  # Enable/disable console logging
     ):
         """
         Initialize the logger.
@@ -69,10 +70,15 @@ class TeddyLogger:
             log_path: Custom log path (overrides config_manager setting)
             use_panels: Whether to use Rich panels for console output
             use_inline: Whether to use in-line formatting (prefix style)
+            log_to_console: Whether to log to console
         """
         self.name = name
         self.config_manager = config_manager
+        # If log_path is set, force log_to_file to True
+        if log_path and str(log_path).strip():
+            log_to_file = True
         self.log_to_file = log_to_file
+        self.log_to_console = log_to_console
         self._logger = None
         self.translator = getattr(config_manager, "translator", None)
         self.console = console
@@ -111,17 +117,18 @@ class TeddyLogger:
         for handler in self._logger.handlers[:]:
             self._logger.removeHandler(handler)
 
-        # Configure console handler with Rich
-        console_handler = RichHandler(
-            console=console,
-            show_time=True,
-            show_path=False,
-            rich_tracebacks=True,
-            tracebacks_show_locals=True,
-        )
-        console_handler.setFormatter(logging.Formatter("%(message)s"))
-        console_handler.setLevel(LOG_LEVELS.get(self.log_level, logging.INFO))
-        self._logger.addHandler(console_handler)
+        # Configure console handler with Rich if enabled
+        if self.log_to_console:
+            console_handler = RichHandler(
+                console=console,
+                show_time=True,
+                show_path=False,
+                rich_tracebacks=True,
+                tracebacks_show_locals=True,
+            )
+            console_handler.setFormatter(logging.Formatter("%(message)s"))
+            console_handler.setLevel(LOG_LEVELS.get(self.log_level, logging.INFO))
+            self._logger.addHandler(console_handler)
 
         # Add file handler if logging to file is enabled
         if self.log_to_file:
@@ -469,6 +476,7 @@ def get_logger(
     log_path: Optional[str] = None,
     use_panels: bool = False,
     use_inline: bool = True,
+    log_to_console: bool = True,
 ) -> TeddyLogger:
     """
     Get a logger instance.
@@ -480,6 +488,7 @@ def get_logger(
         log_path: Custom log path
         use_panels: Whether to use Rich panels for console output
         use_inline: Whether to use in-line formatting
+        log_to_console: Whether to log to console
 
     Returns:
         TeddyLogger instance
@@ -491,4 +500,5 @@ def get_logger(
         log_path,
         use_panels,
         use_inline,
+        log_to_console,
     )

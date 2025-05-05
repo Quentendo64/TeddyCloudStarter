@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from rich.console import Console
+from ..utilities.logger import logger
 
 # Re-export console to ensure compatibility
 console = Console()
@@ -29,6 +30,7 @@ class LetsEncryptManager:
             base_dir: Optional base directory of the project
         """
         # Store parameters for lazy initialization
+        logger.debug("Initializing LetsEncryptManager instance.")
         self.base_dir_param = base_dir
         self.translator = translator
 
@@ -40,8 +42,9 @@ class LetsEncryptManager:
 
     def _ensure_base_dir(self):
         """Lazily initialize the base directory if needed"""
+        logger.debug("Ensuring base directory for Let's Encrypt operations.")
         if self.base_dir is not None:
-            # Already initialized
+            logger.debug("Base directory already initialized.")
             return
 
         # Try to get project path from config
@@ -52,18 +55,21 @@ class LetsEncryptManager:
         try:
             if config_manager and config_manager.config:
                 project_path = config_manager.config.get("environment", {}).get("path")
-        except Exception:
-            pass
+                logger.debug(f"Project path from config: {project_path}")
+        except Exception as e:
+            logger.warning(f"Failed to get project path from config: {e}")
 
         if project_path:
+            logger.info(f"Using project path for base_dir: {project_path}")
             self.base_dir = Path(project_path)
         else:
-            # Log an error if no project path is found
+            logger.warning("No project path found. Using current directory as fallback.")
             console.print(
                 "[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
             )
             self.base_dir = Path.cwd()
             if self.translator:
+                logger.info("Translator available. Printing warning about project path.")
                 console.print(
                     f"[yellow]{self.translator.get('Please set a project path to ensure certificates are stored in the correct location.')}[/]"
                 )
@@ -108,6 +114,7 @@ class LetsEncryptManager:
         Returns:
             bool: True if successful, False otherwise
         """
+        logger.info(f"Starting Let's Encrypt certificate creation for domain: {domain}")
         import shlex
         from rich.console import Console
         console = Console()
@@ -119,13 +126,20 @@ class LetsEncryptManager:
             compose_file = str(Path(project_path) / "data" / "docker-compose.yml")
         else:
             compose_file = str(Path("data") / "docker-compose.yml")
+        logger.debug(f"Using docker-compose file: {compose_file}")
 
         # 1. Start all services
         up_cmd = [
             "docker", "compose", "-f", compose_file, "up", "-d"
         ]
-        console.print(f"[cyan]Starting all services with docker compose up -d...[/]")
-        subprocess.run(up_cmd, check=True)
+        logger.info("Starting all services with docker compose up -d...")
+        logger.debug(f"Running command: {' '.join(up_cmd)}")
+        try:
+            subprocess.run(up_cmd, check=True)
+            logger.success("Docker services started successfully.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to start Docker services: {e}")
+            return False
 
         # 2. Run certbot in a temporary container
         # Get volume names (assume default names based on compose project)
@@ -157,13 +171,18 @@ class LetsEncryptManager:
         if force_renewal:
             certbot_cmd += ["--force-renewal"]
 
-        console.print(f"[cyan]Running certbot to issue certificate for {domain}...[/]")
+        logger.info(f"Running certbot to issue certificate for {domain}...")
+        logger.debug(f"Running command: {' '.join(certbot_cmd)}")
         result = subprocess.run(certbot_cmd, capture_output=True, text=True)
         if result.returncode != 0:
+            logger.error(f"Certbot failed for {domain}!")
+            logger.debug(f"Certbot stdout: {result.stdout}")
+            logger.debug(f"Certbot stderr: {result.stderr}")
             console.print(f"[red]Certbot failed![/]")
             console.print(result.stdout)
             console.print(result.stderr)
             return False
+        logger.success(f"Certbot succeeded for {domain}.")
 
         # 3. Check if certificate files exist in the Docker volume
         check_cmd = [
@@ -171,12 +190,17 @@ class LetsEncryptManager:
             "-v", f"{certbot_conf_vol}:/etc/letsencrypt",
             "alpine", "ls", f"/etc/letsencrypt/live/{domain}"
         ]
-        console.print(f"[cyan]Checking for certificate files in Docker volume...[/]")
+        logger.info(f"Checking for certificate files in Docker volume for {domain}...")
+        logger.debug(f"Running command: {' '.join(check_cmd)}")
         check_result = subprocess.run(check_cmd, capture_output=True, text=True)
         if check_result.returncode == 0:
+            logger.success(f"Certificate files found for {domain}.")
             console.print(f"[green]Certificate files found for {domain}![/]")
             return True
         else:
+            logger.error(f"Certificate files not found for {domain}!")
+            logger.debug(f"Check stdout: {check_result.stdout}")
+            logger.debug(f"Check stderr: {check_result.stderr}")
             console.print(f"[red]Certificate files not found for {domain}![/]")
             console.print(check_result.stdout)
             console.print(check_result.stderr)

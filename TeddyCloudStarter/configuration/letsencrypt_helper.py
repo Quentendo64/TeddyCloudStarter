@@ -5,6 +5,7 @@ Let's Encrypt helper functions for TeddyCloudStarter.
 
 from ..utilities.network import check_domain_resolvable
 from ..wizard.ui_helpers import console
+from ..utilities.logger import logger
 
 
 def check_domain_suitable_for_letsencrypt(domain, translator, current_mode=None):
@@ -24,16 +25,21 @@ def check_domain_suitable_for_letsencrypt(domain, translator, current_mode=None)
         display_letsencrypt_not_available_warning,
     )
 
+    logger.info(f"Checking if domain '{domain}' is suitable for Let's Encrypt.")
     domain_resolvable = check_domain_resolvable(domain)
+    logger.debug(f"Domain '{domain}' resolvable: {domain_resolvable}")
 
     if not domain_resolvable:
+        logger.warning(f"Domain '{domain}' is not publicly resolvable. Let's Encrypt not available.")
         display_letsencrypt_not_available_warning(domain, translator)
 
         if current_mode == "letsencrypt":
+            logger.info("Current mode is 'letsencrypt'. Asking user to switch to self-signed.")
             return confirm_switch_to_self_signed(translator)
 
         return False
 
+    logger.success(f"Domain '{domain}' is suitable for Let's Encrypt.")
     return True
 
 
@@ -58,7 +64,9 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
 
     domain = nginx_config.get("domain", "")
 
+    logger.info(f"Starting Let's Encrypt setup for domain: {domain}")
     if not domain:
+        logger.error("No domain specified for Let's Encrypt.")
         console.print(
             f"[bold red]{translator.get('Error: No domain specified for Let\'s Encrypt')}[/]"
         )
@@ -68,14 +76,17 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
     if not check_domain_suitable_for_letsencrypt(
         domain, translator, nginx_config["https_mode"]
     ):
+        logger.warning(f"Domain '{domain}' is not suitable for Let's Encrypt. Aborting setup.")
         return False
 
     # Display Let's Encrypt requirements
+    logger.info("Displaying Let's Encrypt requirements and rate limit disclaimer.")
     display_letsencrypt_requirements(translator)
     display_letsencrypt_rate_limit_disclaimer(translator)
 
     # Confirm the user meets the requirements
     if not confirm_letsencrypt_requirements(translator):
+        logger.warning("User did not confirm Let's Encrypt requirements.")
         console.print(
             f"[bold yellow]{translator.get('Let\'s Encrypt requires these prerequisites to function properly.')}[/]"
         )
@@ -83,20 +94,24 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
 
     # Ask if the user wants to test if Let's Encrypt can issue a certificate
     if confirm_test_certificate(translator):
+        logger.info("User requested Let's Encrypt test certificate.")
         console.print(
             f"[bold cyan]{translator.get('Testing Let\'s Encrypt certificate request in staging environment...')}[/]"
         )
 
         # Test certificate request
         if lets_encrypt_manager:
+            logger.debug("Testing certificate request with Let's Encrypt manager.")
             success = lets_encrypt_manager.test_certificate_request(domain)
 
             if success:
+                logger.success("Let's Encrypt test successful. Domain is properly configured.")
                 console.print(
                     f"[bold green]{translator.get('Let\'s Encrypt test successful! Your domain is properly configured.')}[/]"
                 )
                 return True
             else:
+                logger.error("Let's Encrypt test failed. Domain may not be properly configured.")
                 console.print(
                     f"[bold red]{translator.get('Let\'s Encrypt test failed. Your domain may not be properly configured.')}[/]"
                 )
@@ -106,10 +121,12 @@ def handle_letsencrypt_setup(nginx_config, translator, lets_encrypt_manager):
                 return False
 
         else:
+            logger.warning("Let's Encrypt manager not available. Skipping test.")
             console.print(
                 f"[bold yellow]{translator.get('Let\'s Encrypt manager not available. Skipping test.')}[/]"
             )
 
+    logger.success("Let's Encrypt setup completed successfully.")
     return True
 
 
@@ -128,7 +145,9 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
     nginx_config = config["nginx"]
     domain = nginx_config.get("domain", "")
 
+    logger.info(f"Switching HTTPS mode to Let's Encrypt for domain: {domain}")
     if not domain:
+        logger.error("No domain specified for Let's Encrypt.")
         console.print(
             f"[bold red]{translator.get('Error: No domain specified for Let\'s Encrypt')}[/]"
         )
@@ -139,14 +158,17 @@ def switch_to_letsencrypt_https_mode(config, translator, lets_encrypt_manager):
 
     if result:
         nginx_config["https_mode"] = "letsencrypt"
+        logger.success("HTTPS mode successfully switched to Let's Encrypt.")
         console.print(
             f"[bold green]{translator.get('HTTPS mode successfully switched to Let\'s Encrypt')}[/]"
         )
 
         # Configure certbot settings
         if lets_encrypt_manager:
+            logger.debug("Configuring certbot settings via Let's Encrypt manager.")
             lets_encrypt_manager.configure_certbot_settings(config)
 
         return True
 
+    logger.warning("Failed to switch HTTPS mode to Let's Encrypt.")
     return False
