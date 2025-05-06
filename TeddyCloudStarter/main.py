@@ -115,7 +115,7 @@ def main():
         menu = MainMenu(LOCALES_DIR)
 
         # Initialize logger with config_manager from menu
-        logger = get_logger(config_manager=menu.config_manager)
+        logger = get_logger(name=__name__,config_manager=menu.config_manager)
 
         # Set the language from config without showing selection
         if menu.config_manager.config.get("language"):
@@ -147,7 +147,7 @@ def main():
         wizard = SetupWizard(LOCALES_DIR)
 
         # Initialize logger with config_manager from wizard
-        logger = get_logger(config_manager=wizard.config_manager)
+        logger = get_logger(name=__name__,config_manager=wizard.config_manager)
 
         # Select language first
         wizard.select_language()

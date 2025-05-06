@@ -33,7 +33,7 @@ def configure_direct_mode(config, translator):
     logger.info("Starting direct mode configuration.")
     if "ports" not in config:
         config["ports"] = {"admin_http": None, "admin_https": None, "teddycloud": None}
-        logger.debug("Initialized ports in config: %s", config["ports"])
+        logger.debug(f"Initialized ports in config: {config['ports']}")
 
     ports = config["ports"]
 
