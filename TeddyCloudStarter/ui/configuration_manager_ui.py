@@ -27,6 +27,27 @@ def show_configuration_management_menu(
     wizard, config_manager, translator, security_managers=None
 ):
     logger.debug("Entering show_configuration_management_menu.")
+    
+    # Initialize security_managers if not provided
+    if security_managers is None:
+        security_managers = {}
+        # Import here to avoid circular imports
+        from ..security.basic_auth import BasicAuthManager
+        from ..security.certificate_authority import CertificateAuthority
+        from ..security.client_certificates import ClientCertificateManager
+        from ..security.ip_restrictions import IPRestrictionsManager, AuthBypassIPManager
+        from ..security.lets_encrypt import LetsEncryptManager
+        
+        # Initialize security managers
+        security_managers["basic_auth_manager"] = BasicAuthManager(translator=translator)
+        security_managers["ca_manager"] = CertificateAuthority(translator=translator)
+        security_managers["client_cert_manager"] = ClientCertificateManager(translator=translator)
+        security_managers["ip_restrictions_manager"] = IPRestrictionsManager(translator=translator)
+        security_managers["auth_bypass_manager"] = AuthBypassIPManager(translator=translator)
+        security_managers["lets_encrypt_manager"] = LetsEncryptManager(translator=translator)
+        
+        logger.debug("Initialized security managers")
+    
     while True:
         logger.debug("Displaying Configuration Management menu header.")
         console.print(f"[bold cyan]{translator.get('Configuration Management')}[/]")

@@ -300,6 +300,8 @@ class MainMenu(BaseWizard):
                 "client_cert_manager": self.client_cert_manager,
                 "lets_encrypt_manager": self.lets_encrypt_manager,
                 "ip_restrictions_manager": self.ip_restrictions_manager,
+                "basic_auth_manager": self.basic_auth_manager,
+                "auth_bypass_manager": self.auth_bypass_manager
             }
             setup_wizard = SetupWizard(self.locales_dir)
             setup_wizard.config_manager = self.config_manager
@@ -352,6 +354,20 @@ class MainMenu(BaseWizard):
         self.lets_encrypt_manager = LetsEncryptManager(
             base_dir=project_path, translator=self.translator
         )
+        # Initialize the basic auth manager and IP restrictions managers
+        from .security.basic_auth import BasicAuthManager
+        from .security.ip_restrictions import IPRestrictionsManager, AuthBypassIPManager
+        
+        self.basic_auth_manager = BasicAuthManager(
+            base_dir=project_path, translator=self.translator
+        )
+        self.ip_restrictions_manager = IPRestrictionsManager(
+            translator=self.translator
+        )
+        self.auth_bypass_manager = AuthBypassIPManager(
+            translator=self.translator
+        )
+        
         if "environment" not in self.config_manager.config:
             logger.debug("Adding 'environment' section to config.")
             self.config_manager.config["environment"] = {}

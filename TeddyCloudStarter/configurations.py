@@ -64,7 +64,7 @@ services:
       {%- endif %}
       {%- endif %}
       {%- if security_type == "basic_auth" %}
-      - ./data/security:/etc/nginx/security:ro
+      - ./security:/etc/nginx/security:ro
       {%- endif %}
       {%- if https_mode == "letsencrypt" %}
       - certbot_conf:/etc/letsencrypt:ro
