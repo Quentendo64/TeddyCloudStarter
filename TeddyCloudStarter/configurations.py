@@ -342,12 +342,16 @@ http {
         ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
         ssl_verify_client optional_no_ca;
         ssl_client_certificate /teddycloud/certs/server/ca-root.pem;
+        gzip off;
         if ($reject) {
                 return 403;
         }
         location / {
                 proxy_read_timeout 300s;
+                proxy_send_timeout 300s;
                 proxy_connect_timeout 75s;
+                proxy_request_buffering off;
+                proxy_buffering off;
                 proxy_pass https://teddycloud-app:443;
                 proxy_ssl_certificate /teddycloud/certs/client/$mac_address/client.pem;
                 proxy_ssl_certificate_key /teddycloud/certs/client/$mac_address/private.pem;
