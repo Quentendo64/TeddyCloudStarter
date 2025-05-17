@@ -125,6 +125,8 @@ def _display_nginx_mode_config(table, config, translator):
     logger.debug("Entering _display_nginx_mode_config.")
     try:
         nginx_config = config["nginx"]
+        if "nginx_type" in nginx_config:
+            table.add_row(translator.get("Type"), nginx_config["nginx_type"])
         if "domain" in nginx_config:
             table.add_row(translator.get("Domain"), nginx_config["domain"])
         if "https_mode" in nginx_config:
