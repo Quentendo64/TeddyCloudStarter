@@ -201,7 +201,77 @@ def extract_toniebox_information(config_manager):
                 temp_file.unlink(missing_ok=True)
             except Exception:
                 pass
-    # --- End per-box certificate extraction, conversion, and copy-back ---
+
+    # --- Convert root CA certificate and create CA chain ---
+    logger.info("Converting root CA certificate and creating CA chain")
+    temp_root_ca_der = Path(tempfile.gettempdir()) / "ca.der"
+    temp_root_ca_pem = Path(tempfile.gettempdir()) / "ca.pem"
+    root_ca_path_in_container = "/teddycloud/certs/client/ca.der"
+    
+    try:
+        # Download and convert the root CA certificate
+        subprocess.run([
+            "docker", "cp", f"teddycloud-app:{root_ca_path_in_container}", str(temp_root_ca_der)
+        ], check=True)
+        
+        # Convert root CA from DER to PEM
+        der_to_pem_cert(temp_root_ca_der, temp_root_ca_pem)
+        
+        # Upload the converted root CA.pem back to the container
+        subprocess.run([
+            "docker", "cp", str(temp_root_ca_pem), "teddycloud-app:/teddycloud/certs/client/ca.pem"
+        ], check=True)
+        
+        # Collect all unique ca.pem files
+        unique_ca_pems = {temp_root_ca_pem.read_bytes(): temp_root_ca_pem}  # Use file content as key to ensure uniqueness
+        temp_ca_chain_pem = Path(tempfile.gettempdir()) / "ca_chain.pem"
+        
+        # Collect all ca.pem files from MAC directories
+        for box in box_list:
+            mac_lower = box["macaddress"].lower()
+            temp_box_ca_pem = Path(tempfile.gettempdir()) / f"{mac_lower}_ca.pem"
+            
+            try:
+                # Copy ca.pem from toniebox directory
+                subprocess.run([
+                    "docker", "cp", f"teddycloud-app:/teddycloud/certs/client/{mac_lower}/ca.pem", str(temp_box_ca_pem)
+                ], check=True)
+                
+                # Add to unique collection if it doesn't exist yet
+                ca_content = temp_box_ca_pem.read_bytes()
+                if ca_content not in unique_ca_pems:
+                    unique_ca_pems[ca_content] = temp_box_ca_pem
+            except Exception:
+                logger.debug(f"No ca.pem found for {mac_lower} or other error")
+                continue
+        
+        # Combine all unique CA certificates into a chain file
+        with open(temp_ca_chain_pem, "wb") as chain_file:
+            for ca_content, ca_file in unique_ca_pems.items():
+                chain_file.write(ca_content)
+                chain_file.write(b"\n")  # Add newline between certificates
+        
+        # Upload the CA chain file back to the container
+        subprocess.run([
+            "docker", "cp", str(temp_ca_chain_pem), "teddycloud-app:/teddycloud/certs/client/ca_chain.pem"
+        ], check=True)
+        
+        logger.success("CA chain file created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create CA chain: {e}")
+    finally:
+        # Clean up temporary files
+        for file in [temp_root_ca_der, temp_root_ca_pem, temp_ca_chain_pem]:
+            try:
+                file.unlink(missing_ok=True)
+            except Exception:
+                pass
+        # Clean up any box-specific CA files
+        for box in box_list:
+            try:
+                (Path(tempfile.gettempdir()) / f"{box['macaddress'].lower()}_ca.pem").unlink(missing_ok=True)
+            except Exception:
+                pass
 
     # --- Begin server certificate extraction, conversion, copy-back, and renaming for nginx ---
     server_cert_path = "/teddycloud/certs/server/teddy-cert.pem"
