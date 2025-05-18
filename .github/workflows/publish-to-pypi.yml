@@ -6,8 +6,6 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - 'develop'
   workflow_dispatch:
     inputs:
       version:
@@ -25,6 +23,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     outputs:
       version: ${{ steps.get_version.outputs.version }}
+      prerelease: ${{ steps.check_prerelease.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
       
@@ -32,9 +31,29 @@ jobs:
         id: get_version
         run: echo "version=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')" >> $GITHUB_OUTPUT
       
+      - name: Check if prerelease version
+        id: check_prerelease
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          # Determine if this is a pre-release version according to PEP 440
+          if echo "$VERSION" | grep -E '([0-9]+\.[0-9]+\.[0-9]+(a|b|rc|dev|alpha|beta)[0-9]*)' > /dev/null; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is a prerelease"
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is a stable release"
+          fi
+      
       - name: Extract release notes from CHANGELOG.md
         id: extract_notes
         run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::warning::CHANGELOG.md not found, using default release notes"
+            echo "## Release v$VERSION" > release_notes.md
+            echo "Release v$VERSION" >> release_notes.md
+            exit 0
+          fi
+          
           VERSION="${{ steps.get_version.outputs.version }}"
           echo "Looking for version $VERSION in CHANGELOG.md"
           
@@ -49,7 +68,7 @@ jobs:
           
           # Check if we found any content
           if [ ! -s release_notes.md ]; then
-            echo "No entry found in CHANGELOG.md for version $VERSION"
+            echo "::warning::No entry found in CHANGELOG.md for version $VERSION"
             echo "Using default release notes"
             echo "## Release v$VERSION" > release_notes.md
             echo "Release v$VERSION" >> release_notes.md
@@ -63,7 +82,7 @@ jobs:
         with:
           name: Release v${{ steps.get_version.outputs.version }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.check_prerelease.outputs.prerelease == 'true' }}
           body_path: release_notes.md
           generate_release_notes: false
 
@@ -88,14 +107,28 @@ jobs:
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       run: |
         VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
+        # Validate the version format according to PEP 440
+        if ! python -c "from packaging import version; version.parse('$VERSION')" &> /dev/null; then
+          echo "::error::Invalid version format: $VERSION. Must comply with PEP 440."
+          exit 1
+        fi
         sed -i "s/__version__ = .*/__version__ = '$VERSION'/" TeddyCloudStarter/__init__.py
-        echo "Using version: $VERSION from tag"
+        # Use prerelease flag from create-release job
+        echo "PRERELEASE=${{ needs.create-release.outputs.prerelease }}" >> $GITHUB_ENV
+        echo "Using version: $VERSION from tag (prerelease: ${{ needs.create-release.outputs.prerelease }})"
     
     - name: Set version if provided
       if: github.event.inputs.version != ''
       run: |
         # Update version in __init__.py if explicitly provided via workflow_dispatch
         sed -i "s/__version__ = .*/__version__ = '${{ github.event.inputs.version }}'/" TeddyCloudStarter/__init__.py
+
+    - name: Get version from __init__.py if not provided
+      if: github.event.inputs.version == '' && !(startsWith(github.ref, 'refs/tags/v'))
+      run: |
+        VERSION=$(grep -m1 "__version__ = " TeddyCloudStarter/__init__.py | cut -d'"' -f2 | cut -d"'" -f2)
+        echo "Using version from __init__.py: $VERSION"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build package
       run: python -m build
@@ -106,51 +139,4 @@ jobs:
     - name: Upload to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        verbose: true
-
-  deploy-develop:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    
-    - name: Get current version and date
-      id: version_info
-      run: |
-        # Extract the base version from __init__.py
-        BASE_VERSION=$(grep -oP "__version__ = '\K[^']+" TeddyCloudStarter/__init__.py)
-        # Format the current date in YYYYMMDD format
-        DATE_TAG=$(date +'%Y%m%d')
-        # Create a proper PEP 440 compliant development version string
-        # For dev releases, the format must be N.N.N.devN (no non-numeric parts after dev)
-        DEV_VERSION="${BASE_VERSION}.dev${DATE_TAG}"
-        echo "version=$DEV_VERSION" >> $GITHUB_OUTPUT
-        echo "Creating development build version: $DEV_VERSION"
-    
-    - name: Update version for development build
-      run: |
-        DEV_VERSION="${{ steps.version_info.outputs.version }}"
-        sed -i "s/__version__ = .*/__version__ = '$DEV_VERSION'/" TeddyCloudStarter/__init__.py
-        echo "Set development version to: $DEV_VERSION"
-    
-    - name: Build package
-      run: python -m build
-    
-    - name: Check built package
-      run: twine check dist/*
-    
-    - name: Upload to TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
         verbose: true
