@@ -126,7 +126,7 @@ def main():
 
         # Display welcome messages
         menu.display_welcome_message()
-        menu.display_development_message()
+        #menu.display_development_message()
 
         # Get the project path from config and ensure directories exist
         project_path = get_project_path(menu.config_manager)

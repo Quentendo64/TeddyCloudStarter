@@ -35,7 +35,7 @@ def show_welcome_message(translator):
         console.print(
             Panel(
                 f"[bold blue]{translator.get('TeddyCloudStarter')}[/] -[bold green] v{__version__} [/]- {translator.get('Docker Setup Wizard for TeddyCloud')}\n\n"
-                f"{translator.get('This wizard will help you set up TeddyCloud with Docker.')}",
+                f"{translator.get('This wizard will help you set up TeddyCloud with Docker and a secure NGINX reverse proxy configuration.')}",
                 box=box.ROUNDED,
                 border_style="cyan",
             )

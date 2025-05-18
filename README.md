@@ -1,33 +1,41 @@
 # TeddyCloudStarter
 
+[![Publish to PyPI](https://github.com/Quentendo64/TeddyCloudStarter/actions/workflows/publish-to-pypi.yml/badge.svg)](https://github.com/Quentendo64/TeddyCloudStarter/actions)
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![PyPI version](https://badge.fury.io/py/teddycloudstarter.svg)](https://badge.fury.io/py/teddycloudstarter)
 [![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![Status: Beta](https://img.shields.io/badge/status-beta-orange)
 
-A user-friendly wizard for setting up TeddyCloud deployments with Docker.
+**A user-friendly wizard for setting up TeddyCloud deployments with Docker**
 
-## ALPHA - RELEASE
+## 🌟 Overview
 
-WARNING - Very early development stage
-Keep in mind that this project by far is not finished yet.
-But it should bring you the concept of how it will work. 
+> **BETA RELEASE**: This project is fully functional but still in beta. It may contain bugs and is under active development. Please use with caution and report any issues on GitHub.
 
-Soon™ 
+TeddyCloudStarter is a comprehensive wizard that simplifies the process of setting up and managing TeddyCloud deployments using Docker. It provides an interactive interface that guides users through configuration, deployment, security setup, and maintenance of their TeddyCloud instance.
 
-## 📋 Requirements
+## 🚀 Getting Started
 
-- Python 3.6 or newer
-- Docker and Docker Compose
-- Internet connection (for first-time setup and updates)
+### Prerequisites
 
-## 🚀 Installation
+- **Python 3.6+**
+- **Docker** and **Docker Compose**
+- **Internet connection** (for first-time setup and updates)
 
-### Using pip
+### Installation
+
+<details>
+<summary><b>📦 Using pip (Recommended)</b></summary>
 
 ```bash
 pip install TeddyCloudStarter
 ```
 
-### From source
+</details>
+
+<details>
+<summary><b>🔧 From source</b></summary>
 
 ```bash
 git clone https://github.com/Quentendo64/TeddyCloudStarter.git
@@ -35,32 +43,56 @@ cd TeddyCloudStarter
 pip install -e .
 ```
 
+</details>
+
 ## 💻 Usage
 
-### Starting the wizard
+### Quick Start
+
+Launch the wizard by running:
 
 ```bash
 TeddyCloudStarter
 ```
 
-The wizard will guide you through the setup process with an interactive interface.
+This starts an interactive interface that guides you through the setup process step-by-step.
+
+## ⚙️ Configuration
+
+### Setup Options
+
+| Feature | Description |
+|---------|-------------|
+| 🌐 **Language Selection** | Choose between English and German interfaces |
+| 🔄 **Deployment Mode** | Select direct mode or Nginx reverse proxy mode |
+| 📝 **Configuration Management** | Manage your TeddyCloud configuration |
+
+## 🔒 Security
+
+TeddyCloudStarter provides multiple security layers:
+
+| Feature | Description |
+|---------|-------------|
+| 🔐 **Let's Encrypt Integration** | Automatic SSL certificate management |
+| 🛡️ **Custom Certificate Authority** | Create and manage your own CA |
+| 🔑 **Client Certificates** | Secure access with client certificate authentication |
+| 👤 **Basic Authentication** | Simple username/password protection |
+| 🌐 **IP Restrictions** | Control access by IP address |
+
+## 🧰 Management Tools
+
+| Feature | Description |
+|---------|-------------|
+| 🐳 **Docker Management** | Start, stop, and manage Docker containers and services |
+| 📱 **Application Management** | Configure and manage TeddyCloud |
+| 💾 **Backup & Recovery** | Create and restore backups of your configuration |
+| 🔧 **Support Tools** | Access logs and troubleshooting utilities |
 
 
 ## 👏 Special Mentions
 
-Special thanks to:
-
 - [henryk](https://forum.revvox.de/u/henryk/) from Revoxx Forum - For extensive testing and heroic support during development
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## 📄 License
 
