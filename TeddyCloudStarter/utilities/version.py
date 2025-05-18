@@ -8,11 +8,12 @@ import subprocess
 import sys
 from urllib import request
 from urllib.error import URLError
-
+from packaging import version
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
+
 
 from .. import __version__
 from ..utilities.logger import logger
@@ -42,27 +43,31 @@ def get_pypi_version():
 def compare_versions(v1, v2):
     logger.debug(f"Comparing versions: v1={v1}, v2={v2}")
     try:
-        v1_parts = [int(x) for x in v1.split(".")]
-        v2_parts = [int(x) for x in v2.split(".")]
-        logger.debug(f"Parsed version parts: v1_parts={v1_parts}, v2_parts={v2_parts}")
-        for i in range(max(len(v1_parts), len(v2_parts))):
-            v1_part = v1_parts[i] if i < len(v1_parts) else 0
-            v2_part = v2_parts[i] if i < len(v2_parts) else 0
-            logger.debug(f"Comparing part {i}: v1_part={v1_part}, v2_part={v2_part}")
-            if v1_part < v2_part:
-                logger.info("v1 is less than v2")
-                return -1
-            elif v1_part > v2_part:
-                logger.info("v1 is greater than v2")
-                return 1
-        logger.info("Versions are equal")
-        return 0
+        parsed_v1 = version.parse(v1)
+        parsed_v2 = version.parse(v2)
+        logger.debug(f"Parsed versions: v1={parsed_v1}, v2={parsed_v2}")
+        
+        if parsed_v1 < parsed_v2:
+            logger.info("v1 is less than v2")
+            return -1
+        elif parsed_v1 > parsed_v2:
+            logger.info("v1 is greater than v2")
+            return 1
+        else:
+            logger.info("Versions are equal")
+            return 0
     except Exception as e:
         logger.error(f"Error comparing versions: {e}")
         return 0
 
 
 def check_for_updates(quiet=False):
+    """
+    Check for updates to TeddyCloudStarter package on PyPI.
+    
+    Returns:
+        bool: True if up to date, False if updates are available
+    """
     logger.debug(f"Checking for updates. quiet={quiet}")
     current_version = __version__
     update_confirmed = False
@@ -155,13 +160,17 @@ def install_update():
             console.print(
                 f"[cyan]Attempting to install update using: {' '.join(cmd)}[/]"
             )
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
             logger.debug(f"Update command result: returncode={result.returncode}, stderr={result.stderr.strip()}")
             if result.returncode == 0:
                 logger.info(f"Update command succeeded: {' '.join(cmd)}")
                 return True
+            else:
+                logger.warning(f"Command failed with code {result.returncode}: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Command timed out: {' '.join(cmd)}")
         except Exception as e:
             logger.error(f"Exception running update command {' '.join(cmd)}: {e}")
-            pass
+    
     logger.error("All update commands failed.")
     return False
