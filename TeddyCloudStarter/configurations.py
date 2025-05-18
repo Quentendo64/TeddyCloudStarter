@@ -197,6 +197,18 @@ http {
 }
 
 stream {
+    log_format stream_detailed 'StreamLog: $remote_addr [$time_local] '
+                       '$protocol $status $bytes_sent $bytes_received '
+                       '$session_time $ssl_protocol $ssl_cipher '
+                       'BACKEND=$upstream '
+                       'VERIFY=$ssl_client_verify '
+                       'SESSION_ID=$ssl_session_id '
+                       'SESSION_REUSE=$ssl_session_reused '
+
+    log_format stream_basic 'StreamLog: $remote_addr [$time_local] '
+                       '$protocol $status $bytes_sent $bytes_received '
+                       '$session_time';
+
     map $ssl_preread_server_name $upstream {
         {{ domain }} teddycloud_admin;
         default teddycloud_box;
@@ -224,6 +236,8 @@ stream {
         {%- endif %}
         listen 443;
         ssl_preread on;
+        ssl_certificate_cache off;
+        ssl_session_cache off;
         proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
         proxy_pass $upstream;
     }
@@ -391,8 +405,8 @@ stream {
         ssl_client_certificate /teddycloud/certs/client/ca_chain.pem;
         ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
         ssl_verify_client optional_no_ca;        
-        ssl_certificate_cache off;  # Disable SSL session cache
-        ssl_session_cache off;  # Disable SSL session cache
+        ssl_certificate_cache off;
+        ssl_session_cache off;
         ssl_session_tickets off;
         proxy_connect_timeout  60s;
         proxy_timeout 10800s;
@@ -407,7 +421,7 @@ stream {
         proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
         proxy_ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
-        proxy_ssl_session_reuse on;
+        proxy_ssl_session_reuse off;
     }
 }
 {% endif %}
