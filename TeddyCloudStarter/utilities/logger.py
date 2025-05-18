@@ -15,6 +15,12 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.theme import Theme
 
+# Define custom log levels
+TRACE_LEVEL_NUM = 5
+UI_LEVEL_NUM = 25
+logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
+logging.addLevelName(UI_LEVEL_NUM, "UI")
+
 # Create custom theme for Rich console
 custom_theme = Theme(
     {
@@ -24,6 +30,8 @@ custom_theme = Theme(
         "critical": "bold white on red",
         "debug": "bold green",
         "success": "bold green",
+        "trace": "dim white",
+        "ui": "bold magenta",
     }
 )
 
@@ -32,8 +40,10 @@ console = Console(theme=custom_theme)
 
 # Define log levels mapping
 LOG_LEVELS = {
+    "trace": TRACE_LEVEL_NUM,
     "debug": logging.DEBUG,
     "info": logging.INFO,
+    "ui": UI_LEVEL_NUM,
     "warning": logging.WARNING,
     "error": logging.ERROR,
     "critical": logging.CRITICAL,
@@ -54,10 +64,11 @@ class TeddyLogger:
         self,
         name: str = "TeddyCloudStarter",
         config_manager=None,
-        log_to_file: bool = True,
+        log_to_file: bool = False,
         log_path: Optional[str] = None,
         use_panels: bool = False,  # Default to in-line formatting
         use_inline: bool = True,  # Use in-line formatting
+        log_to_console: bool = True,  # Enable/disable console logging
     ):
         """
         Initialize the logger.
@@ -69,29 +80,34 @@ class TeddyLogger:
             log_path: Custom log path (overrides config_manager setting)
             use_panels: Whether to use Rich panels for console output
             use_inline: Whether to use in-line formatting (prefix style)
+            log_to_console: Whether to log to console
         """
         self.name = name
         self.config_manager = config_manager
+        # If log_path is set, force log_to_file to True
+        if log_path and str(log_path).strip():
+            log_to_file = True
         self.log_to_file = log_to_file
+        self.log_to_console = log_to_console
         self._logger = None
         self.translator = getattr(config_manager, "translator", None)
         self.console = console
         self.use_panels = use_panels
         self.use_inline = use_inline
 
-        # Get log level from config manager or default to info
-        self.log_level = "info"
+        # Get log level from config manager or default to critical
+        self.log_level = "critical"
         if config_manager and hasattr(config_manager, "config"):
             if "app_settings" in config_manager.config:
-                self.log_level = (
-                    config_manager.config["app_settings"]
-                    .get("log_level", "info")
-                    .lower()
-                )
-
-                # Get log path from config if provided
-                if not log_path and "log_path" in config_manager.config["app_settings"]:
-                    log_path = config_manager.config["app_settings"].get("log_path")
+                app_settings = config_manager.config["app_settings"]
+                self.log_level = app_settings.get("log_level", "critical").lower()
+                # Use 'log_console' from config, fallback to True if not present
+                self.log_to_console = app_settings.get("log_console", True)
+                # If log_path is set in config, set log_to_file True
+                if not log_path and "log_path" in app_settings:
+                    log_path = app_settings.get("log_path")
+                    if log_path and str(log_path).strip():
+                        self.log_to_file = True
 
         # Set up logger
         self._setup_logger(log_path)
@@ -111,17 +127,18 @@ class TeddyLogger:
         for handler in self._logger.handlers[:]:
             self._logger.removeHandler(handler)
 
-        # Configure console handler with Rich
-        console_handler = RichHandler(
-            console=console,
-            show_time=True,
-            show_path=False,
-            rich_tracebacks=True,
-            tracebacks_show_locals=True,
-        )
-        console_handler.setFormatter(logging.Formatter("%(message)s"))
-        console_handler.setLevel(LOG_LEVELS.get(self.log_level, logging.INFO))
-        self._logger.addHandler(console_handler)
+        # Configure console handler with Rich if enabled
+        if self.log_to_console:
+            console_handler = RichHandler(
+                console=console,
+                show_time=True,
+                show_path=False,
+                rich_tracebacks=True,
+                tracebacks_show_locals=True,
+            )
+            console_handler.setFormatter(logging.Formatter("%(message)s"))
+            console_handler.setLevel(LOG_LEVELS.get(self.log_level, logging.INFO))
+            self._logger.addHandler(console_handler)
 
         # Add file handler if logging to file is enabled
         if self.log_to_file:
@@ -199,6 +216,8 @@ class TeddyLogger:
             "critical": "red",
             "debug": "green",
             "success": "green",
+            "trace": "white",
+            "ui": "magenta",
         }
 
         border_style = styles.get(level, "blue")
@@ -235,6 +254,8 @@ class TeddyLogger:
             "critical": "bold white on red",
             "debug": "bold green",
             "success": "bold green",
+            "trace": "dim white",
+            "ui": "bold magenta",
         }
 
         style = styles.get(level, "bold blue")
@@ -252,40 +273,71 @@ class TeddyLogger:
                 label = "DEBUG"
             elif level == "success":
                 label = "SUCCESS"
+            elif level == "trace":
+                label = "TRACE"
+            elif level == "ui":
+                label = "UI"
 
         return f"[{style}]{label}[/]"
 
-    def debug(self, message, **kwargs):
+    def debug(self, message, *args, **kwargs):
         """Log a debug message."""
+        if args:
+            message = message % args
         message = self._handle_message(message)
         self._logger.debug(message, **kwargs)
 
-    def info(self, message, **kwargs):
+    def info(self, message, *args, **kwargs):
         """Log an info message."""
+        if args:
+            message = message % args
         message = self._handle_message(message)
         self._logger.info(message, **kwargs)
 
-    def warning(self, message, **kwargs):
+    def warning(self, message, *args, **kwargs):
         """Log a warning message."""
+        if args:
+            message = message % args
         message = self._handle_message(message)
         self._logger.warning(message, **kwargs)
 
-    def error(self, message, **kwargs):
+    def error(self, message, *args, **kwargs):
         """Log an error message."""
+        if args:
+            message = message % args
         message = self._handle_message(message)
         self._logger.error(message, **kwargs)
 
-    def critical(self, message, **kwargs):
+    def critical(self, message, *args, **kwargs):
         """Log a critical message."""
+        if args:
+            message = message % args
         message = self._handle_message(message)
         self._logger.critical(message, **kwargs)
 
-    def success(self, message, **kwargs):
+    def success(self, message, *args, **kwargs):
         """Log a success message (info level with success styling)."""
-        # Use info level but with success styling for console
+        if args:
+            message = message % args
         message = self._handle_message(message)
         styled_message = f"[success]{message}[/]"
         self._logger.info(styled_message, **kwargs)
+
+    def trace(self, message, *args, **kwargs):
+        """Log a trace message (very low level)."""
+        if args:
+            message = message % args
+        message = self._handle_message(message)
+        if self._logger.isEnabledFor(TRACE_LEVEL_NUM):
+            self._logger.log(TRACE_LEVEL_NUM, message, **kwargs)
+
+    def ui(self, message, *args, **kwargs):
+        """Log an ui message (user/system interaction)."""
+        if args:
+            message = message % args
+        message = self._handle_message(message)
+        if self._logger.isEnabledFor(UI_LEVEL_NUM):
+            self._logger.log(UI_LEVEL_NUM, message, **kwargs)
 
     # Methods with Rich formatting support for console output
     def print_info(self, message, title=None, label=None):
@@ -412,6 +464,40 @@ class TeddyLogger:
 
             self._logger.critical(message)
 
+    def print_trace(self, message, title=None, label=None):
+        """Print a trace message with Rich formatting."""
+        if isinstance(message, Panel):
+            console.print(message)
+            self._logger.log(TRACE_LEVEL_NUM, self._handle_message(message))
+        else:
+            translated_message = self._translate(message)
+            if self.use_panels:
+                panel = self._create_panel(translated_message, "trace", title or "TRACE")
+                console.print(panel)
+            elif self.use_inline:
+                prefix = self._create_inline_prefix("trace", label or "TRACE")
+                console.print(f"{prefix} - {translated_message}")
+            else:
+                console.print(f"[trace]{translated_message}[/]")
+            self._logger.log(TRACE_LEVEL_NUM, message)
+
+    def print_interaction(self, message, title=None, label=None):
+        """Print an interaction message with Rich formatting."""
+        if isinstance(message, Panel):
+            console.print(message)
+            self._logger.log(UI_LEVEL_NUM, self._handle_message(message))
+        else:
+            translated_message = self._translate(message)
+            if self.use_panels:
+                panel = self._create_panel(translated_message, "ui", title or "UI")
+                console.print(panel)
+            elif self.use_inline:
+                prefix = self._create_inline_prefix("ui", label or "UI")
+                console.print(f"{prefix} - {translated_message}")
+            else:
+                console.print(f"[ui]{translated_message}[/]")
+            self._logger.log(UI_LEVEL_NUM, message)
+
     def set_log_level(self, level: str):
         """
         Set the log level.
@@ -459,7 +545,7 @@ class TeddyLogger:
 
 
 # Create a default logger instance with in-line formatting
-logger = TeddyLogger(use_panels=False, use_inline=True)
+logger = TeddyLogger(__name__, use_panels=False, use_inline=True)
 
 
 def get_logger(
@@ -469,6 +555,7 @@ def get_logger(
     log_path: Optional[str] = None,
     use_panels: bool = False,
     use_inline: bool = True,
+    log_to_console: bool = True,
 ) -> TeddyLogger:
     """
     Get a logger instance.
@@ -480,6 +567,7 @@ def get_logger(
         log_path: Custom log path
         use_panels: Whether to use Rich panels for console output
         use_inline: Whether to use in-line formatting
+        log_to_console: Whether to log to console
 
     Returns:
         TeddyLogger instance
@@ -491,4 +579,5 @@ def get_logger(
         log_path,
         use_panels,
         use_inline,
+        log_to_console,
     )

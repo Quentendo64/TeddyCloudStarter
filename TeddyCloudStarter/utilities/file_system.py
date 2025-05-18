@@ -9,6 +9,7 @@ from typing import List, Optional
 
 import questionary
 from rich.console import Console
+from ..utilities.logger import logger
 
 console = Console()
 
@@ -31,6 +32,7 @@ MANUAL_ENTRY = "[Enter path manually]"
 
 
 def get_project_path(config_manager=None, translator=None) -> Optional[str]:
+    logger.debug("Entering get_project_path.")
     """
     Get the project path from config or prompt the user to set it if not set.
 
@@ -47,10 +49,13 @@ def get_project_path(config_manager=None, translator=None) -> Optional[str]:
             _ = lambda text: translator.get(text) or text
 
         if config_manager and config_manager.config:
+            logger.debug("Config manager and config attribute found.")
             project_path = config_manager.config.get("environment", {}).get("path")
+            logger.debug(f"Project path from config: {project_path}")
             if project_path and validate_path(project_path):
                 return project_path
 
+        logger.warning("Config manager or config attribute missing.")
         console.print(
             f"[bold yellow]{_('No project path is set. Please select a project path.')}[/]"
         )
@@ -70,11 +75,13 @@ def get_project_path(config_manager=None, translator=None) -> Optional[str]:
         exit(1)
 
     except Exception as e:
+        logger.error(f"Error in get_project_path: {e}")
         console.print(f"[bold red]{_('Error retrieving project path')}: {e}[/]")
         exit(1)
 
 
 def ensure_project_directories(project_path):
+    logger.debug(f"Entering ensure_project_directories with project_path: {project_path}")
     """
     Create necessary directories in the project path.
 
@@ -91,6 +98,7 @@ def ensure_project_directories(project_path):
 
 
 def normalize_path(path: str) -> str:
+    logger.debug(f"Entering normalize_path with path: {path}")
     """Normalize a file path by resolving ../ and ./ references.
 
     Args:
@@ -99,10 +107,17 @@ def normalize_path(path: str) -> str:
     Returns:
         str: The normalized path
     """
-    return os.path.normpath(path)
+    try:
+        norm = os.path.normpath(path)
+        logger.debug(f"Normalized path: {norm}")
+        return norm
+    except Exception as e:
+        logger.error(f"Error in normalize_path: {e}")
+        return path
 
 
 def create_directory(path: str) -> bool:
+    logger.debug(f"Entering create_directory with path: {path}")
     """Create a directory at the specified path.
 
     Args:
@@ -113,13 +128,16 @@ def create_directory(path: str) -> bool:
     """
     try:
         Path(path).mkdir(parents=True, exist_ok=True)
+        logger.info(f"Directory created: {path}")
         return True
     except Exception as e:
+        logger.error(f"Error creating directory: {e}")
         console.print(f"[bold red]Error creating directory: {e}[/]")
         return False
 
 
 def get_directory_contents(path: str) -> List[str]:
+    logger.debug(f"Entering get_directory_contents with path: {path}")
     """Get contents of a directory, separated into directories and files.
 
     Args:
@@ -140,13 +158,16 @@ def get_directory_contents(path: str) -> List[str]:
             else:
                 files.append(entry)
 
+        logger.debug(f"Directory contents: {dirs + files}")
         return sorted(dirs) + sorted(files)
     except Exception as e:
+        logger.error(f"Error listing directory: {e}")
         console.print(f"[bold red]Error listing directory: {e}[/]")
         return []
 
 
 def validate_path(path: str) -> bool:
+    logger.debug(f"Entering validate_path with path: {path}")
     """Validate that a path exists and is a directory.
 
     Args:
@@ -155,36 +176,54 @@ def validate_path(path: str) -> bool:
     Returns:
         bool: True if the path is valid, False otherwise
     """
-    return os.path.isdir(path)
+    try:
+        is_valid = os.path.isdir(path)
+        logger.debug(f"Path is valid: {is_valid}")
+        return is_valid
+    except Exception as e:
+        logger.error(f"Error in validate_path: {e}")
+        return False
 
 
 def get_common_roots() -> List[str]:
+    logger.debug("Entering get_common_roots.")
     """Get a list of common root directories based on the OS.
 
     Returns:
         List[str]: List of common root directories
     """
-    system = platform.system()
+    try:
+        system = platform.system()
+        logger.debug(f"Detected system: {system}")
 
-    if system == "Windows":
-        import string
+        if system == "Windows":
+            import string
 
-        drives = []
-        for drive in string.ascii_uppercase:
-            if os.path.exists(f"{drive}:"):
-                drives.append(f"{drive}:")
-        return drives
+            drives = []
+            for drive in string.ascii_uppercase:
+                if os.path.exists(f"{drive}:"):
+                    drives.append(f"{drive}:")
+            logger.debug(f"Windows drives: {drives}")
+            return drives
 
-    elif system == "Darwin":
-        return ["/", "/Users", "/Applications", "/Volumes"]
+        elif system == "Darwin":
+            roots = ["/", "/Users", "/Applications", "/Volumes"]
+            logger.debug(f"Mac roots: {roots}")
+            return roots
 
-    else:
-        return ["/", "/home", "/mnt", "/media"]
+        else:
+            roots = ["/", "/home", "/mnt", "/media"]
+            logger.debug(f"Linux roots: {roots}")
+            return roots
+    except Exception as e:
+        logger.error(f"Error in get_common_roots: {e}")
+        return []
 
 
 def browse_directory(
     start_path: Optional[str] = None, translator=None, title: Optional[str] = None
 ) -> Optional[str]:
+    logger.debug(f"Entering browse_directory with start_path: {start_path}, title: {title}")
     """Browse directories and select one.
 
     Args:

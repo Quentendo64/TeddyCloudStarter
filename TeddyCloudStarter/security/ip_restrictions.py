@@ -5,6 +5,7 @@ Handles configuration and validation of IP restrictions.
 """
 
 from rich.console import Console
+from ..utilities.logger import logger
 
 from ..ui.ip_restrictions_ui import (  # Auth bypass specific UI functions
     confirm_clear_auth_bypass_ips,
@@ -273,13 +274,17 @@ class AuthBypassIPManager:
         Args:
             nginx_config: The nginx configuration dictionary
         """
+        logger.debug("Prompting user to select an auth bypass IP to remove.")
         ip = select_ip_to_remove(
             nginx_config["security"]["auth_bypass_ips"], self.translator
         )
-
         if ip:
+            logger.info(f"Removing auth bypass IP: {ip}")
             nginx_config["security"]["auth_bypass_ips"].remove(ip)
+            logger.success(f"Removed auth bypass IP: {ip}")
             console.print(f"[yellow]{self.translator.get('Removed IP')} {ip}[/]")
+        else:
+            logger.debug("No auth bypass IP selected for removal.")
 
     def _clear_auth_bypass_ips(self, nginx_config):
         """
@@ -288,8 +293,13 @@ class AuthBypassIPManager:
         Args:
             nginx_config: The nginx configuration dictionary
         """
+        logger.debug("Prompting user to confirm clearing all auth bypass IPs.")
         if confirm_clear_auth_bypass_ips(self.translator):
+            logger.info("Clearing all auth bypass IPs.")
             nginx_config["security"]["auth_bypass_ips"] = []
+            logger.success("All authentication bypass IPs cleared.")
             console.print(
                 f"[bold yellow]{self.translator.get('All authentication bypass IPs cleared.')}[/]"
             )
+        else:
+            logger.debug("User cancelled clearing of auth bypass IPs.")

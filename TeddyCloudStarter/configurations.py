@@ -18,6 +18,9 @@ services:
     container_name: nginx-edge
     tty: true
     hostname: {{ domain }}
+    environment:
+      - NGINX_DEBUG=all
+      - SSL_TRACE=4
     image: nginx:stable-alpine
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
     volumes:
@@ -44,6 +47,9 @@ services:
     container_name: nginx-auth
     tty: true
     hostname: nginx-auth
+    environment:
+      - NGINX_DEBUG=all
+      - SSL_TRACE=4
     image: nginx:stable-alpine
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \\\"daemon off;\\\"'"
     volumes:
@@ -64,7 +70,7 @@ services:
       {%- endif %}
       {%- endif %}
       {%- if security_type == "basic_auth" %}
-      - ./data/security:/etc/nginx/security:ro
+      - ./security:/etc/nginx/security:ro
       {%- endif %}
       {%- if https_mode == "letsencrypt" %}
       - certbot_conf:/etc/letsencrypt:ro
@@ -201,7 +207,7 @@ stream {
     }
     {% if nginx_type == "extended" %}
     upstream teddycloud_box {
-        server nginx-auth:8443;
+        server nginx-auth:9443;
     }
     {% else %}
     upstream teddycloud_box {
@@ -248,6 +254,10 @@ http {
     keepalive_timeout  65;
     log_format teddystarter_format 'Log: $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
     access_log /var/log/nginx/access.log teddystarter_format;
+    ssl_session_tickets       off;
+    ssl_session_cache         none;
+    proxy_request_buffering   off;
+    proxy_buffering           off;
 
     {% if security_type == "basic_auth" and auth_bypass_ips %}
     geo $auth_bypass {
@@ -320,8 +330,30 @@ http {
             proxy_pass http://teddycloud-app:80;
         }
     }
-    {% if nginx_type == "extended" %}
-    map $ssl_client_fingerprint $reject {
+}
+{% if nginx_type == "extended" %}
+stream {
+    log_format stream_detailed 'StreamLog: $remote_addr [$time_local] '
+                       '$protocol $status $bytes_sent $bytes_received '
+                       '$session_time $ssl_protocol $ssl_cipher '
+                       'FP=$ssl_client_fingerprint '
+                       'MAC=$mac_address '
+                       'REJ=$stream_reject '
+                       'BACKEND=$backend '
+                       'VERIFY=$ssl_client_verify '
+                       'SESSION_ID=$ssl_session_id '
+                       'SESSION_REUSE=$ssl_session_reused '                       
+                       'CLIENT_STATUS=$client_status '
+                       'CLIENT_DN=$ssl_client_s_dn '
+                       'CLIENT_SN=$ssl_client_serial '
+                       'CLIENT_CERT=$ssl_client_raw_cert ';
+    log_format stream_basic 'StreamLog: $remote_addr [$time_local] '
+                       '$protocol $status $bytes_sent $bytes_received '
+                       '$session_time';
+    access_log /var/log/nginx/stream_access.log stream_detailed;
+    error_log /var/log/nginx/stream_error.log debug;
+
+    map $ssl_client_fingerprint $stream_reject {
         default 1;
         {% for box in boxes %}{{ box[0] }} 0;
         {% endfor %}
@@ -332,30 +364,53 @@ http {
         {% endfor %}
     }
 
+    map $ssl_client_fingerprint $client_status {
+        default "unknown_client";
+        {% for box in boxes %}{{ box[0] }} "client_authorized";
+        {% endfor %}
+    }
+
+    upstream authorized_backend {
+        server teddycloud-app:443;
+    }
+
+    upstream rejected_backend {
+        server 127.0.0.1:10;
+    }
+
+    map $stream_reject $backend {
+        0 authorized_backend;
+        1 rejected_backend;
+    }
+
     server {
-        listen 8443 ssl;
-        listen [::]:8443 ssl;
-        server_name {{ domain }};
-        server_tokens off;
+        listen 9443 ssl;
+        listen [::]:9443 ssl;
         ssl_certificate /teddycloud/certs/server/teddy-cert.nginx.pem;
         ssl_certificate_key /teddycloud/certs/server/teddy-key.nginx.pem;
+        ssl_client_certificate /teddycloud/certs/client/ca_chain.pem;
         ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
-        ssl_verify_client optional_no_ca;
-        ssl_client_certificate /teddycloud/certs/server/ca-root.pem;
-        if ($reject) {
-                return 403;
-        }
-        location / {
-                proxy_read_timeout 300s;
-                proxy_connect_timeout 75s;
-                proxy_pass https://teddycloud-app:443;
-                proxy_ssl_certificate /teddycloud/certs/client/$mac_address/client.pem;
-                proxy_ssl_certificate_key /teddycloud/certs/client/$mac_address/private.pem;
-                proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
-        }
+        ssl_verify_client optional_no_ca;        
+        ssl_certificate_cache off;  # Disable SSL session cache
+        ssl_session_cache off;  # Disable SSL session cache
+        ssl_session_tickets off;
+        proxy_connect_timeout  60s;
+        proxy_timeout 10800s;
+        access_log /var/log/nginx/stream_access.log stream_detailed;
+        error_log /var/log/nginx/stream_error.log debug;
+        proxy_pass $backend;
+        proxy_socket_keepalive on;
+        proxy_ssl on;
+        proxy_ssl_certificate /teddycloud/certs/client/$mac_address/client.pem;
+        proxy_ssl_certificate_key /teddycloud/certs/client/$mac_address/private.pem;
+        proxy_ssl_verify off;
+        proxy_ssl_conf_command Options UnsafeLegacyRenegotiation;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_ciphers HIGH:!aNULL:!MD5@SECLEVEL=0;
+        proxy_ssl_session_reuse on;
     }
-    {% endif %}
 }
+{% endif %}
 """
 
 TEMPLATES = {

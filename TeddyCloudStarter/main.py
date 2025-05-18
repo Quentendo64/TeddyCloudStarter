@@ -104,12 +104,18 @@ def main():
     # Check for Docker prerequisites first
     check_docker_prerequisites()
 
+    # Import logger setup here to avoid circular import issues
+    from .utilities.logger import get_logger
+
     # Check if config exists
     config_exists = os.path.exists(DEFAULT_CONFIG_PATH)
 
     if config_exists:
         # If config exists, initialize the MainMenu and show it
         menu = MainMenu(LOCALES_DIR)
+
+        # Initialize logger with config_manager from menu
+        logger = get_logger(name=__name__,config_manager=menu.config_manager)
 
         # Set the language from config without showing selection
         if menu.config_manager.config.get("language"):
@@ -139,6 +145,9 @@ def main():
     else:
         # If no config, run the setup wizard
         wizard = SetupWizard(LOCALES_DIR)
+
+        # Initialize logger with config_manager from wizard
+        logger = get_logger(name=__name__,config_manager=wizard.config_manager)
 
         # Select language first
         wizard.select_language()

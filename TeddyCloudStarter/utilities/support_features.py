@@ -12,6 +12,7 @@ import zipfile
 from pathlib import Path
 
 from rich.console import Console
+from .logger import logger
 
 console = Console()
 
@@ -26,22 +27,16 @@ class SupportPackageCreator:
         config_manager=None,
         anonymize=False,
     ):
+        logger.debug(f"Initializing SupportPackageCreator with project_path={project_path}, anonymize={anonymize}")
         self.project_path = project_path or os.getcwd()
         self.docker_manager = docker_manager
         self.config_manager = config_manager
         self.temp_dir = None
         self.anonymize = anonymize
+        logger.info("SupportPackageCreator initialized.")
 
     def create_support_package(self, output_path=None):
-        """
-        Create a support package with relevant information for troubleshooting.
-
-        Args:
-            output_path: Path where the support package will be saved
-
-        Returns:
-            str: Path to the created support package file
-        """
+        logger.debug(f"Starting create_support_package with output_path={output_path}")
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"teddycloud_support_{timestamp}.zip"
 
@@ -51,6 +46,7 @@ class SupportPackageCreator:
             output_dir = Path(self.project_path)
 
         output_file = output_dir / filename
+        logger.debug(f"Output directory: {output_dir}, Output file: {output_file}")
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,20 +54,26 @@ class SupportPackageCreator:
             temp_dir_name = f"temp_support_{timestamp}"
             self.temp_dir = str(output_dir / temp_dir_name)
             os.makedirs(self.temp_dir, exist_ok=True)
+            logger.debug(f"Temporary directory created: {self.temp_dir}")
 
             self._collect_logs()
             self._collect_configs()
             self._collect_directory_tree()
 
             self._create_zip_archive(output_file)
+            logger.info(f"Support package created at {output_file}")
 
             return str(output_file)
+        except Exception as e:
+            logger.error(f"Error creating support package: {e}")
+            raise
         finally:
             if self.temp_dir and os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
+                logger.debug(f"Temporary directory removed: {self.temp_dir}")
 
     def _collect_logs(self):
-        """Collect log files from Docker services using docker-compose logs command."""
+        logger.debug("Collecting logs from Docker services.")
         log_dir = Path(self.temp_dir) / "logs"
         log_dir.mkdir(exist_ok=True)
 
@@ -118,10 +120,12 @@ class SupportPackageCreator:
                         console.print(
                             f"[green]Successfully collected logs for {service}[/]"
                         )
+                        logger.info(f"Logs collected for service: {service}")
 
                         if self.anonymize:
                             console.print(f"[cyan]Anonymizing logs for {service}...[/]")
                             self._anonymize_log_file(log_path)
+                            logger.debug(f"Logs anonymized for service: {service}")
                     else:
                         console.print(
                             f"[yellow]docker-compose logs failed for {service}, trying docker logs directly...[/]"
@@ -134,10 +138,11 @@ class SupportPackageCreator:
                 console.print(
                     f"[yellow]Warning: Could not collect logs for {service}: {e}[/]"
                 )
+                logger.error(f"Error collecting logs for service {service}: {e}")
                 self._fallback_to_docker_logs(service, log_dir)
 
     def _fallback_to_docker_logs(self, service, log_dir):
-        """Use docker logs command as a fallback method."""
+        logger.debug(f"Fallback to docker logs for service: {service}")
         try:
             log_path = log_dir / f"{service}.log"
             result = subprocess.run(
@@ -153,16 +158,19 @@ class SupportPackageCreator:
                         f"[cyan]Anonymizing logs for {service} (fallback method)...[/]"
                     )
                     self._anonymize_log_file(log_path)
+                    logger.debug(f"Logs anonymized for service {service} using fallback method")
             else:
                 with open(log_path, "w", encoding="utf-8") as log_file:
                     log_file.write(f"Error collecting logs: {result.stderr}")
+                logger.error(f"Error collecting logs for service {service}: {result.stderr}")
         except Exception as e:
             console.print(
                 f"[yellow]Warning: Could not collect logs for {service} using fallback method: {e}[/]"
             )
+            logger.error(f"Error collecting logs for service {service} using fallback method: {e}")
 
     def _collect_configs(self):
-        """Collect configuration files."""
+        logger.debug("Collecting configuration files.")
         config_dir = Path(self.temp_dir) / "configs"
         config_dir.mkdir(exist_ok=True)
 
@@ -174,12 +182,14 @@ class SupportPackageCreator:
             if self.anonymize:
                 console.print("[cyan]Anonymizing TeddyCloudStarter config.json...[/]")
                 self._anonymize_config_json(config_path)
+                logger.debug("TeddyCloudStarter config.json anonymized.")
         elif os.path.exists("config.json"):
             shutil.copy("config.json", config_dir / "config.json")
 
             if self.anonymize:
                 console.print("[cyan]Anonymizing copied config.json...[/]")
                 self._anonymize_config_json(config_dir / "config.json")
+                logger.debug("Copied config.json anonymized.")
 
         docker_compose_path = os.path.join(
             self.project_path, "data", "docker-compose.yml"
@@ -189,6 +199,7 @@ class SupportPackageCreator:
                 "[cyan]Including docker-compose.yml in support package...[/]"
             )
             shutil.copy(docker_compose_path, config_dir / "docker-compose.yml")
+            logger.info("docker-compose.yml included in support package.")
 
         nginx_config_dir = os.path.join(self.project_path, "data", "configurations")
         if os.path.exists(nginx_config_dir):
@@ -199,6 +210,7 @@ class SupportPackageCreator:
                         f"[cyan]Including {nginx_file} in support package...[/]"
                     )
                     shutil.copy(nginx_file_path, config_dir / nginx_file)
+                    logger.info(f"{nginx_file} included in support package.")
 
         try:
             teddycloud_container = "teddycloud-app"
@@ -225,6 +237,7 @@ class SupportPackageCreator:
                 console.print(
                     "[cyan]Found running teddycloud container, copying config files directly...[/]"
                 )
+                logger.info("Found running teddycloud container, copying config files directly.")
 
                 for file in files_to_extract:
                     try:
@@ -247,14 +260,17 @@ class SupportPackageCreator:
                             if self.anonymize and file == "config.ini":
                                 console.print("[cyan]Anonymizing config.ini...[/]")
                                 self._anonymize_config_ini(config_dir / file)
+                                logger.debug("config.ini anonymized.")
                     except Exception as e:
                         console.print(
                             f"[yellow]Could not copy {file} from container: {e}[/]"
                         )
+                        logger.error(f"Could not copy {file} from container: {e}")
             else:
                 console.print(
                     "[yellow]Teddycloud container not running, accessing volume directly...[/]"
                 )
+                logger.info("Teddycloud container not running, accessing volume directly.")
 
                 temp_container = "temp_support_config_access"
 
@@ -328,6 +344,7 @@ class SupportPackageCreator:
                             if self.anonymize and file == "config.ini":
                                 console.print("[cyan]Anonymizing config.ini...[/]")
                                 self._anonymize_config_ini(config_dir / file)
+                                logger.debug("config.ini anonymized.")
                     except Exception:
                         pass
 
@@ -337,9 +354,10 @@ class SupportPackageCreator:
             console.print(
                 f"[yellow]Warning: Could not collect TeddyCloud app config: {e}[/]"
             )
+            logger.error(f"Could not collect TeddyCloud app config: {e}")
 
     def _collect_directory_tree(self):
-        """Collect directory tree of the ./data folder."""
+        logger.debug("Collecting directory tree of the ./data folder.")
         data_dir = Path(self.project_path) / "data"
         tree_file = Path(self.temp_dir) / "directory_structure.txt"
 
@@ -365,16 +383,19 @@ class SupportPackageCreator:
                                 )
                             else:
                                 f.write(f"{sub_indent}{file}\n")
+                logger.info("Directory tree collected successfully.")
             except Exception as e:
                 console.print(
                     f"[yellow]Warning: Could not collect directory tree: {e}[/]"
                 )
+                logger.error(f"Could not collect directory tree: {e}")
         else:
             with open(tree_file, "w") as f:
                 f.write(f"Directory {data_dir} does not exist.\n")
+            logger.warning(f"Directory {data_dir} does not exist.")
 
     def _create_zip_archive(self, output_file):
-        """Create a zip archive from the collected files."""
+        logger.debug(f"Creating zip archive at {output_file}")
         try:
             volume_temp_path = os.path.join(self.temp_dir, "volume_temp")
 
@@ -390,22 +411,16 @@ class SupportPackageCreator:
 
             if os.path.exists(volume_temp_path):
                 shutil.rmtree(volume_temp_path)
+                logger.debug(f"Temporary volume path removed: {volume_temp_path}")
 
+            logger.info(f"Zip archive created successfully at {output_file}")
         except Exception as e:
             console.print(f"[bold red]Error creating zip archive: {e}[/]")
+            logger.error(f"Error creating zip archive: {e}")
             raise
 
     def _anonymize_text(self, text, patterns_and_replacements):
-        """
-        Anonymize sensitive information in text based on patterns.
-
-        Args:
-            text: The text content to anonymize
-            patterns_and_replacements: List of tuples with (regex_pattern, replacement)
-
-        Returns:
-            str: Anonymized text
-        """
+        logger.debug("Anonymizing text with provided patterns.")
         import re
 
         anonymized = text
@@ -415,12 +430,7 @@ class SupportPackageCreator:
         return anonymized
 
     def _anonymize_log_file(self, file_path):
-        """
-        Anonymize sensitive information in log files.
-
-        Args:
-            file_path: Path to the log file to anonymize
-        """
+        logger.debug(f"Anonymizing log file: {file_path}")
         try:
             patterns = [
                 (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "xxx.xxx.xxx.xxx"),
@@ -453,18 +463,15 @@ class SupportPackageCreator:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(anonymized_content)
 
+            logger.info(f"Log file anonymized: {file_path}")
         except Exception as e:
             console.print(
                 f"[yellow]Warning: Could not anonymize log file {file_path}: {e}[/]"
             )
+            logger.error(f"Could not anonymize log file {file_path}: {e}")
 
     def _anonymize_config_ini(self, file_path):
-        """
-        Anonymize sensitive information in config.ini files.
-
-        Args:
-            file_path: Path to the config.ini file to anonymize
-        """
+        logger.debug(f"Anonymizing config.ini file: {file_path}")
         try:
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
@@ -521,19 +528,15 @@ class SupportPackageCreator:
                 f.writelines(anonymized_lines)
 
             console.print("[green]Successfully anonymized config.ini file[/]")
-
+            logger.info(f"config.ini file anonymized: {file_path}")
         except Exception as e:
             console.print(
                 f"[yellow]Warning: Could not anonymize config.ini file {file_path}: {e}[/]"
             )
+            logger.error(f"Could not anonymize config.ini file {file_path}: {e}")
 
     def _anonymize_config_json(self, file_path):
-        """
-        Anonymize sensitive information in config.json files.
-
-        Args:
-            file_path: Path to the config.json file to anonymize
-        """
+        logger.debug(f"Anonymizing config.json file: {file_path}")
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
@@ -553,7 +556,9 @@ class SupportPackageCreator:
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
+            logger.info(f"config.json file anonymized: {file_path}")
         except Exception as e:
             console.print(
                 f"[yellow]Warning: Could not anonymize config.json file {file_path}: {e}[/]"
             )
+            logger.error(f"Could not anonymize config.json file {file_path}: {e}")

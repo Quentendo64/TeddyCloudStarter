@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import re
 from ..utilities.openssl_utils import der_to_pem_cert, der_to_pem_key, get_certificate_fingerprint
+from ..utilities.logger import logger
 
 
 def inject_tonies_custom_json(config_manager):
@@ -10,28 +11,38 @@ def inject_tonies_custom_json(config_manager):
     Logic to inject the tonies.custom.json file from ProjectPath/data/ to the config volume.
     Returns a dict with status and messages for the UI to handle.
     """
+    logger.debug("Starting injection of tonies.custom.json.")
     project_path = config_manager.config.get("environment", {}).get("path")
+    logger.debug(f"Project path from config: {project_path}")
     if not project_path:
+        logger.error("No project path set in config.")
         return {"status": "error", "message": "No project path set in config."}
 
     base_path = Path(project_path)
     source_file = base_path / "data" / "tonies.custom.json"
+    logger.debug(f"Source file path: {source_file}")
     if not source_file.exists():
+        logger.warning(f"tonies.custom.json file missing at {source_file}")
         return {"status": "missing_file", "source_file": str(source_file)}
 
     try:
+        logger.debug("Checking for running Docker containers.")
         result = subprocess.run([
             "docker", "ps", "--format", "{{.Names}}"
         ], check=True, capture_output=True, text=True)
         running_containers = [c for c in result.stdout.strip().split("\n") if c]
+        logger.debug(f"Running containers: {running_containers}")
         teddycloud_container = "teddycloud-app" if "teddycloud-app" in running_containers else None
+        logger.debug(f"Selected container: {teddycloud_container}")
     except Exception as e:
+        logger.error(f"Error checking running containers: {e}")
         running_containers = []
         teddycloud_container = None
 
     if not running_containers or not teddycloud_container:
         temp_container_name = "temp_teddycloud_file_injector"
         try:
+            logger.info(f"Creating temporary container: {temp_container_name}")
             subprocess.run([
                 "docker", "rm", "-f", temp_container_name
             ], check=False)
@@ -40,20 +51,28 @@ def inject_tonies_custom_json(config_manager):
             ], check=True)
             teddycloud_container = temp_container_name
             is_temp = True
-        except Exception:
+            logger.success(f"Temporary container {temp_container_name} created.")
+        except Exception as e:
+            logger.error(f"Failed to create temporary container: {e}")
             return {"status": "manual", "source_file": str(source_file)}
     else:
         is_temp = False
 
     target_path = "/config/tonies.custom.json" if is_temp else "/teddycloud/config/tonies.custom.json"
+    logger.debug(f"Target path in container: {target_path}")
     try:
+        logger.info(f"Copying {source_file} to {teddycloud_container}:{target_path}")
         subprocess.run([
             "docker", "cp", str(source_file), f"{teddycloud_container}:{target_path}"
         ], check=True)
         if is_temp:
+            logger.info(f"Removing temporary container: {teddycloud_container}")
             subprocess.run(["docker", "rm", "-f", teddycloud_container], check=True)
+            logger.success(f"Temporary container {teddycloud_container} removed.")
+        logger.success("tonies.custom.json injected successfully.")
         return {"status": "success", "is_temp": is_temp, "container": teddycloud_container}
     except Exception as e:
+        logger.error(f"Error injecting tonies.custom.json: {e}")
         return {"status": "error", "message": str(e)}
 
 
@@ -182,7 +201,77 @@ def extract_toniebox_information(config_manager):
                 temp_file.unlink(missing_ok=True)
             except Exception:
                 pass
-    # --- End per-box certificate extraction, conversion, and copy-back ---
+
+    # --- Convert root CA certificate and create CA chain ---
+    logger.info("Converting root CA certificate and creating CA chain")
+    temp_root_ca_der = Path(tempfile.gettempdir()) / "ca.der"
+    temp_root_ca_pem = Path(tempfile.gettempdir()) / "ca.pem"
+    root_ca_path_in_container = "/teddycloud/certs/client/ca.der"
+    
+    try:
+        # Download and convert the root CA certificate
+        subprocess.run([
+            "docker", "cp", f"teddycloud-app:{root_ca_path_in_container}", str(temp_root_ca_der)
+        ], check=True)
+        
+        # Convert root CA from DER to PEM
+        der_to_pem_cert(temp_root_ca_der, temp_root_ca_pem)
+        
+        # Upload the converted root CA.pem back to the container
+        subprocess.run([
+            "docker", "cp", str(temp_root_ca_pem), "teddycloud-app:/teddycloud/certs/client/ca.pem"
+        ], check=True)
+        
+        # Collect all unique ca.pem files
+        unique_ca_pems = {temp_root_ca_pem.read_bytes(): temp_root_ca_pem}  # Use file content as key to ensure uniqueness
+        temp_ca_chain_pem = Path(tempfile.gettempdir()) / "ca_chain.pem"
+        
+        # Collect all ca.pem files from MAC directories
+        for box in box_list:
+            mac_lower = box["macaddress"].lower()
+            temp_box_ca_pem = Path(tempfile.gettempdir()) / f"{mac_lower}_ca.pem"
+            
+            try:
+                # Copy ca.pem from toniebox directory
+                subprocess.run([
+                    "docker", "cp", f"teddycloud-app:/teddycloud/certs/client/{mac_lower}/ca.pem", str(temp_box_ca_pem)
+                ], check=True)
+                
+                # Add to unique collection if it doesn't exist yet
+                ca_content = temp_box_ca_pem.read_bytes()
+                if ca_content not in unique_ca_pems:
+                    unique_ca_pems[ca_content] = temp_box_ca_pem
+            except Exception:
+                logger.debug(f"No ca.pem found for {mac_lower} or other error")
+                continue
+        
+        # Combine all unique CA certificates into a chain file
+        with open(temp_ca_chain_pem, "wb") as chain_file:
+            for ca_content, ca_file in unique_ca_pems.items():
+                chain_file.write(ca_content)
+                chain_file.write(b"\n")  # Add newline between certificates
+        
+        # Upload the CA chain file back to the container
+        subprocess.run([
+            "docker", "cp", str(temp_ca_chain_pem), "teddycloud-app:/teddycloud/certs/client/ca_chain.pem"
+        ], check=True)
+        
+        logger.success("CA chain file created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create CA chain: {e}")
+    finally:
+        # Clean up temporary files
+        for file in [temp_root_ca_der, temp_root_ca_pem, temp_ca_chain_pem]:
+            try:
+                file.unlink(missing_ok=True)
+            except Exception:
+                pass
+        # Clean up any box-specific CA files
+        for box in box_list:
+            try:
+                (Path(tempfile.gettempdir()) / f"{box['macaddress'].lower()}_ca.pem").unlink(missing_ok=True)
+            except Exception:
+                pass
 
     # --- Begin server certificate extraction, conversion, copy-back, and renaming for nginx ---
     server_cert_path = "/teddycloud/certs/server/teddy-cert.pem"

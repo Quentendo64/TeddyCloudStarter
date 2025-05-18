@@ -8,6 +8,7 @@ import time
 from typing import Dict, Optional, Tuple
 
 from rich.console import Console
+from ..utilities.logger import logger
 
 console = Console()
 
@@ -19,26 +20,30 @@ class DockerManager:
         self.docker_available = False
         self.compose_cmd = None
         self.translator = translator
+        logger.debug("Initializing DockerManager instance.")
         self._check_docker()
 
     def _check_docker(self):
         """Check if Docker and Docker Compose are available."""
+        logger.debug("Checking Docker and Docker Compose availability.")
         try:
             subprocess.run(
                 ["docker", "--version"], check=True, capture_output=True, text=True
             )
-
+            logger.debug("Docker is available.")
             subprocess.run(
                 ["docker", "compose", "version"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-
+            logger.debug("Docker Compose is available.")
             self.compose_cmd = ["docker", "compose"]
             self.docker_available = True
-        except (subprocess.SubprocessError, FileNotFoundError):
+            logger.info("Docker and Docker Compose are available.")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
             self.docker_available = False
+            logger.error(f"Docker or Docker Compose not available: {e}")
 
     @staticmethod
     def check_docker_prerequisites() -> Tuple[bool, Dict[str, bool], Optional[str]]:
@@ -51,6 +56,7 @@ class DockerManager:
                 - Dict: Dictionary with keys 'docker' and 'docker_compose' showing individual availability
                 - str: Error message if prerequisites are not met, None otherwise
         """
+        logger.debug("Checking Docker prerequisites (static method).")
         prerequisites = {"docker": False, "docker_compose": False}
 
         error_message = None
@@ -60,8 +66,10 @@ class DockerManager:
                 ["docker", "--version"], check=True, capture_output=True, text=True
             )
             prerequisites["docker"] = True
-        except (subprocess.SubprocessError, FileNotFoundError):
+            logger.debug(f"Docker version output: {result.stdout.strip()}")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
             prerequisites["docker"] = False
+            logger.warning(f"Docker not available: {e}")
 
         try:
             result = subprocess.run(
@@ -71,7 +79,9 @@ class DockerManager:
                 text=True,
             )
             prerequisites["docker_compose"] = True
-        except (subprocess.SubprocessError, FileNotFoundError):
+            logger.debug(f"Docker Compose version output: {result.stdout.strip()}")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.debug(f"docker compose not found, trying docker-compose: {e}")
             try:
                 result = subprocess.run(
                     ["docker-compose", "--version"],
@@ -80,8 +90,10 @@ class DockerManager:
                     text=True,
                 )
                 prerequisites["docker_compose"] = True
-            except (subprocess.SubprocessError, FileNotFoundError):
+                logger.debug(f"docker-compose version output: {result.stdout.strip()}")
+            except (subprocess.SubprocessError, FileNotFoundError) as e2:
                 prerequisites["docker_compose"] = False
+                logger.warning(f"Docker Compose not available: {e2}")
 
         all_met = all(prerequisites.values())
 
@@ -97,6 +109,7 @@ class DockerManager:
                 error_message = (
                     f"Missing required components: {', '.join(missing_components)}. "
                 )
+                logger.error(error_message)
 
                 if os.name == "nt":
                     error_message += "Please install Docker Desktop for Windows from https://www.docker.com/products/docker-desktop"
@@ -119,6 +132,7 @@ class DockerManager:
                 else:
                     error_message += "Please follow the official Docker installation guide for your operating system: https://docs.docker.com/get-docker/"
 
+        logger.info(f"Docker prerequisites check result: {prerequisites}, error: {error_message}")
         return all_met, prerequisites, error_message
 
     def is_available(self):

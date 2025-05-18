@@ -13,6 +13,7 @@ from typing import Any, Dict
 from rich.console import Console
 
 from . import __version__
+from .utilities.logger import logger
 
 console = Console()
 
@@ -25,9 +26,11 @@ class ConfigManager:
     """Manages the configuration for TeddyCloudStarter."""
 
     def __init__(self, config_path=DEFAULT_CONFIG_PATH, translator=None):
+        logger.debug(f"Initializing ConfigManager with config_path={config_path}, translator={translator}")
         self.config_path = config_path
         self.translator = translator
         self.config = self._load_config()
+        logger.info("ConfigManager initialized.")
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file or return defaults.
@@ -35,12 +38,16 @@ class ConfigManager:
         Returns:
             Dict[str, Any]: The configuration dictionary
         """
+        logger.debug(f"Loading configuration from {self.config_path}")
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r") as f:
-                    return json.load(f)
+                    config = json.load(f)
+                    logger.info(f"Configuration loaded from {self.config_path}")
+                    return config
             except json.JSONDecodeError:
                 error_msg = "Error loading config file. Using defaults."
+                logger.error(error_msg)
                 if self.translator:
                     error_msg = self.translator.get(error_msg)
                 console.print(f"[bold red]{error_msg}[/]")
@@ -49,7 +56,8 @@ class ConfigManager:
             os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or "unknown"
         )
         current_user = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
-        return {
+        logger.debug(f"Using hostname={hostname}, current_user={current_user} for default config.")
+        default_config = {
             "version": __version__,
             "last_modified": datetime.datetime.now().isoformat(),
             "user_info": {
@@ -70,17 +78,22 @@ class ConfigManager:
             },
             "language": "en",
         }
+        logger.info("Default configuration loaded.")
+        return default_config
 
     def save(self):
         """Save current configuration to file."""
+        logger.debug(f"Saving configuration to {self.config_path}")
         self.config["version"] = __version__
         self.config["last_modified"] = datetime.datetime.now().isoformat()
         if "metadata" not in self.config:
+            logger.debug("Adding default metadata to config.")
             self.config["metadata"] = {
                 "config_version": "1.0",
                 "description": "TeddyCloudStarter configuration",
             }
         if "environment" not in self.config:
+            logger.debug("Adding default environment to config.")
             hostname = (
                 os.environ.get("COMPUTERNAME")
                 or os.environ.get("HOSTNAME")
@@ -92,57 +105,60 @@ class ConfigManager:
                 "creation_date": datetime.datetime.now().isoformat(),
             }
         if "user_info" not in self.config:
+            logger.debug("Adding default user_info to config.")
             current_user = (
                 os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
             )
             self.config["user_info"] = {"modified_by": current_user}
         if "app_settings" not in self.config:
+            logger.debug("Adding default app_settings to config.")
             self.config["app_settings"] = {
-                "log_level": "info",
+                "log_level": "critical",
+                "log_console": True,
                 "log_path": "",
                 "auto_update": True,
             }
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         with open(self.config_path, "w") as f:
             json.dump(self.config, f, indent=2)
-
+        logger.info(f"Configuration saved to {self.config_path}")
         save_msg = f"Configuration saved to {self.config_path}"
         if self.translator:
             save_msg = self.translator.get(save_msg)
         console.print(f"[bold green]{save_msg}[/]")
+        self.config = self._load_config()
 
     def backup(self):
         """Create a backup of the current configuration."""
+        logger.debug(f"Creating backup for configuration at {self.config_path}")
         if os.path.exists(self.config_path):
-            # Create backup filename with timestamp
-            backup_filename = f"config.json.backup.{int(time.time())}"
-
-            # Use the same directory as the config file for the backup
             backup_path = f"{self.config_path}.backup.{int(time.time())}"
-
-            # Copy the configuration file to the backup location
             shutil.copy2(self.config_path, backup_path)
-
+            logger.info(f"Backup created at {backup_path}")
             backup_msg = f"Backup created at {backup_path}"
             if self.translator:
                 backup_msg = self.translator.get("Backup created at {path}").format(
                     path=backup_path
                 )
             console.print(f"[bold green]{backup_msg}[/]")
+        else:
+            logger.warning(f"No configuration file found at {self.config_path} to backup.")
 
     def delete(self):
         """Delete the configuration file."""
+        logger.debug(f"Deleting configuration file at {self.config_path}")
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
-
+            logger.info(f"Configuration file {self.config_path} deleted")
             delete_msg = f"Configuration file {self.config_path} deleted"
             if self.translator:
                 delete_msg = self.translator.get(
                     "Configuration file {path} deleted"
                 ).format(path=self.config_path)
             console.print(f"[bold red]{delete_msg}[/]")
-
             self.config = self._load_config()
+        else:
+            logger.warning(f"No configuration file found at {self.config_path} to delete.")
 
     @staticmethod
     def get_auto_update_setting(config_path=DEFAULT_CONFIG_PATH):
@@ -155,20 +171,23 @@ class ConfigManager:
         Returns:
             bool: True if auto_update is enabled, False otherwise
         """
+        logger.debug(f"Getting auto_update setting from {config_path}")
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r") as f:
                     config = json.load(f)
-                    # Check if app_settings and auto_update setting exist
+                    logger.debug("Configuration file loaded for auto_update setting.")
                     if (
                         "app_settings" in config
                         and "auto_update" in config["app_settings"]
                     ):
+                        logger.info(f"auto_update setting found: {config['app_settings']['auto_update']}")
                         return config["app_settings"]["auto_update"]
-            except (json.JSONDecodeError, KeyError):
-                pass
-
-        # Default to False if config file doesn't exist or doesn't have the setting
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.error(f"Error reading auto_update setting: {e}")
+        else:
+            logger.warning(f"No configuration file found at {config_path} for auto_update setting.")
+        logger.info("auto_update setting not found, returning False.")
         return False
 
     def toggle_auto_update(self):
@@ -178,19 +197,21 @@ class ConfigManager:
         Returns:
             bool: The new auto_update setting value
         """
-        # Ensure app_settings section exists
+        logger.debug("Toggling auto_update setting.")
         if "app_settings" not in self.config:
+            logger.debug("app_settings not found in config, adding default.")
             self.config["app_settings"] = {
                 "log_level": "info",
                 "log_path": "",
                 "auto_update": False,
             }
         elif "auto_update" not in self.config["app_settings"]:
+            logger.debug("auto_update not found in app_settings, setting to False.")
             self.config["app_settings"]["auto_update"] = False
 
-        # Toggle the setting
         current_value = self.config["app_settings"]["auto_update"]
         new_value = not current_value
+        logger.info(f"Changing auto_update from {current_value} to {new_value}")
         self.config["app_settings"]["auto_update"] = new_value
 
         # Save the configuration
@@ -203,17 +224,20 @@ class ConfigManager:
             else:
                 toggle_msg = self.translator.get("Auto-update disabled")
         console.print(f"[bold {'green' if new_value else 'yellow'}]{toggle_msg}[/]")
+        logger.info(f"Auto-update toggled. New value: {new_value}")
 
         return new_value
 
     def reset_config(self):
         """Reset the configuration to default values."""
+        logger.debug("Resetting configuration to default values.")
         self.config = self._load_config()
 
         reset_msg = "Configuration reset to defaults"
         if self.translator:
             reset_msg = self.translator.get(reset_msg)
         console.print(f"[bold yellow]{reset_msg}[/]")
+        logger.info("Configuration reset to defaults.")
 
         return True
 
@@ -227,11 +251,13 @@ class ConfigManager:
         Returns:
             bool: True if successful, False otherwise
         """
+        logger.debug(f"Invalidating client certificate with serial {cert_serial}")
         if (
             "security" not in self.config
             or "client_certificates" not in self.config["security"]
         ):
             error_msg = "No client certificates found in configuration."
+            logger.error(error_msg)
             if self.translator:
                 error_msg = self.translator.get(error_msg)
             console.print(f"[bold red]{error_msg}[/]")
@@ -249,6 +275,7 @@ class ConfigManager:
                     already_revoked_msg = (
                         f"Certificate with serial {cert_serial} is already revoked."
                     )
+                    logger.warning(already_revoked_msg)
                     if self.translator:
                         already_revoked_msg = self.translator.get(
                             "Certificate with serial {serial} is already revoked."
@@ -266,6 +293,7 @@ class ConfigManager:
                         if not success:
                             # If actual revocation fails, still mark as revoked in config
                             error_msg = "Certificate revocation process failed, but certificate will be marked as revoked in configuration."
+                            logger.error(error_msg)
                             if self.translator:
                                 error_msg = self.translator.get(error_msg)
                             console.print(f"[bold yellow]{error_msg}[/]")
@@ -278,6 +306,7 @@ class ConfigManager:
                 self.save()
 
                 success_msg = f"Certificate with serial {cert_serial} has been invalidated in configuration."
+                logger.info(success_msg)
                 if self.translator:
                     success_msg = self.translator.get(
                         "Certificate with serial {serial} has been invalidated in configuration."
@@ -290,6 +319,7 @@ class ConfigManager:
             not_found_msg = (
                 f"Certificate with serial {cert_serial} not found in configuration."
             )
+            logger.error(not_found_msg)
             if self.translator:
                 not_found_msg = self.translator.get(
                     "Certificate with serial {serial} not found in configuration."

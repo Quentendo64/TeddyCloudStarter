@@ -31,6 +31,7 @@ from ..ui.nginx_mode_ui import (
 from ..utilities.network import check_domain_resolvable, check_port_available
 from ..utilities.validation import ConfigValidator
 from ..wizard.ui_helpers import console, custom_style
+from ..utilities.logger import logger
 from .letsencrypt_helper import (
     check_domain_suitable_for_letsencrypt,
     handle_letsencrypt_setup,
@@ -282,6 +283,7 @@ def configure_nginx_mode(config, translator, security_managers):
     Returns:
         dict: The updated configuration dictionary
     """
+    logger.info("Starting Nginx mode configuration.")
     lets_encrypt_manager = security_managers.get("lets_encrypt_manager")
     ca_manager = security_managers.get("ca_manager")
     client_cert_manager = security_managers.get("client_cert_manager")
@@ -294,27 +296,31 @@ def configure_nginx_mode(config, translator, security_managers):
             "nginx_type": "standard",
             "security": {"type": "", "allowed_ips": [], "auth_bypass_ips": []},
         }
+        logger.debug("Initialized nginx config: %s", config["nginx"])
 
     nginx_config = config["nginx"]
     project_path = config.get("environment", {}).get("path", "")
     if not project_path:
+        logger.warning("Project path not set. Using current directory.")
         console.print(
             f"[bold red]{translator.get('Warning')}: {translator.get('Project path not set. Using current directory.')}[/]"
         )
         exit
 
-
     nginx_config["nginx_type"] = prompt_nginx_type(translator)
+    logger.debug(f"Selected nginx_type: {nginx_config['nginx_type']}")
 
     # Check for required ports
     ports_available, warnings = check_port_prerequisites()
 
     for warning in warnings:
+        logger.warning(warning)
         console.print(
             f"[bold yellow]{translator.get('Warning')}: {translator.get(warning)}[/]"
         )
 
     if not ports_available and not confirm_continue_anyway(translator):
+        logger.error("Required ports are in use and user chose not to proceed. Exiting setup.")
         import sys
 
         console.print(
@@ -326,8 +332,10 @@ def configure_nginx_mode(config, translator, security_managers):
     if not nginx_config["domain"]:
         domain = prompt_for_domain("", translator)
         nginx_config["domain"] = domain
+        logger.info(f"Domain set to: {domain}")
     else:
         domain = nginx_config["domain"]
+        logger.info(f"Using existing domain: {domain}")
 
     # Configure HTTPS mode
     if nginx_config.get("https_mode") in [
@@ -384,10 +392,12 @@ def configure_nginx_mode(config, translator, security_managers):
                     "self_signed"  # Set default to one that exists in the choices
                 )
 
+            logger.debug(f"Prompting for HTTPS mode. Domain resolvable: {domain_resolvable}")
             https_mode_id = prompt_for_https_mode(
                 https_choices, default_choice, translator
             )
             nginx_config["https_mode"] = https_mode_id
+            logger.info(f"HTTPS mode set to: {https_mode_id}")
 
             # --- NEW LETS ENCRYPT FLOW ---
             if nginx_config["https_mode"] == "letsencrypt":
@@ -406,6 +416,7 @@ def configure_nginx_mode(config, translator, security_managers):
                 generate_nginx_configs(config, translator, TEMPLATES)
                 # Create a staging certificate
                 docker_manager = DockerManager(translator=translator)
+                logger.info("Selected Let's Encrypt mode. Generating configs and requesting certificates.")
                 staging_success = (
                     lets_encrypt_manager.create_letsencrypt_certificate_webroot(
                         domain=domain,
@@ -418,6 +429,7 @@ def configure_nginx_mode(config, translator, security_managers):
                     )
                 )
                 if staging_success:
+                    logger.success("Staging Let's Encrypt certificate created successfully.")
                     # If success, create a production certificate
                     prod_success = (
                         lets_encrypt_manager.create_letsencrypt_certificate_webroot(
@@ -431,11 +443,13 @@ def configure_nginx_mode(config, translator, security_managers):
                         )
                     )
                     if prod_success:
+                        logger.success("Production Let's Encrypt certificate created successfully.")
                         console.print(
                             f"[bold green]{translator.get('Production Let\'s Encrypt certificate successfully created!')}[/]"
                         )
                         break
                     else:
+                        logger.error("Failed to create production certificate. Offering self-signed fallback.")
                         console.print(
                             f"[bold red]{translator.get('Failed to create production certificate. Offering self-signed fallback.')}[/]"
                         )
@@ -452,6 +466,7 @@ def configure_nginx_mode(config, translator, security_managers):
                         else:
                             break
                 else:
+                    logger.error("Failed to create staging certificate. Offering self-signed fallback.")
                     console.print(
                         f"[bold red]{translator.get('Failed to create staging certificate. Offering self-signed fallback.')}[/]"
                     )
@@ -471,11 +486,13 @@ def configure_nginx_mode(config, translator, security_managers):
 
             # Handle self-signed certificates
             if nginx_config["https_mode"] == "self_signed":
+                logger.info("Selected self-signed certificate mode.")
                 success, result_mode = handle_self_signed_certificates(
                     domain, translator, ca_manager, project_path
                 )
 
                 if not success:
+                    logger.warning(f"Self-signed certificate generation failed. Fallback mode: {result_mode}")
                     if result_mode == "retry":
                         continue  # Try again with self-signed
                     else:
@@ -486,6 +503,7 @@ def configure_nginx_mode(config, translator, security_managers):
 
             break
 
+    logger.success("Nginx mode configuration complete.")
     configure_security(nginx_config, translator, security_managers, project_path)
 
     return config

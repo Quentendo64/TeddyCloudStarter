@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from .certificate_authority import CertificateAuthority
+from ..utilities.logger import logger
 
 # Re-export console to ensure compatibility
 console = Console()
@@ -32,6 +33,7 @@ class ClientCertificateManager:
             base_dir: The base directory for certificate operations. If None, use project path from config.
             translator: The translator instance for localization
         """
+        logger.debug("Initializing ClientCertificateManager instance.")
         # Store for later use
         self.base_dir_param = base_dir
         self.translator = translator
@@ -55,12 +57,14 @@ class ClientCertificateManager:
 
     def _ensure_directories(self):
         """Lazily initialize directories only when needed"""
+        logger.debug("Ensuring client certificate directories exist.")
         if self.client_certs_dir is not None:
-            # Already initialized
+            logger.debug("Client certificate directories already initialized.")
             return
 
         # Now get the base directory
         if self.base_dir is None:
+            logger.info("Base directory not set. Attempting to get from config manager.")
             # Try to get project path from config
             from ..config_manager import ConfigManager
 
@@ -71,18 +75,21 @@ class ClientCertificateManager:
                     project_path = config_manager.config.get("environment", {}).get(
                         "path"
                     )
-            except Exception:
-                pass
+                    logger.debug(f"Project path from config: {project_path}")
+            except Exception as e:
+                logger.warning(f"Failed to get project path from config: {e}")
 
             if project_path:
+                logger.info(f"Using project path for base_dir: {project_path}")
                 self.base_dir = Path(project_path)
             else:
-                # Log an error if no project path is found
+                logger.warning("No project path found. Using current directory as fallback.")
                 console.print(
                     "[bold red]Warning: No project path found for certificate operations. Using current directory as fallback.[/]"
                 )
                 self.base_dir = Path.cwd()
                 if self.translator:
+                    logger.info("Translator available. Printing warning about project path.")
                     console.print(
                         f"[yellow]{self.translator.get('Please set a project path to ensure certificates are stored in the correct location.')}[/]"
                     )
@@ -101,8 +108,9 @@ class ClientCertificateManager:
             self.clients_dir.mkdir(parents=True, exist_ok=True)
             self.server_dir.mkdir(parents=True, exist_ok=True)
             self.crl_dir.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"Created/verified directories: {self.client_certs_dir}, {self.ca_dir}, {self.clients_dir}, {self.server_dir}, {self.crl_dir}")
         except Exception as e:
-            console.print(f"[bold red]Error creating certificate directories: {e}[/]")
+            logger.error(f"Error creating certificate directories: {e}")
             # In case of error, try with absolute paths
             try:
                 Path(str(self.client_certs_dir)).mkdir(parents=True, exist_ok=True)
@@ -110,13 +118,16 @@ class ClientCertificateManager:
                 Path(str(self.clients_dir)).mkdir(parents=True, exist_ok=True)
                 Path(str(self.server_dir)).mkdir(parents=True, exist_ok=True)
                 Path(str(self.crl_dir)).mkdir(parents=True, exist_ok=True)
+                logger.debug("Fallback directory creation succeeded.")
             except Exception as e2:
+                logger.critical(f"Failed to create certificate directories: {e2}")
                 console.print(
                     f"[bold red]Failed to create certificate directories: {e2}[/]"
                 )
 
         # Update the CA manager base_dir if it doesn't match
         if self.ca_manager.base_dir != self.base_dir:
+            logger.debug(f"Updating CA manager base_dir from {self.ca_manager.base_dir} to {self.base_dir}")
             self.ca_manager.base_dir = self.base_dir
 
     def _translate(self, text):
