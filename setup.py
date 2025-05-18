@@ -48,6 +48,7 @@ setup(
         "questionary>=2.1.0",
         "jinja2>=3.1.6",
         "dnspython>=2.7.0",
+        "packaging>=25.0.0"
     ],
     entry_points={
         "console_scripts": [
