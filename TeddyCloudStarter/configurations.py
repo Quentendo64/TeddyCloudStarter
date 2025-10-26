@@ -102,6 +102,7 @@ services:
       - custom_img:/teddycloud/data/library/custom_img
       - firmware:/teddycloud/data/firmware
       - cache:/teddycloud/data/cache
+      - plugins:/teddycloud/data/www/plugins
     {%- if mode == "direct" %}
     ports:
       {%- if admin_http %}
@@ -145,6 +146,7 @@ volumes:
   custom_img:
   firmware:
   cache:
+  plugins:
   {%- if mode == "nginx" %}
   {%- if https_mode == "letsencrypt" %}
   certbot_conf:
